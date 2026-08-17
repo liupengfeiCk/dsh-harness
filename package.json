@@ -1,0 +1,105 @@
+{
+  "name": "dsh-harness-agent-preset-editing-bundle",
+  "description": "The Harness-owned agent-preset editing bundle: an installable patch layer that disables the official main-preset settings row and mounts the enhanced surface (structured editor over a locally authored preset's editable fields) plus the dedicated editing wire channel. Self-contained: the preset-edit mechanism and the browser editing surface ship inside this single package.",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./edit": {
+      "types": "./lib/types/edit/index.d.ts",
+      "default": "./lib/types/edit/index.js"
+    },
+    "./edit/wire": {
+      "types": "./lib/types/edit/wire/index.d.ts",
+      "default": "./lib/types/edit/wire/index.js"
+    },
+    "./ui/client": {
+      "types": "./lib/types/ui/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/client.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts",
+    "cordis.patch.yml"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.1-rc.4",
+    "@deepseek-ai/cordis-plugin-include": "1.0.6-rc.4",
+    "@deepseek-ai/dsh-agent-presets": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-api-remotes": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-atomic-write": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-connection": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-locale": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-runtime": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-web-react": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-host-apiproxy": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-invariants": "0.1.0-rc.7",
+    "react": "^18.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-agent-presets": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.1-rc.4",
+    "@deepseek-ai/cordis-plugin-include": "1.0.6-rc.4",
+    "@deepseek-ai/dsh-agent-presets": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-api-remotes": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-atomic-write": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-connection": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-locale": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-runtime": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-test-runtime": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-web-react": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-host-apiproxy": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-invariants": "0.1.0-rc.7",
+    "@types/js-yaml": "^4.0.9",
+    "@types/react": "~18.3.1",
+    "react": "^18.2.0"
+  }
+}
