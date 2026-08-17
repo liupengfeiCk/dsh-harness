@@ -209,7 +209,7 @@ describe('discoverToolPackages', () => {
       // No manifest at all: still lists by name, without prose.
       mkdirSync(join(scope, 'dsh-not-a-tool'), { recursive: true })
 
-      expect(discoverToolPackages(root)).toEqual([
+      expect(discoverToolPackages([root])).toEqual([
         { name: '@deepseek-ai/dsh-tool-bare' },
         { name: '@deepseek-ai/dsh-tool-fake', description: 'A fake tool.' },
       ])
@@ -221,7 +221,7 @@ describe('discoverToolPackages', () => {
   it('answers an empty list where no scope directory exists', () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-tool-scan-empty-'))
     try {
-      expect(discoverToolPackages(root)).toEqual([])
+      expect(discoverToolPackages([root])).toEqual([])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

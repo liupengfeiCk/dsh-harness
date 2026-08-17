@@ -156,24 +156,29 @@ export interface AvailableToolPackage {
     readonly description?: string;
 }
 /**
- * Enumerate the `@deepseek-ai/dsh-tool-*` packages resolvable from this
- * package's install location, walking every `node_modules/@deepseek-ai`
- * scope directory from here up to the filesystem root.
+ * Enumerate the `@deepseek-ai/dsh-tool-*` packages installed in the trees
+ * this runtime can actually resolve from.
  *
- * This is the runtime truth the available-tools catalog is built from: a
- * package a preset row can reference is a package the loader could resolve,
- * which is exactly a package installed beside this one. The scan is
- * deliberately UNcached — `dsh plugin add` lands a new package while the
- * process runs, and the catalog must offer it on the next read.
+ * Two install trees matter, and they are usually DIFFERENT directories: the
+ * profile tree (where `dsh plugin add` lands user-added packages — this
+ * module's own location) and the CLI tree (where the official bundles and
+ * the tool packages they ship live — the process entry's location). A
+ * package a preset row can reference may come from either, so both trees are
+ * walked, every `node_modules/@deepseek-ai` scope directory from each start
+ * point up to the filesystem root.
+ *
+ * The scan is deliberately UNcached — `dsh plugin add` lands a new package
+ * while the process runs, and the catalog must offer it on the next read.
  *
  * A package whose manifest cannot be read (half-installed, unparsed) is
  * skipped rather than failing the whole enumeration; one without a
  * description still lists by name.
- * @param startDir - the directory the upward scan starts from (defaults to
- * this module's own install location; injectable for tests).
+ * @param startDirs - the directories the upward scans start from (defaults
+ * to this module's own install location plus the process entry's location;
+ * injectable for tests).
  * @returns every discoverable tool package, first-hit-wins per name.
  */
-export declare function discoverToolPackages(startDir?: string): readonly AvailableToolPackage[];
+export declare function discoverToolPackages(startDirs?: readonly string[]): readonly AvailableToolPackage[];
 /**
  * The editable fields one composition currently publishes.
  *

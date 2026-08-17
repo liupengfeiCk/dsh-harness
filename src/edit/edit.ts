@@ -501,56 +501,67 @@ export interface AvailableToolPackage {
 }
 
 /**
- * Enumerate the `@deepseek-ai/dsh-tool-*` packages resolvable from this
- * package's install location, walking every `node_modules/@deepseek-ai`
- * scope directory from here up to the filesystem root.
+ * Enumerate the `@deepseek-ai/dsh-tool-*` packages installed in the trees
+ * this runtime can actually resolve from.
  *
- * This is the runtime truth the available-tools catalog is built from: a
- * package a preset row can reference is a package the loader could resolve,
- * which is exactly a package installed beside this one. The scan is
- * deliberately UNcached — `dsh plugin add` lands a new package while the
- * process runs, and the catalog must offer it on the next read.
+ * Two install trees matter, and they are usually DIFFERENT directories: the
+ * profile tree (where `dsh plugin add` lands user-added packages — this
+ * module's own location) and the CLI tree (where the official bundles and
+ * the tool packages they ship live — the process entry's location). A
+ * package a preset row can reference may come from either, so both trees are
+ * walked, every `node_modules/@deepseek-ai` scope directory from each start
+ * point up to the filesystem root.
+ *
+ * The scan is deliberately UNcached — `dsh plugin add` lands a new package
+ * while the process runs, and the catalog must offer it on the next read.
  *
  * A package whose manifest cannot be read (half-installed, unparsed) is
  * skipped rather than failing the whole enumeration; one without a
  * description still lists by name.
- * @param startDir - the directory the upward scan starts from (defaults to
- * this module's own install location; injectable for tests).
+ * @param startDirs - the directories the upward scans start from (defaults
+ * to this module's own install location plus the process entry's location;
+ * injectable for tests).
  * @returns every discoverable tool package, first-hit-wins per name.
  */
-export function discoverToolPackages(startDir: string = import.meta.dirname): readonly AvailableToolPackage[] {
+export function discoverToolPackages(
+  startDirs?: readonly string[],
+): readonly AvailableToolPackage[] {
+  const starts = startDirs ?? [import.meta.dirname, ...typeof process.argv[1] === 'string' ? [dirname(process.argv[1])] : []]
   const found = new Map<string, AvailableToolPackage>()
-  let dir = startDir
-  for (;;) {
-    const scopeDir = join(dir, 'node_modules', '@deepseek-ai')
-    let entries: Dirent[] = []
-    try {
-      entries = readdirSync(scopeDir, { withFileTypes: true })
-    } catch {
-      // No scope directory at this level; keep walking up.
-    }
-    for (const entry of entries) {
-      // pnpm links workspace packages as symlinks; both shapes count.
-      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
-      if (!entry.name.startsWith('dsh-tool-')) continue
-      const name = `@deepseek-ai/${entry.name}`
-      if (found.has(name)) continue
-      let description: string | undefined
+  const scanFrom = (startDir: string): void => {
+    let dir = startDir
+    for (;;) {
+      const scopeDir = join(dir, 'node_modules', '@deepseek-ai')
+      let entries: Dirent[] = []
       try {
-        const manifest: unknown = JSON.parse(readFileSync(join(scopeDir, entry.name, 'package.json'), 'utf8'))
-        if (typeof manifest === 'object' && manifest !== null) {
-          const value = (manifest as { description?: unknown }).description
-          if (typeof value === 'string' && value !== '') description = value
-        }
+        entries = readdirSync(scopeDir, { withFileTypes: true })
       } catch {
-        // A package without a readable manifest still installs by name.
+        // No scope directory at this level; keep walking up.
       }
-      found.set(name, description === undefined ? { name } : { name, description })
+      for (const entry of entries) {
+        // pnpm links workspace packages as symlinks; both shapes count.
+        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
+        if (!entry.name.startsWith('dsh-tool-')) continue
+        const name = `@deepseek-ai/${entry.name}`
+        if (found.has(name)) continue
+        let description: string | undefined
+        try {
+          const manifest: unknown = JSON.parse(readFileSync(join(scopeDir, entry.name, 'package.json'), 'utf8'))
+          if (typeof manifest === 'object' && manifest !== null) {
+            const value = (manifest as { description?: unknown }).description
+            if (typeof value === 'string' && value !== '') description = value
+          }
+        } catch {
+          // A package without a readable manifest still installs by name.
+        }
+        found.set(name, description === undefined ? { name } : { name, description })
+      }
+      const parent = dirname(dir)
+      if (parent === dir) break
+      dir = parent
     }
-    const parent = dirname(dir)
-    if (parent === dir) break
-    dir = parent
   }
+  for (const start of starts) scanFrom(start)
   return [...found.values()]
 }
 
