@@ -1,0 +1,6 @@
+# A subagent carrying its own model override: dispatching it must route the
+# child's requests to the override's provider/model instead of the parent's.
+enabled: true
+model:
+  provider: mock
+  model: override-model

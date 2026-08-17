@@ -1,0 +1,7 @@
+# A user-defined subagent with a model override. Its plugin tree is minimal
+# (one helper tool) so the model-routing test can tell it apart from the
+# parent composition; the model override is what this fixture exists to carry.
+- id: only
+  name: ../../plugins/preset-tool.js
+  config:
+    tool: helper_only

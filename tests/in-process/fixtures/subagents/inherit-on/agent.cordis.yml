@@ -1,0 +1,8 @@
+# A user-defined subagent with `inheritParent: true` (see subagent.yml): its
+# own tree carries the same helper tool the `helper` fixture uses, so a test
+# can assert that with inheritance on the child sees BOTH the parent's tool and
+# this one, while with the default off it sees only this one.
+- id: only
+  name: ../../plugins/preset-tool.js
+  config:
+    tool: helper_only

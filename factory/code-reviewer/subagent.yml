@@ -1,0 +1,2 @@
+description: A read-only code-review helper restricted to inspection tools. Usable as a delegated subagent.
+enabled: true

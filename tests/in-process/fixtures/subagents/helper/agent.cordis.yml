@@ -1,0 +1,7 @@
+# A user-defined subagent: a helper composition mounted onto a child's own
+# scope in addition to the parent composition it inherits. Its tool is distinct
+# from the parent presets' so a test can tell the two compositions apart.
+- id: only
+  name: ../../plugins/preset-tool.js
+  config:
+    tool: helper_only

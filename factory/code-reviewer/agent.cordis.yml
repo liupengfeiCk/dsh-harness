@@ -1,0 +1,38 @@
+# The `code-reviewer` user-defined subagent: a read-only helper that reviews
+# code without mutating anything.
+#
+# This is the same plugin tree an agent preset is. When a delegation tool names
+# it through its `template` parameter, the child's creation window mounts this
+# tree onto the child's own scope (in addition to the parent composition the
+# child inherits), so the child sees only the review persona and the
+# inspection tools listed here.
+#
+# A subagent never carries delegation ATTRIBUTES (provider, maxDepth,
+# background mode) — those stay on the delegation tool instance and the model
+# call.
+
+# ── identity ────────────────────────────────────────────────────────────────
+
+# The child's review persona, shadowing the deployment persona for this child.
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: >-
+      You are a senior code reviewer. Read the changes, identify correctness,
+      security, and maintainability issues, and report concrete findings with
+      file/line references. Do not modify any files — your job is review only.
+
+# ── read-only inspection tools ──────────────────────────────────────────────
+
+# `read` reads a file with line numbers; `glob`/`grep` (from
+# `dsh-tool-fs-search`) locate files and search their contents; `ask_user_question`
+# lets the reviewer clarify a genuine ambiguity. No write/edit/run tool is
+# present, so the child physically cannot mutate the workspace.
+- id: tool-read
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+
+- id: tool-ask
+  name: '@deepseek-ai/dsh-tool-ask-user'
