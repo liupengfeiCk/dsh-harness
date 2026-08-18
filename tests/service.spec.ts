@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context, Service } from '@deepseek-ai/cordis'
+import { Context, Service, getTraceable, symbols } from '@deepseek-ai/cordis'
 import { HarnessHot, harnessHotConfigSchema, type HarnessHotConfig } from '../src/service.ts'
 import type { HotMountRecord } from '../src/hot.ts'
 
@@ -59,5 +59,30 @@ describe('HarnessHot autoMount', () => {
     service.failing.add('stale')
     await service[Service.init]()
     expect(service.mounted).toEqual(['alpha', 'beta'])
+  })
+})
+
+describe('hostCtx shadow stripping', () => {
+  it('strips the cordis shadow the wire wraps the service in', () => {
+    // `HarnessHot.hostCtx()` returns `getTraceable(this.ctx, this.ctx)`; the
+    // wire's traceable method call swaps the service onto a shadow context
+    // (`ctx.extend({ [shadow]: origin })`), which would otherwise propagate
+    // into the Include subtree and break service inject on a hot re-mount.
+    // This test pins the exact stripping behaviour that hostCtx relies on.
+    const root = new Context()
+    const origin = root.extend()
+    const shadowed = origin.extend({ [symbols.shadow]: origin })
+    expect(shadowed[symbols.shadow]).toBe(origin)
+    const stripped = getTraceable(shadowed, shadowed)
+    expect(stripped[symbols.shadow]).toBeUndefined()
+    // A shadow-free ctx resolves a service it provides, exactly as a boot
+    // mount's service context does.
+    root.provide('probe', { value: 1 })
+    expect((stripped as { probe?: { value: number } }).probe).toEqual({ value: 1 })
+  })
+
+  it('leaves a shadow-free context untouched', () => {
+    const root = new Context()
+    expect(getTraceable(root, root)).toBe(root)
   })
 })

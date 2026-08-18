@@ -93,6 +93,23 @@ export declare class HarnessHot extends Service {
      * @throws when the deployment does not expose module-loader internals.
      */
     upgrade(target: HotTarget): Promise<HotMountRecord>;
+    /**
+     * The host context WITHOUT the cordis shadow the wire's traceable call
+     * wraps this service instance in.
+     *
+     * The `/harness-hot` channel calls `service.mount()` through a traceable
+     * wrapper, whose method invocation swaps `this` onto a shadow context (a
+     * `ctx.extend({ [shadow]: origin })` child). That shadow propagates through
+     * every `ctx.extend()` the Include subtree performs, so a live re-mount's
+     * entry fibers resolve their context against the `harnessHot` service fiber
+     * instead of their own — and a provider row (`spawn`/`fork`/`tool`) that
+     * injects `subagents` then fails with "cannot get property \"subagents\"
+     * without inject" (the shadow fiber never declares that inject). Boot does
+     * not hit this because `autoMount` runs inside `[Service.init]` where the
+     * service context carries no shadow. Stripping the shadow restores the
+     * plain service context, making a hot re-mount identical to the boot mount.
+     */
+    private hostCtx;
     /** The current hot-mount list, in mount order. */
     list(): HotMountRecord[];
 }
