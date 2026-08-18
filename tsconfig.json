@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo"
+  },
+  "include": [
+    "src/index.ts",
+    "src/invariant.ts",
+    "src/hot.ts",
+    "src/patch.ts",
+    "src/service.ts",
+    "src/wire"
+  ]
+}
