@@ -127,4 +127,14 @@ export declare class HotManager {
  * @returns false when the loader internals are unavailable (restart required).
  */
 export declare function clearPackageLoadCache(loader: LoaderLike, profileDir: string, packageName: string): boolean;
+/**
+ * Clear Node's module-resolution caches so a package newly installed into a
+ * running process (first mount, or a re-add over the same name) resolves on
+ * the next import. Node snapshots the `node_modules` directory scan and
+ * realpath lookups at the process level; a package that did not exist at boot
+ * is invisible to the frozen resolution caches until they are evicted.
+ * @param packageDir - the package directory (used to scope the CJS require
+ * cache eviction).
+ */
+export declare function clearNodeResolutionCache(packageDir: string): void;
 //# sourceMappingURL=hot.d.ts.map

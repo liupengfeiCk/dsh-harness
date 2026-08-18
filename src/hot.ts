@@ -31,6 +31,7 @@
  * @module dsh-harness-hot-bundle/hot
  */
 
+import { createRequire } from 'node:module'
 import { mkdirSync, readdirSync, readFileSync, rmSync, realpathSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -222,6 +223,13 @@ export class HotManager {
     this.sequence += 1
     const file = join(this.hotDir, `hot-${String(this.sequence)}.yml`)
     writeFileSync(file, rows.map(renderRow).join(''))
+    // A package installed into the running process (first mount, or a re-add)
+    // may be invisible to Node's frozen resolution caches: the profile's
+    // `node_modules` directory scan and realpath lookup were snapshotted at
+    // boot. Evict the package's loadCache entries AND Node's module-resolution
+    // path cache before the Include imports it, so a freshly installed package
+    // resolves on this mount rather than a boot-era negative result.
+    clearNodeResolutionCache(join(this.profileDir, 'node_modules', packageName))
     const handle = ctx.plugin(HotTree, { path: pathToFileURL(file).href })
     try {
       await raceActivationTimeout(handle.await(), HOT_MOUNT_TIMEOUT_MS)
@@ -232,22 +240,6 @@ export class HotManager {
         try { Promise.resolve(handle.dispose()).catch(() => {}) } catch { /* best effort */ }
       }
       throw error
-    }
-    // TEMP DIAGNOSTIC: record what the mounted subtree's module resolves to.
-    try {
-      const loaderLike = (ctx as unknown as { loader?: LoaderLike }).loader
-      const internalAny = loaderLike?.internal as unknown as { import?: (s: string, p: string) => Promise<unknown> } | undefined
-      const imported = internalAny?.import
-        ? await internalAny.import(packageName, pathToFileURL(this.hotDir).href + '/')
-        : null
-      writeFileSync('/tmp/harness-hot-mount-debug.json', JSON.stringify({
-        packageName,
-        importedKeys: imported ? Object.keys(imported as object) : null,
-        importedApplyType: imported ? typeof (imported as { apply?: unknown }).apply : null,
-        hasInternal: !!loaderLike?.internal,
-      }))
-    } catch (e) {
-      writeFileSync('/tmp/harness-hot-mount-debug.json', JSON.stringify({ packageName, importError: e instanceof Error ? e.message : String(e) }))
     }
     const record: HotMountRecord = {
       package: packageName,
@@ -369,4 +361,36 @@ export function clearPackageLoadCache(loader: LoaderLike, profileDir: string, pa
     protoDelete.call(target, url)
   }
   return true
+}
+
+/**
+ * Clear Node's module-resolution caches so a package newly installed into a
+ * running process (first mount, or a re-add over the same name) resolves on
+ * the next import. Node snapshots the `node_modules` directory scan and
+ * realpath lookups at the process level; a package that did not exist at boot
+ * is invisible to the frozen resolution caches until they are evicted.
+ * @param packageDir - the package directory (used to scope the CJS require
+ * cache eviction).
+ */
+export function clearNodeResolutionCache(packageDir: string): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require('node:module') as {
+      _pathCache?: Record<string, string>
+    }
+    // The CJS resolver's path cache is keyed by "request\0paths"; a fresh
+    // package's bare-name request would otherwise hit a boot-era negative
+    // entry. Clearing the whole table is cheap and always correct.
+    if (mod._pathCache) {
+      for (const key of Object.keys(mod._pathCache)) delete mod._pathCache[key]
+    }
+  } catch { /* no module resolver cache to clear */ }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const req = createRequire(import.meta.url)
+    for (const cached of Object.values(req.cache)) {
+      if (cached?.filename === undefined) continue
+      if (cached.filename.startsWith(packageDir + sep)) delete req.cache[cached.filename]
+    }
+  } catch { /* no CJS cache to clear */ }
 }
