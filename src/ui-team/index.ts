@@ -27,9 +27,9 @@ import { createTeamPresetWire } from './wire-client.ts'
 import { en, zh } from './locales.ts'
 
 export type {
-  CreateDraft, DetailDraft, RoleDraft, TeamRow, TeamSectionState,
+  CreateDraft, DetailDraft, RoleDraft, RoleEditDraft, TeamRow, TeamSectionState,
 } from './section-store.ts'
-export { createBlocker, detailBlocker, TeamSectionController } from './section-store.ts'
+export { createBlocker, detailBlocker, roleBlocker, TeamSectionController } from './section-store.ts'
 export type { TeamSettingsKey } from './locales.ts'
 
 /** Required services (cordis fiber inject), shared with the subagent section. */
@@ -74,9 +74,12 @@ export function apply(ctx: ClientContext): void {
     closeDetail: () => { section.closeDetail() },
     setDetailName: (name: string) => { section.setDetailName(name) },
     setDetailDescription: (description: string) => { section.setDetailDescription(description) },
-    setDetailRoleField: (index: number, field: string, value: string) => { section.setDetailRoleField(index, field, value) },
-    addDetailRole: () => { section.addDetailRole() },
-    removeDetailRole: (index: number) => { section.removeDetailRole(index) },
+    beginRoleEdit: (index: number) => { section.beginRoleEdit(index) },
+    addRoleInDetail: () => { section.addRoleInDetail() },
+    setRoleEditField: (field, value) => { section.setRoleEditField(field, value) },
+    saveRoleEdit: async () => { section.saveRoleEdit() },
+    cancelRoleEdit: () => { section.cancelRoleEdit() },
+    removeRole: (index: number) => { section.removeRole(index) },
     confirmDetail: () => section.confirmDetail(),
     openLocation: (id: string) => section.openLocation(id),
     confirmDelete: (id: string | null) => { section.confirmDelete(id) },

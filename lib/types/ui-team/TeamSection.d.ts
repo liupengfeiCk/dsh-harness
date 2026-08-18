@@ -7,6 +7,13 @@
  * This section reads the team registry — fully separate from both the
  * agent-preset roster and the subagent roster — so the rosters never mix. A
  * shipped (system) team is read-only: it cannot be toggled, edited, or deleted.
+ *
+ * The role roster renders as compact list rows (id + description one-line
+ * summary + body id + memory tag + remove control); tapping a row opens a
+ * single-role edit dialog over id / description / body / memory / soul prompt
+ * — a single-column vertical form so future role attributes become one more
+ * field row, not a layout overhaul. Adding a role enters the same edit dialog
+ * in a fresh-draft state.
  */
 import type { ReactNode } from 'react';
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client';
@@ -47,12 +54,18 @@ export interface TeamSectionInjected {
     setDetailName: (name: string) => void;
     /** Set the detail dialog's display description. */
     setDetailDescription: (description: string) => void;
-    /** Stage one field of one detail role row. */
-    setDetailRoleField: (index: number, field: string, value: string) => void;
-    /** Add an empty role row to the edit detail. */
-    addDetailRole: () => void;
-    /** Remove one role row from the edit detail. */
-    removeDetailRole: (index: number) => void;
+    /** Open the single-role edit dialog over one roster row. */
+    beginRoleEdit: (index: number) => void;
+    /** Add a blank role to the team detail and open it in the edit dialog. */
+    addRoleInDetail: () => void;
+    /** Stage one field of the role currently being edited. */
+    setRoleEditField: (field: 'id' | 'description' | 'prompt' | 'body' | 'memory', value: string) => void;
+    /** Save the staged role back into the team detail's roster. */
+    saveRoleEdit: () => Promise<void>;
+    /** Cancel the open role edit, rolling back the staged draft. */
+    cancelRoleEdit: () => void;
+    /** Remove one role from the team detail's roster (also closes any open edit). */
+    removeRole: (index: number) => void;
     /** Submit the edit detail's staged roster. */
     confirmDetail: () => Promise<void>;
     /** Open one team's directory, or reveal its path where there is no desktop. */

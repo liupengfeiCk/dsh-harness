@@ -15,6 +15,9 @@ export type TeamSettingsKey =
   | 'roleBodyLabel' | 'roleBodyPlaceholder' | 'noBodies'
   | 'roleMemoryLabel' | 'memoryOneShot' | 'memoryPersistent'
   | 'rolePromptLabel' | 'rolePromptPlaceholder'
+  | 'roleBodyLabelShort' | 'roleMemoryLabelShort'
+  | 'roleIdEmpty' | 'noRoleSummary' | 'noRoles'
+  | 'roleEditTitle' | 'roleEditIntro' | 'roleEditBack' | 'roleEditSave'
   | 'addRole' | 'removeRole'
   | 'idLabel' | 'idPlaceholder'
   | 'nameLabel' | 'namePlaceholder'
@@ -71,6 +74,16 @@ export const en: Record<TeamSettingsKey, string> = {
   rolePromptPlaceholder: 'Who this role is and how it works (multiline)',
   addRole: 'Add role',
   removeRole: 'Remove',
+  roleBodyLabelShort: 'Body',
+  roleMemoryLabelShort: 'Memory',
+  roleIdEmpty: '(unnamed)',
+  noRoleSummary: 'No description yet.',
+  noRoles: 'No roles on the roster yet — add one to delegate to this team.',
+  roleEditTitle: 'Edit role',
+  roleEditIntro:
+    'Edit one role on the team\'s roster. Future role attributes will become one more row in this form.',
+  roleEditBack: 'Back to roster',
+  roleEditSave: 'Save role',
   idLabel: 'Identifier',
   idPlaceholder: 'The id the delegation refers to the team by',
   nameLabel: 'Name',
@@ -137,6 +150,16 @@ export const zh: Record<TeamSettingsKey, string> = {
   rolePromptPlaceholder: '这个角色是谁、该怎么干活（多行）',
   addRole: '添加角色',
   removeRole: '移除',
+  roleBodyLabelShort: '身体',
+  roleMemoryLabelShort: '记忆',
+  roleIdEmpty: '（未命名）',
+  noRoleSummary: '尚未填写职责描述。',
+  noRoles: '编制表还没有角色，先添加一个角色即可委派此团队。',
+  roleEditTitle: '编辑角色',
+  roleEditIntro:
+    '编辑团队编制表中的一个角色。以后角色有新的属性时，会在这里多出一行表单字段。',
+  roleEditBack: '返回编制表',
+  roleEditSave: '保存角色',
   idLabel: '标识符',
   idPlaceholder: '委派按此标识符引用该团队',
   nameLabel: '名称',

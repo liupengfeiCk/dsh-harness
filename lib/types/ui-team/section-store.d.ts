@@ -7,6 +7,14 @@
  * wire and the page re-reads the roster afterwards, because a toggle or edit
  * changes more than the row it targeted (the roster order and states recompute
  * from the host).
+ *
+ * Inside one team's edit detail, the role roster is rendered as compact list
+ * rows. Tapping a row (or tapping "add role") opens a single-role edit
+ * dialog over a staged draft. The open edit holds its own `dirty` flag so
+ * `cancel` rolls back without touching the roster (for an existing role) and
+ * without leaving a phantom row behind (for a new role). A role edit must be
+ * either saved or cancelled before the team-level save; the controller
+ * enforces that ordering at `confirmDetail`.
  */
 import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client';
 import { type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client';
@@ -59,6 +67,37 @@ export interface CreateDraft {
     /** The last create failure, cleared by the next edit. */
     error: string | null;
 }
+/**
+ * The single-role edit draft open over a team detail. `kind` distinguishes
+ * editing an existing roster row (`'existing'`) from drafting a freshly added
+ * row that hasn't been written back yet (`'new'`). `dirty` flips on the first
+ * field set so the cancel path can decide whether to roll back an existing
+ * row or discard a brand-new draft.
+ */
+export type RoleEditDraft = {
+    kind: 'existing';
+    /** Index into the team detail's roles array the draft opened from. */
+    index: number;
+    /** The staged role fields. */
+    draft: RoleDraft;
+    /** Whether any field has been staged since the edit opened. */
+    dirty: boolean;
+    /** The original row the draft was cloned from, for cancel rollback. */
+    original: RoleDraft;
+    /** Last wire error from a save attempt (cleared on the next edit). */
+    error: string | null;
+} | {
+    kind: 'new';
+    /** The staged role fields. */
+    draft: RoleDraft;
+    /**
+     * New drafts are always dirty until saved — typing is the only way to
+     * reach this branch, and cancel must discard the draft anyway.
+     */
+    dirty: boolean;
+    /** Last wire error from a save attempt (cleared on the next edit). */
+    error: string | null;
+};
 /** The open edit detail over one team's full role roster. */
 export interface DetailDraft {
     /** The team being edited. */
@@ -73,6 +112,12 @@ export interface DetailDraft {
     saving: boolean;
     /** The last save failure, cleared by the next edit. */
     error: string | null;
+    /**
+     * The open single-role edit. When non-null the team-level dialog defers to
+     * it: cancelling or saving the role edit resolves back into the roster
+     * before the team-level save can run.
+     */
+    roleEdit: RoleEditDraft | null;
 }
 /** Page snapshot. */
 export interface TeamSectionState {
@@ -102,8 +147,10 @@ export interface TeamSectionState {
 export declare function createBlocker(draft: CreateDraft, rows: readonly TeamRow[]): 'idRequired' | 'idInvalid' | 'idTaken' | 'roleIdRequired' | 'roleBodyRequired' | undefined;
 /** Why an edit detail cannot be saved yet, as a locale key, or undefined. */
 export declare function detailBlocker(draft: DetailDraft): 'roleIdRequired' | 'roleBodyRequired' | undefined;
+/** Why the role roster cannot be submitted, as a locale key, or undefined. */
+export declare function roleBlocker(roles: readonly RoleDraft[]): 'roleIdRequired' | 'roleBodyRequired' | undefined;
 /**
- * Reads the roster and drives the create, edit detail, toggle, delete, and
+ * Read the roster and drive the create, edit detail, toggle, delete, and
  * location reveals.
  */
 export declare class TeamSectionController {
@@ -153,12 +200,31 @@ export declare class TeamSectionController {
     setDetailName(name: string): void;
     /** Set the detail dialog's display description. */
     setDetailDescription(description: string): void;
-    /** Stage one field of one detail role row. */
-    setDetailRoleField(index: number, field: string, value: string): void;
-    /** Add an empty role row to the edit detail. */
-    addDetailRole(): void;
-    /** Remove one role row from the edit detail. */
-    removeDetailRole(index: number): void;
+    /**
+     * Append a blank role to the team detail's roster and open the edit
+     * dialog over it in a `'new'` draft state. The new row stays in the roster
+     * through `saveRoleEdit` and is unwound on `cancelRoleEdit`.
+     */
+    addRoleInDetail(): void;
+    /** Open the single-role edit over one existing roster row. */
+    beginRoleEdit(index: number): void;
+    /** Remove one role row from the team detail (and any open edit on it). */
+    removeRole(index: number): void;
+    /** Stage one field on the open role edit draft, marking it dirty. */
+    setRoleEditField(field: 'id' | 'description' | 'prompt' | 'body' | 'memory', value: string): void;
+    /**
+     * Commit the open role edit: validate, then write back into the roster
+     * (replacing the existing row, or trimming the trailing new row). The
+     * team-level save (`confirmDetail`) is a separate step.
+     */
+    saveRoleEdit(): void;
+    /**
+     * Cancel the open role edit. For an existing row, the staged draft is
+     * discarded (the roster was never touched, so rollback is a no-op). For a
+     * new row, the trailing blank row that `addRoleInDetail` appended is
+     * removed along with the discarded draft.
+     */
+    cancelRoleEdit(): void;
     /** Save the edit detail's staged roster and metadata, then re-read. */
     confirmDetail(): Promise<void>;
     /** Ask for confirmation before deleting one team. */
