@@ -1,0 +1,45 @@
+# The dsh-agent-preset-editing-bundle patch: the Harness-owned main-preset
+# visual-editing capability over the official dsh-web-app layer. Applied after
+# dsh-web-app (which ships the official `ui-agent-preset` row and the
+# `agent-presets` roster). This layer disables the official settings row and
+# mounts the enhanced editing surface plus the dedicated editing wire channel.
+#
+# A later layer (the profile's own cordis.patch.yml or a --patch overlay)
+# wins per row. Rows below address web-app rows by id; they never restate
+# `name` (a patch that names a row with a mismatching name is skipped by the
+# Loader), so disabling a row only needs its `id`.
+#
+# Plane split: the editing wire is a HOST row — it rides alongside the
+# `agentPresets` service (which web-app mounts) that it reads through the
+# service's public interface, kept separate so the official service package
+# stays zero-invasive. The enhanced surface is a browser settings row
+# (`dsh.client`), the same face the official `ui-agent-preset` row had. The
+# two rows use distinct ids from the official ones (the Loader rejects
+# duplicate ids), so this bundle cannot collide with a later layer that
+# re-enables the official row.
+
+# ── disable the official main-preset settings row ───────────────────────────
+# This row ships in dsh-web-app. The enhanced surface binds the same settings
+# seat, so disabling the official row prevents both surfaces from mounting the
+# same slot twice.
+
+- id: ui-agent-preset
+  disabled: true
+
+# ── the Harness replacement rows ────────────────────────────────────────────
+# Distinct ids from the official rows (the Loader rejects duplicate ids).
+- insert:
+    # The enhanced main-preset settings row: the official four surfaces plus a
+    # structured editor over a locally authored preset's editable fields,
+    # talking to the wire channel below. A web-only client row.
+    - id: ui-agent-preset-editing
+      name: 'dsh-harness-agent-preset-editing-bundle'
+
+    # The agent-preset editing wire: the `/agent-preset-edit` connection
+    # channel carrying the structured edit read/write over a locally authored
+    # preset's editable fields. It rides alongside the `agentPresets` service
+    # (which dsh-web-app mounts) that it reads through the service's public
+    # interface, kept as a separate host row so the official service package
+    # stays zero-invasive.
+    - id: agent-preset-edit
+      name: 'dsh-harness-agent-preset-editing-bundle/edit/wire'
