@@ -110,6 +110,23 @@ export declare class HarnessHot extends Service {
      * plain service context, making a hot re-mount identical to the boot mount.
      */
     private hostCtx;
+    /**
+     * The root (boot) tree's entry group holding the static rows. The bootstrap
+     * include is mounted under the fixed id `'include'` (see app-boot's
+     * `mountRootInclude`), so its `subgroup` is the root entry group whose
+     * `data` lists every static row.
+     */
+    private staticRootGroup;
+    /**
+     * Build the static-row adapter for a host context: runtime-disable/restore
+     * a static root-tree row in memory only — the loader's `Entry.update` disposes
+     * the fiber without persisting, and we mirror the disabled flag onto the root
+     * group's `data` array so a later recomposition does not resurrect the static
+     * copy while the hot row owns its registration.
+     */
+    private staticRowsAdapter;
+    /** The host context carrying the static-row adapter the hot core needs. */
+    private withStaticRows;
     /** The current hot-mount list, in mount order. */
     list(): HotMountRecord[];
 }

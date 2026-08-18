@@ -53,13 +53,41 @@ export interface HotMountRecord {
   file: string
   /** Row ids this mount pulled in (already prefixed where applicable). */
   rowIds: string[]
+  /** Static root-tree rows this mount disabled, restored on unmount. */
+  staticRows: string[]
   /** When the mount settled (ms epoch). */
   mountedAt: number
+}
+
+/**
+ * Runtime toggle for a row in the ROOT (boot) tree. The hot mounter converges
+ * a double-mount — a static row from the bundle layer AND the same-name hot
+ * insert row it is about to pull in — by disabling the static copy in memory
+ * (never persisting), so the hot row owns the service registration while it
+ * runs and the static row comes back on unmount.
+ *
+ * The implementation lives behind this adapter (not a direct loader import)
+ * because the hot core deliberately avoids a typechecked dependency on the
+ * loader package; the host supplies it from its settled context.
+ */
+export interface StaticRowsAdapter {
+  /** Whether a static row `id` exists in the root tree. */
+  has(id: string): boolean
+  /** Disable the static row `id` in-memory (no persist); no-op when absent. */
+  disable(id: string): Promise<void>
+  /** Restore (enable) the static row `id` in-memory (no persist); no-op when absent. */
+  restore(id: string): Promise<void>
 }
 
 /** The subset of the host context the hot core needs. */
 export interface HotContext {
   plugin(plugin: unknown, config: unknown): PluginHandle
+  /**
+   * Runtime toggle for static root-tree rows sharing names with the hot rows
+   * being mounted. Optional: without it, a hot mount does not converge with a
+   * same-name static row (which would collide on the shared registration).
+   */
+  staticRows?: StaticRowsAdapter
   logger?: { info?(message: string): void; warn(message: string): void }
 }
 
@@ -209,8 +237,9 @@ export class HotManager {
    * activation/timeout error when the subtree fails to settle.
    */
   async mount(ctx: HotContext, packageName: string): Promise<HotMountRecord> {
-    // A same-name re-mount supersedes the previous one.
-    await this.unmount(packageName)
+    // A same-name re-mount supersedes the previous one (restoring the static
+    // rows the prior mount disabled, then disabling them fresh below).
+    await this.unmount(packageName, ctx)
     const HotTree = await loadHotTreeClass()
     if (HotTree === null) {
       throw new Error('this host cannot hot-mount (include plugin unavailable) — restart to activate')
@@ -222,6 +251,23 @@ export class HotManager {
       throw new Error(`no bundle patch found for "${packageName}" — restart to activate`)
     }
     const rows = parsePatch(patchText)
+    // Converge a double mount: disable each static root-tree row whose id
+    // matches a hot insert row (the prefix is stripped, so a hot
+    // `harness-subagent-harness` row targets the static `subagent-harness`),
+    // before the hot subtree mounts the same-name row. A missing static row is
+    // a plain hot-only pull-in (e.g. a probe) and is skipped harmlessly. The
+    // disabled ids are recorded so unmount restores exactly what this mount
+    // turned off.
+    const staticRows: string[] = []
+    const staticRowsAdapter = ctx.staticRows
+    if (staticRowsAdapter) {
+      for (const row of rows) {
+        if (row.kind !== 'insert') continue
+        if (!staticRowsAdapter.has(row.id)) continue
+        await staticRowsAdapter.disable(row.id)
+        staticRows.push(row.id)
+      }
+    }
     mkdirSync(this.hotDir, { recursive: true, mode: 0o700 })
     this.sequence += 1
     const file = join(this.hotDir, `hot-${String(this.sequence)}.yml`)
@@ -248,6 +294,7 @@ export class HotManager {
       package: packageName,
       file,
       rowIds: rows.map(row => row.kind === 'disable' ? row.id : `${HOT_ROW_PREFIX}${row.id}`),
+      staticRows,
       mountedAt: Date.now(),
     }
     this.handles.set(packageName, handle)
@@ -257,11 +304,14 @@ export class HotManager {
   }
 
   /**
-   * Dispose a hot-mounted package, removing it from the running composition.
+   * Dispose a hot-mounted package, removing it from the running composition
+   * and restoring the static root-tree rows this mount had disabled.
    * @param packageName - the package to unmount.
+   * @param ctx - the host context, for the static-row adapter (absent when the
+   * hot core is driven without one, e.g. unit tests or a host without a loader).
    * @returns the disposed record, or null when nothing was mounted.
    */
-  async unmount(packageName: string): Promise<HotMountRecord | null> {
+  async unmount(packageName: string, ctx?: HotContext): Promise<HotMountRecord | null> {
     const record = this.records.get(packageName)
     const handle = this.handles.get(packageName)
     if (record === undefined || handle === undefined) return null
@@ -271,6 +321,15 @@ export class HotManager {
       await Promise.resolve(handle.dispose())
     } catch (error) {
       throw new Error(`failed to dispose hot mount of "${packageName}": ${error instanceof Error ? error.message : String(error)}`)
+    }
+    // Symmetric restore: bring back every static row this mount turned off.
+    // A row that no longer exists (the bundle was removed) is skipped by the
+    // adapter, so unmount stays convergent from any prior state.
+    const staticRowsAdapter = ctx?.staticRows
+    if (staticRowsAdapter) {
+      for (const id of record.staticRows) {
+        if (staticRowsAdapter.has(id)) await staticRowsAdapter.restore(id)
+      }
     }
     return record
   }
@@ -285,7 +344,7 @@ export class HotManager {
    * @throws when the deployment does not expose internals (restart required).
    */
   async upgrade(ctx: HotContext, loader: LoaderLike, packageName: string): Promise<HotMountRecord> {
-    await this.unmount(packageName)
+    await this.unmount(packageName, ctx)
     const cleared = clearPackageLoadCache(loader, this.profileDir, packageName)
     if (!cleared) {
       throw new Error('this deployment does not expose the module loader internals — hot upgrade unsupported; restart to activate')

@@ -15,8 +15,9 @@
 
 import { fileURLToPath } from 'node:url'
 import { Context, Service, getTraceable } from '@deepseek-ai/cordis'
+import type { Entry, EntryGroup, EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { z } from 'zod'
-import { HotManager, type HotMountRecord } from './hot.ts'
+import { HotManager, type HotMountRecord, type StaticRowsAdapter } from './hot.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -135,7 +136,7 @@ export class HarnessHot extends Service {
    * activation/timeout error when the subtree fails to settle.
    */
   async mount(target: HotTarget): Promise<HotMountRecord> {
-    return await this.resolveManager(target.profileDir).mount(this.hostCtx(), target.package)
+    return await this.resolveManager(target.profileDir).mount(this.withStaticRows(this.hostCtx()), target.package)
   }
 
   /**
@@ -144,7 +145,7 @@ export class HarnessHot extends Service {
    * @returns the disposed record, or null when nothing was mounted.
    */
   async unmount(packageName: string): Promise<HotMountRecord | null> {
-    return await this.manager.unmount(packageName)
+    return await this.manager.unmount(packageName, this.withStaticRows(this.hostCtx()))
   }
 
   /**
@@ -154,7 +155,8 @@ export class HarnessHot extends Service {
    * @throws when the deployment does not expose module-loader internals.
    */
   async upgrade(target: HotTarget): Promise<HotMountRecord> {
-    return await this.resolveManager(target.profileDir).upgrade(this.hostCtx(), this.hostCtx().loader, target.package)
+    const ctx = this.hostCtx()
+    return await this.resolveManager(target.profileDir).upgrade(this.withStaticRows(ctx), ctx.loader, target.package)
   }
 
   /**
@@ -175,6 +177,66 @@ export class HarnessHot extends Service {
    */
   private hostCtx(): Context {
     return getTraceable(this.ctx, this.ctx) as Context
+  }
+
+  /**
+   * The root (boot) tree's entry group holding the static rows. The bootstrap
+   * include is mounted under the fixed id `'include'` (see app-boot's
+   * `mountRootInclude`), so its `subgroup` is the root entry group whose
+   * `data` lists every static row.
+   */
+  private staticRootGroup(ctx: Context): EntryGroup | undefined {
+    const loader = ctx.get('loader')
+    if (loader === undefined) return undefined
+    const root = loader.store?.['include'] as Entry | undefined
+    return root?.subgroup
+  }
+
+  /**
+   * Build the static-row adapter for a host context: runtime-disable/restore
+   * a static root-tree row in memory only — the loader's `Entry.update` disposes
+   * the fiber without persisting, and we mirror the disabled flag onto the root
+   * group's `data` array so a later recomposition does not resurrect the static
+   * copy while the hot row owns its registration.
+   */
+  private staticRowsAdapter(ctx: Context): StaticRowsAdapter {
+    const loader = ctx.get('loader')
+    const rootGroup = this.staticRootGroup(ctx)
+    const findRow = (id: string): EntryOptions | undefined =>
+      rootGroup?.data.find(row => row.id === id)
+    const findEntry = (id: string): Entry | undefined => {
+      if (loader === undefined) return undefined
+      try {
+        return loader.resolve(id)
+      } catch {
+        return undefined // no such entry in the tree
+      }
+    }
+    return {
+      has: (id: string) => findRow(id) !== undefined,
+      disable: async (id: string) => {
+        const row = findRow(id)
+        if (row === undefined) return
+        // Mirror the flag onto the persisted `data` object first so a later
+        // full recomposition sees the row as disabled; then stop the running
+        // fiber. A row that never started has no fiber and is a no-op.
+        row.disabled = true
+        const entry = findEntry(id)
+        if (entry?.fiber) await entry.update({ disabled: true })
+      },
+      restore: async (id: string) => {
+        const row = findRow(id)
+        if (row === undefined) return
+        row.disabled = false
+        const entry = findEntry(id)
+        if (entry) await entry.update({ disabled: false })
+      },
+    }
+  }
+
+  /** The host context carrying the static-row adapter the hot core needs. */
+  private withStaticRows(ctx: Context): Context & { staticRows: StaticRowsAdapter } {
+    return Object.assign(ctx, { staticRows: this.staticRowsAdapter(ctx) })
   }
 
   /** The current hot-mount list, in mount order. */

@@ -43,12 +43,39 @@ export interface HotMountRecord {
     file: string;
     /** Row ids this mount pulled in (already prefixed where applicable). */
     rowIds: string[];
+    /** Static root-tree rows this mount disabled, restored on unmount. */
+    staticRows: string[];
     /** When the mount settled (ms epoch). */
     mountedAt: number;
+}
+/**
+ * Runtime toggle for a row in the ROOT (boot) tree. The hot mounter converges
+ * a double-mount — a static row from the bundle layer AND the same-name hot
+ * insert row it is about to pull in — by disabling the static copy in memory
+ * (never persisting), so the hot row owns the service registration while it
+ * runs and the static row comes back on unmount.
+ *
+ * The implementation lives behind this adapter (not a direct loader import)
+ * because the hot core deliberately avoids a typechecked dependency on the
+ * loader package; the host supplies it from its settled context.
+ */
+export interface StaticRowsAdapter {
+    /** Whether a static row `id` exists in the root tree. */
+    has(id: string): boolean;
+    /** Disable the static row `id` in-memory (no persist); no-op when absent. */
+    disable(id: string): Promise<void>;
+    /** Restore (enable) the static row `id` in-memory (no persist); no-op when absent. */
+    restore(id: string): Promise<void>;
 }
 /** The subset of the host context the hot core needs. */
 export interface HotContext {
     plugin(plugin: unknown, config: unknown): PluginHandle;
+    /**
+     * Runtime toggle for static root-tree rows sharing names with the hot rows
+     * being mounted. Optional: without it, a hot mount does not converge with a
+     * same-name static row (which would collide on the shared registration).
+     */
+    staticRows?: StaticRowsAdapter;
     logger?: {
         info?(message: string): void;
         warn(message: string): void;
@@ -98,11 +125,14 @@ export declare class HotManager {
      */
     mount(ctx: HotContext, packageName: string): Promise<HotMountRecord>;
     /**
-     * Dispose a hot-mounted package, removing it from the running composition.
+     * Dispose a hot-mounted package, removing it from the running composition
+     * and restoring the static root-tree rows this mount had disabled.
      * @param packageName - the package to unmount.
+     * @param ctx - the host context, for the static-row adapter (absent when the
+     * hot core is driven without one, e.g. unit tests or a host without a loader).
      * @returns the disposed record, or null when nothing was mounted.
      */
-    unmount(packageName: string): Promise<HotMountRecord | null>;
+    unmount(packageName: string, ctx?: HotContext): Promise<HotMountRecord | null>;
     /**
      * Hot-upgrade `packageName`: dispose its current fiber, evict the package's
      * Node module cache, then re-mount.

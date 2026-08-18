@@ -14,6 +14,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
   clearPackageLoadCache, HOT_DIR, HotManager,
+  type HotContext, type StaticRowsAdapter,
 } from '../src/hot.ts'
 
 /** A minimal Map-shaped loadCache double (Node v1: plain Map<url, job>). */
@@ -137,5 +138,133 @@ describe('HotManager boot cleanup', () => {
     const { profileDir } = makeProfileDir()
     const manager = new HotManager(profileDir)
     expect(() => manager.cleanHotDir()).not.toThrow()
+  })
+})
+
+/**
+ * The double-mount convergence behaviour: mounting a package whose insert rows
+ * share names with static root-tree rows must first disable each static copy
+ * (runtime, in-memory), then mount the hot subtree; unmount must restore them.
+ * The static-row channel is mocked here — the real one is exercised end-to-end
+ * through the service against a live loader.
+ */
+describe('HotManager double-mount convergence', () => {
+  /** A static-row adapter double recording calls in order. */
+  function makeAdapter(rows: Set<string>): {
+    adapter: StaticRowsAdapter
+    calls: string[]
+    disabled: string[]
+    restored: string[]
+  } {
+    const calls: string[] = []
+    const disabled: string[] = []
+    const restored: string[] = []
+    return {
+      adapter: {
+        has: (id: string) => rows.has(id),
+        disable: async (id: string) => { calls.push(`disable:${id}`); disabled.push(id) },
+        restore: async (id: string) => { calls.push(`restore:${id}`); restored.push(id) },
+      },
+      calls,
+      disabled,
+      restored,
+    }
+  }
+
+  /** A plugin-handle double: await settles immediately, dispose is recorded. */
+  function pluginSpy(events: string[]): HotContext['plugin'] {
+    return () => {
+      events.push('plugin')
+      return {
+        await: async () => {},
+        dispose: async () => { events.push('dispose') },
+      }
+    }
+  }
+
+  it('disables each static insert row before mounting the hot subtree, and restores on unmount', async () => {
+    const { profileDir, pkgDir } = makeProfileDir()
+    // The probe patch inserts one row, id `probe`; the static tree owns the
+    // same-name row that must be disabled before the hot copy mounts.
+    const { adapter, calls, disabled, restored } = makeAdapter(new Set(['probe']))
+    const events: string[] = []
+    const manager = new HotManager(profileDir)
+    const ctx = { plugin: pluginSpy(events), staticRows: adapter } as HotContext
+
+    const record = await manager.mount(ctx, 'hotprobe')
+
+    // Static disable precedes the hot subtree plugin mount; the row is recorded.
+    expect(calls).toEqual(['disable:probe'])
+    expect(disabled).toEqual(['probe'])
+    expect(events).toEqual(['plugin'])
+    expect(record.staticRows).toEqual(['probe'])
+
+    // Unmount restores the static row (symmetric), then the hot subtree is
+    // disposed.
+    calls.length = 0
+    const disposed = await manager.unmount('hotprobe', ctx)
+    expect(disposed?.staticRows).toEqual(['probe'])
+    expect(restored).toEqual(['probe'])
+    expect(calls).toEqual(['restore:probe'])
+    expect(events).toEqual(['plugin', 'dispose'])
+  })
+
+  it('skips a static row that does not exist (hot-only pull-in) and records none', async () => {
+    const { profileDir } = makeProfileDir()
+    // No static row named `probe` exists — the adapter has() returns false.
+    const { adapter, calls, disabled } = makeAdapter(new Set())
+    const manager = new HotManager(profileDir)
+    const ctx = { plugin: pluginSpy([]), staticRows: adapter } as HotContext
+
+    const record = await manager.mount(ctx, 'hotprobe')
+
+    expect(calls).toEqual([])
+    expect(disabled).toEqual([])
+    expect(record.staticRows).toEqual([])
+  })
+
+  it('ignores disable rows when converging (only insert rows pull static copies)', async () => {
+    const { profileDir, pkgDir } = makeProfileDir()
+    // Add a disable override row alongside the insert; it must not be treated
+    // as a static-copy pull-in (only insert rows share names with hot rows).
+    writeFileSync(join(pkgDir, 'cordis.patch.yml'),
+      "- insert:\n    - id: probe\n      name: 'hotprobe'\n- id: some-official-row\n  disabled: true\n")
+    const { adapter, disabled } = makeAdapter(new Set(['probe', 'some-official-row']))
+    const manager = new HotManager(profileDir)
+    const ctx = { plugin: pluginSpy([]), staticRows: adapter } as HotContext
+
+    const record = await manager.mount(ctx, 'hotprobe')
+
+    expect(disabled).toEqual(['probe'])
+    expect(record.staticRows).toEqual(['probe'])
+  })
+
+  it('without a staticRows adapter, mounts the hot rows only (degraded host)', async () => {
+    const { profileDir } = makeProfileDir()
+    const manager = new HotManager(profileDir)
+    const ctx = { plugin: pluginSpy([]) } as HotContext
+
+    const record = await manager.mount(ctx, 'hotprobe')
+
+    expect(record.staticRows).toEqual([])
+    expect(record.rowIds).toEqual(['harness-probe'])
+  })
+
+  it('a same-name re-mount restores the prior static rows before disabling fresh', async () => {
+    const { profileDir } = makeProfileDir()
+    const { adapter, disabled, restored } = makeAdapter(new Set(['probe']))
+    const manager = new HotManager(profileDir)
+    const ctx = { plugin: pluginSpy([]), staticRows: adapter } as HotContext
+
+    await manager.mount(ctx, 'hotprobe')
+    disabled.length = 0
+    restored.length = 0
+    // Re-mount supersedes the previous mount: the prior static disable is
+    // restored, then disabled again for the new mount — a convergent terminal
+    // state (hot copy running, static copy disabled).
+    await manager.mount(ctx, 'hotprobe')
+
+    expect(restored).toEqual(['probe'])
+    expect(disabled).toEqual(['probe'])
   })
 })

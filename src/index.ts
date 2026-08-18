@@ -19,7 +19,7 @@ export { HarnessHot, deriveProfileDir, harnessHotConfigSchema } from './service.
 export type { HotTarget, HarnessHotConfig } from './service.ts'
 export {
   ActivationTimeout, clearPackageLoadCache, HotManager, HOT_DIR, HOT_ROW_PREFIX, HOT_MOUNT_TIMEOUT_MS,
-  type HotContext, type HotMountRecord, type PluginHandle,
+  type HotContext, type HotMountRecord, type PluginHandle, type StaticRowsAdapter,
 } from './hot.ts'
 export { parsePatch, RestartRequiredError, type HotDisableRow, type HotInsertRow, type HotRow } from './patch.ts'
 export {
