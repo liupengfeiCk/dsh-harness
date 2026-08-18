@@ -62,6 +62,31 @@ dispose 已挂载的子树，立即把该包的行从运行中组合移除。
 
 如果需要保证每个活引用都被重建，请重启宿主。
 
+## 已知限制：失败的 ESM `exports` 子路径解析被进程级缓存
+
+`upgrade` 的缓存驱逐能触达 loader 的 `loadCache` 和 CJS 的
+`_pathCache`/`require.cache`，但**触达不到** Node 进程级的 ESM 包解析缓存。
+
+Node 把包的 `package.json` 解析结果（包括 `exports` 映射）缓存在一个 C++
+binding 层（`modulesBinding.readPackageJSON`），以 package.json 的**路径**为键。
+该缓存不校验文件 mtime，也没有任何 JS 侧句柄或公开 API（已在 Node v24.10.0
+上实证）：
+
+- 某个子路径一旦 `exports` 解析失败
+  （`ERR_PACKAGE_PATH_NOT_EXPORTED`，例如在 `exports` 尚未加入 `"./team"`
+  时执行 `import './team'`），在进程存续期内会一直失败，即使之后：
+  - 磁盘上的 `exports` 已修好；
+  - 该包的 `loadCache` 记录已驱逐；
+  - `Module._pathCache` 与 `require.cache` 已全部清空；
+  - 再次 import 同一个 bare-specifier 子路径。
+- 缓存值与 package.json 的**路径**绑定：换一个新路径的包立即解析成功，而
+  同一路径无论文件怎么改都一直返回旧的（过期的）结果。
+
+对热升级的影响：如果热升级后的包开始依赖一个本进程之前解析失败的、新暴露的
+子路径，活进程无法加载到它——**唯一恢复方式是重启宿主**。这与上面的
+fiber 逃逸边界不同：那个是会话持有的服务引用问题；这个是 Node 自身的解析
+缓存，`upgrade` 的任何一步都驱逐不掉。
+
 ## 启动清理
 
 `harnessHot` 服务启动时会清空 `<profileDir>/.harness-hot/` 下的 `hot-*.yml`。热挂输入纯属进程生命周期之物——持久激活仍由 `dsh.profile.bundles` 负责（CLI 安装时协调），因此下次启动会走正常 bundle 层加载插件。崩溃永远不会留下会与 bundle 层在下一次启动时冲突的热文件。

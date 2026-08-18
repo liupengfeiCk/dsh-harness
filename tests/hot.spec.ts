@@ -7,11 +7,13 @@
  * hot inputs.
  */
 
-import { describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, mkdirSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { randomBytes } from 'node:crypto'
 import {
   clearPackageLoadCache, HOT_DIR, HotManager,
   type HotContext, type StaticRowsAdapter,
@@ -266,5 +268,109 @@ describe('HotManager double-mount convergence', () => {
 
     expect(restored).toEqual(['probe'])
     expect(disabled).toEqual(['probe'])
+  })
+})
+
+/**
+ * Documented limitation: Node's process-level ESM package resolution cache
+ * (`modulesBinding.readPackageJSON`) caches a package's parsed `exports` map
+ * keyed by its package.json path, with no JS-side handle or public API. A
+ * subpath that fails `exports` resolution once stays failed for the life of the
+ * process even after the file is fixed and every JS cache (`_pathCache`,
+ * `require.cache`) is cleared. This test locks in that empirical fact so that
+ * if a future Node version opens a clearing channel, the suite flags it.
+ *
+ * The scenario must run in a real Node process (via `node <script>`), because
+ * inside a vitest worker bare-specifier imports are resolved by vite's module
+ * runner, which does not touch Node's own `modulesBinding.readPackageJSON`
+ * cache — only a genuine Node process exercises the documented behaviour. The
+ * test therefore spawns a child `node` process running an inline probe script
+ * that: (1) fails to import a bare subpath whose exports entry is missing,
+ * (2) fixes the on-disk exports, (3) clears `_pathCache` and `require.cache`
+ * (the same JS-side caches `clearNodeResolutionCache` reaches), and (4) re-imports
+ * the same bare subpath, asserting it still fails. The probe package is created
+ * under a temp dir's `node_modules` chain and removed afterwards.
+ */
+describe('ESM exports subpath resolution is process-cached (documented limitation)', () => {
+  // A unique probe package name so it can never collide with a real dependency
+  // and its (unavoidable, process-lifetime) stale cache entry stays isolated.
+  const probe = `dsh-hot-esm-cache-${randomBytes(6).toString('hex')}`
+  const root = mkdtempSync(join(tmpdir(), 'dsh-hot-esm-'))
+  const probeDir = join(root, 'node_modules', probe)
+
+  const exportsWithoutTeam = (): string => JSON.stringify({
+    name: probe, version: '1.0.0', type: 'module',
+    exports: { '.': './index.js' },
+  })
+  const exportsWithTeam = (): string => JSON.stringify({
+    name: probe, version: '1.0.0', type: 'module',
+    exports: { '.': './index.js', './team': './team.js' },
+  })
+
+  beforeAll(() => {
+    // The probe is a real package under <root>/node_modules/<probe>, so the
+    // child `node` process resolves `import('<probe>/team')` through Node's own
+    // ESM resolver when the child script sits in <root>.
+    mkdirSync(probeDir, { recursive: true })
+    writeFileSync(join(probeDir, 'package.json'), exportsWithoutTeam())
+    writeFileSync(join(probeDir, 'index.js'), 'export const v = 1\n')
+    writeFileSync(join(probeDir, 'team.js'), 'export const team = "t1"\n')
+  })
+
+  afterAll(() => {
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('a failed bare-subpath import stays failed after fixing exports and clearing JS caches', () => {
+    // The child script runs under <root>, whose node_modules holds the probe,
+    // and drives the failure→fix→re-import sequence inside one Node process.
+    const scriptPath = join(root, 'probe.mjs')
+    writeFileSync(scriptPath, `
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { createRequire } from 'node:module'
+
+const pkgDir = ${JSON.stringify(probeDir)}
+const pkgJson = join(pkgDir, 'package.json')
+
+// 1) The probe's exports does not define './team' yet → import fails.
+let firstCode
+try { await import('${probe}/team'); firstCode = 'ok' }
+catch (e) { firstCode = e?.code ?? 'no-code' }
+console.log('first=' + firstCode)
+
+// 2) Fix the on-disk exports so './team' is now exported.
+writeFileSync(pkgJson, ${JSON.stringify(exportsWithTeam())})
+
+// 3) Simulate the hot loader's JS-side eviction: clear _pathCache and the whole
+//    require.cache. These are exactly what clearNodeResolutionCache reaches —
+//    and empirically they do NOT touch the ESM result.
+const mod = await import('node:module')
+if (mod._pathCache) for (const k of Object.keys(mod._pathCache)) delete mod._pathCache[k]
+const req = createRequire(import.meta.url)
+for (const k of Object.keys(req.cache)) delete req.cache[k]
+
+// 4) The same bare subpath still fails in this process — Node's ESM exports
+//    cache is keyed by package.json path and unreachable from JS.
+let secondCode
+try { await import('${probe}/team'); secondCode = 'ok' }
+catch (e) { secondCode = e?.code ?? 'no-code' }
+console.log('second=' + secondCode)
+`)
+    // Spawn a real Node process so bare-specifier imports go through Node's own
+    // ESM resolver (vite's runner inside a vitest worker would not hit the
+    // process-level `modulesBinding.readPackageJSON` cache under test).
+    const stdout = execFileSync(process.execPath, [scriptPath], { cwd: root, encoding: 'utf8' })
+    const lines = stdout.trim().split('\n').filter(Boolean)
+    const first = lines.find(l => l.startsWith('first='))?.slice('first='.length)
+    const second = lines.find(l => l.startsWith('second='))?.slice('second='.length)
+
+    // First attempt must have failed on the missing exports entry.
+    expect(first).toBe('ERR_PACKAGE_PATH_NOT_EXPORTED')
+    // After fixing the file AND clearing every JS-side cache the hot loader
+    // reaches, the SAME bare subpath still fails — Node's ESM exports cache is
+    // keyed by package.json path and unreachable from JS. This is the documented
+    // limitation; the only recovery is a host restart.
+    expect(second).toBe('ERR_PACKAGE_PATH_NOT_EXPORTED')
   })
 })

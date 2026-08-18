@@ -104,6 +104,35 @@ practical contract is:
 
 If you need a guarantee that every live reference is rebuilt, restart the host.
 
+## Known limitation: failed ESM `exports` subpath resolution is process-cached
+
+`upgrade`'s cache eviction reaches the loader `loadCache` and the CJS
+`_pathCache`/`require.cache`. It does **not** reach Node's process-level ESM
+package resolution cache.
+
+Node caches a package's parsed `package.json` (including its `exports` map) in
+a C++ binding layer (`modulesBinding.readPackageJSON`) keyed by the package.json
+path. This cache does not check the file's mtime, and it has no JS-side handle or
+public API (verified empirically on Node v24.10.0):
+
+- A subpath that fails `exports` resolution once
+  (`ERR_PACKAGE_PATH_NOT_EXPORTED`, e.g. `import './team'` before `exports`
+  gains `"./team"`) stays failed for the life of the process, even after:
+  - the on-disk `exports` is fixed;
+  - the package's `loadCache` records are evicted;
+  - `Module._pathCache` and `require.cache` are fully cleared;
+  - the same bare-specifier subpath is imported again.
+- The cached value is bound to the package.json **path**: a package at a fresh
+  path resolves immediately, while the same path keeps returning the stale
+  result no matter how the file changes.
+
+Consequence for hot upgrade: if a hot-upgraded package starts relying on a newly
+exported subpath that previously failed to resolve in this process, the live
+process cannot pick it up — **the only recovery is a host restart**. This is
+distinct from the fiber-escape boundary above: that one is about held service
+references; this one is about Node's own resolution cache that no `upgrade`
+step can evict.
+
 ## Boot cleanup
 
 When the `harnessHot` service starts it wipes `hot-*.yml` under
