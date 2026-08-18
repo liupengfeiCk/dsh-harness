@@ -45,7 +45,7 @@ function mockTeams(overrides: Partial<Teams> = {}): {
   return { teams, setEnabled, create, update, remove }
 }
 
-/** A scripted subagent registry, for the role bodies' available ids. */
+/** A scripted subagent registry, for the role subagents' available ids. */
 function mockSubagents(ids: string[] = []): SubagentPresets {
   return { list: async () => ids.map(id => ({ id, trust: 'user' as const, path: `/s/${id}/agent.cordis.yml`, metadata: {} })) } as unknown as SubagentPresets
 }
@@ -55,11 +55,11 @@ describe('team-preset wire dispatch', () => {
     const result = await dispatchTeamPreset(undefined, undefined, 'list', {}, signal())
     expect(result).toEqual({
       ok: true,
-      value: { teams: [], authorable: false, hasDocument: expect.any(Boolean), bodies: [] },
+      value: { teams: [], authorable: false, hasDocument: expect.any(Boolean), subagents: [] },
     })
   })
 
-  it('lists the roster rows and forwards authorable and the bodies', async () => {
+  it('lists the roster rows and forwards authorable and the subagents', async () => {
     const { teams } = mockTeams({
       authorable: false,
       list: async () => [{
@@ -77,7 +77,7 @@ describe('team-preset wire dispatch', () => {
         }],
         authorable: false,
         hasDocument: expect.any(Boolean),
-        bodies: ['writer', 'reviewer'],
+        subagents: ['writer', 'reviewer'],
       },
     })
   })
@@ -87,7 +87,7 @@ describe('team-preset wire dispatch', () => {
       resolve: async (id: string) => ({
         id, trust: 'user' as const, path: `/t/${id}/team.yml`,
         metadata: { name: 'Edit' }, roles: [{
-          id: 'copywriter', description: 'Writes copy', prompt: 'You are a copywriter.', body: 'writer', memory: 'persistent' as const,
+          id: 'copywriter', description: 'Writes copy', prompt: 'You are a copywriter.', subagent: 'writer', memory: 'persistent' as const,
         }],
       }),
     })
@@ -98,7 +98,7 @@ describe('team-preset wire dispatch', () => {
         team: {
           id: 'edit', trust: 'user', metadata: { name: 'Edit' },
           roles: [{
-            id: 'copywriter', description: 'Writes copy', prompt: 'You are a copywriter.', body: 'writer', memory: 'persistent',
+            id: 'copywriter', description: 'Writes copy', prompt: 'You are a copywriter.', subagent: 'writer', memory: 'persistent',
           }],
         },
       },
@@ -121,7 +121,7 @@ describe('team-preset wire dispatch', () => {
       {
         id: 'edit',
         name: 'Edit team',
-        roles: [{ id: 'copywriter', body: 'writer', memory: 'one-shot' }],
+        roles: [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot' }],
       },
       signal(),
     )
@@ -129,7 +129,7 @@ describe('team-preset wire dispatch', () => {
     expect(create).toHaveBeenCalledExactlyOnceWith(
       'edit',
       { name: 'Edit team' },
-      [{ id: 'copywriter', body: 'writer', memory: 'one-shot' }],
+      [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot' }],
     )
   })
 
@@ -186,7 +186,7 @@ describe('team-preset update semantics', () => {
       {
         id: 'edit',
         metadata: { name: 'New', enabled: true },
-        roles: [{ id: 'copywriter', body: 'writer', memory: 'persistent', description: 'Writes' }],
+        roles: [{ id: 'copywriter', subagent: 'writer', memory: 'persistent', description: 'Writes' }],
       },
       signal(),
     )
@@ -194,7 +194,7 @@ describe('team-preset update semantics', () => {
     expect(update).toHaveBeenCalledExactlyOnceWith(
       'edit',
       { name: 'New', enabled: true },
-      [{ id: 'copywriter', description: 'Writes', body: 'writer', memory: 'persistent' }],
+      [{ id: 'copywriter', description: 'Writes', subagent: 'writer', memory: 'persistent' }],
     )
   })
 
@@ -202,19 +202,19 @@ describe('team-preset update semantics', () => {
     const { teams, update } = mockTeams({
       resolve: async (id: string) => ({
         id, trust: 'user' as const, path: `/t/${id}/team.yml`,
-        metadata: { name: 'Keep', enabled: true }, roles: [{ id: 'old', body: 'writer', memory: 'one-shot' }],
+        metadata: { name: 'Keep', enabled: true }, roles: [{ id: 'old', subagent: 'writer', memory: 'one-shot' }],
       }),
     })
     // A roles-only write preserves the stored metadata.
     await dispatchTeamPreset(
       teams, undefined, 'update',
-      { id: 'edit', roles: [{ id: 'copywriter', body: 'writer', memory: 'one-shot' }] },
+      { id: 'edit', roles: [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot' }] },
       signal(),
     )
     expect(update).toHaveBeenCalledExactlyOnceWith(
       'edit',
       { name: 'Keep', enabled: true },
-      [{ id: 'copywriter', body: 'writer', memory: 'one-shot' }],
+      [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot' }],
     )
   })
 
@@ -225,7 +225,7 @@ describe('team-preset update semantics', () => {
     })
     const result = await dispatchTeamPreset(
       teams, undefined, 'update',
-      { id: 'shipped', roles: [{ id: 'r', body: 'writer', memory: 'one-shot' }] },
+      { id: 'shipped', roles: [{ id: 'r', subagent: 'writer', memory: 'one-shot' }] },
       signal(),
     )
     expect(result.ok).toBe(false)

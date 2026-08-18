@@ -3,9 +3,9 @@
  *
  * A team tool instance is bound to ONE team (the roster of roles a user built
  * ahead of time). The model picks a `role` from that team's catalogue; the tool
- * resolves the role's body (a user-defined subagent id — the hard capability
- * boundary) and soul (the role's own prompt — the soft behaviour guide), and
- * starts a child through `ctx.subagents` composed from both.
+ * resolves the role's subagent (a user-defined subagent id — the hard
+ * capability boundary) and prompt (the role's own prompt — the soft behaviour
+ * guide), and starts a child through `ctx.subagents` composed from both.
  *
  * Two memory policies decide the execution route:
  * - `one-shot` roles start a fresh child every call (foreground by default,
@@ -13,7 +13,7 @@
  * - `persistent` roles start a durable continuable child through
  *   `startContinuable`, persisting `{ team, role }` in the descriptor so a cold
  *   resume re-resolves the role from the team's latest definition (reference
- *   semantics) and re-injects its soul persona + body tree.
+ *   semantics) and re-injects its prompt persona + subagent tree.
  *
  * In team form the main agent sees ONLY the team's role catalogue — never the
  * bare subagent roster. That is a COMPOSITION CONVENTION, not hidden logic: a

@@ -28,7 +28,7 @@ export const wireRoleSchema = z.object({
   id: z.string().min(1),
   description: z.string().optional(),
   prompt: z.string().optional(),
-  body: z.string().min(1),
+  subagent: z.string().min(1),
   memory: wireRoleMemorySchema,
 })
 
@@ -71,8 +71,8 @@ export const wireListValueSchema = z.object({
   teams: z.array(wireTeamEntrySchema),
   authorable: z.boolean(),
   hasDocument: z.boolean(),
-  /** The subagent ids a role's "body" may select from (the delegation surface). */
-  bodies: z.array(z.string()),
+  /** The subagent ids a role's "subagent" may select from (the delegation surface). */
+  subagents: z.array(z.string()),
 })
 
 /** teamPreset.read request payload. */
@@ -85,12 +85,12 @@ export const wireReadValueSchema = z.object({
   team: wireTeamDetailSchema,
 })
 
-/** One staged role for create/update, with an optional body pick. */
+/** One staged role for create/update, with an optional subagent pick. */
 export const wireStagedRoleSchema = z.object({
   id: z.string().min(1),
   description: z.string().optional(),
   prompt: z.string().optional(),
-  body: z.string().min(1),
+  subagent: z.string().min(1),
   memory: wireRoleMemorySchema,
 })
 

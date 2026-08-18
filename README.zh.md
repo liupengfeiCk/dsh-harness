@@ -48,7 +48,7 @@ plane 拆分遵循 `dsh-web-app`：subagent 注册表及其 backend 保留在 ho
 
 ## Team（编制表）
 
-**Team** 是用户提前建好的角色编制表：一组角色（soul）各绑定一个身体（body，即一个用户自定义子代理）。身体管能力边界（硬约束，来自子代理的插件树），灵魂管行为方式（软约束，角色的独立提示词作为 persona 注入）。Team 存储在独立双根下，完全与 agent-preset roster 和 subagent roster 分开：`config/teams/`（system 只读）+ `$DSH_HOME/.dsh/teams`（user 可写）。
+**Team** 是用户提前建好的角色编制表：一组角色各绑定一个子代理（一个用户自定义子代理 id），并携带自己的提示词。子代理管能力边界（硬约束，来自子代理的插件树），提示词管行为方式（软约束，角色的独立提示词作为 persona 注入）。Team 存储在独立双根下，完全与 agent-preset roster 和 subagent roster 分开：`config/teams/`（system 只读）+ `$DSH_HOME/.dsh/teams`（user 可写）。
 
 一个 team 是 `<root>/<teamId>/team.yml`，格式如下：
 
@@ -61,18 +61,18 @@ roles:
   - id: copywriter
     description: 负责文案写作
     prompt: 你是一名资深文案，注重说服力与清晰。
-    body: writer          # 身体 = 子代理 id（能力边界）
+    subagent: writer      # 子代理 id（能力边界）
     memory: persistent    # persistent | one-shot
   - id: factchecker
     description: 负责事实核查
     prompt: 你是一名严谨的事实核查员。
-    body: reviewer
+    subagent: reviewer
     memory: one-shot
 ```
 
 **两种记忆模式**：
 - `one-shot`（一次性）：每次调用都起一个全新子代理，干完即散。
-- `persistent`（长期）：该角色持续存在，走 `startContinuable` 保持可续对话的 durable 子代理；descriptor 持久化 `{ team, role }`，冷恢复时**重新解析 team 最新定义**（引用语义——team 文件改过就用新版）重挂身体树与灵魂 persona。
+- `persistent`（长期）：该角色持续存在，走 `startContinuable` 保持可续对话的 durable 子代理；descriptor 持久化 `{ team, role }`，冷恢复时**重新解析 team 最新定义**（引用语义——team 文件改过就用新版）重挂子代理树与提示词 persona。
 
 **组合约定**：team 形态下主代理只看到该队的角色目录（`team_delegate` 工具的 `role` 参数），**不直接感知裸子代理名单**。这是组合层约定而非隐藏逻辑——team 形态的部署只挂 `team-delegate` 行、不挂 `delegate`/`subagent` 行即可，裸子代理 catalogue 自然不会进入模型视野。`team-delegate` 工具行在 `cordis.patch.yml` 里默认 `disabled: true`，在 preset composition 里启用。
 
@@ -88,5 +88,5 @@ roles:
 
 - **依赖 web 层**：本组合包挂载的注册表与设置行需要 `dsh-client-connection`/`dsh-host-apiproxy` 及客户端设置面，因此面向 web profile；装进 headless 或自定义 profile 时会因缺少 web 行而 fail-loud。
 - **替换行 id 不同**：Loader 拒绝重复 id，且 patch 无法改写 `name`，因此替换行使用 `subagent-harness`/`subagent-spawn-harness`/`subagent-fork-harness` 而非官方 id。后续针对官方 `subagent` id 的 patch 层配置的是被禁用的官方行，而非 Harness 替换行。
-- **灵魂 persona 与身体 persona 的同 scope 冲突**：`dsh-system-prompt` 在同一 scope 内注册同名 section 会抛错（不同 scope 才 shadow）。team 工具把灵魂注入为 `deployment:persona`（order 0），身体子代理的 composition 若也带 persona 段，会与灵魂在同 child scope 冲突抛错。因此 team 的身体应只管能力边界、不带自己的 persona；若身体确需自带 persona，请改用独立段名（如 `team:role`，order 1）注入灵魂（一期未内置，后续按需扩展）。
+- **提示词 persona 与子代理 persona 的同 scope 冲突**：`dsh-system-prompt` 在同一 scope 内注册同名 section 会抛错（不同 scope 才 shadow）。team 工具把角色提示词注入为 `deployment:persona`（order 0），子代理的 composition 若也带 persona 段，会与角色提示词在同 child scope 冲突抛错。因此 team 的子代理应只管能力边界、不带自己的 persona；若子代理确需自带 persona，请改用独立段名（如 `team:role`，order 1）注入角色提示词（一期未内置，后续按需扩展）。
 - **一期无 team UI**：team 资产是存盘固定资产（`team.yml` 手写），UI 管理界面暂缓。

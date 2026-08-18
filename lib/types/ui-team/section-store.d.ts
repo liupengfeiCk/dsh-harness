@@ -1,7 +1,7 @@
 /**
  * Team management controller: the roster as a list, a create dialog, a
  * row-level enable/disable toggle, an edit detail over the team's role roster
- * (body/soul/memory per role), delete, and opening a team's directory.
+ * (subagent/prompt/memory per role), delete, and opening a team's directory.
  *
  * The host stays the single fact source. Every mutation writes through the
  * wire and the page re-reads the roster afterwards, because a toggle or edit
@@ -47,10 +47,10 @@ export interface RoleDraft {
     id: string;
     /** One sentence on the role's responsibility. */
     description: string;
-    /** The role's own soul prompt, injected as the child's persona. */
+    /** The role's own prompt, injected as the child's persona. */
     prompt: string;
-    /** The bound body: a user-defined subagent id. */
-    body: string;
+    /** The bound subagent: a user-defined subagent id. */
+    subagent: string;
     /** Memory policy: one-shot or persistent. */
     memory: WireRoleMemory;
 }
@@ -128,8 +128,8 @@ export interface TeamSectionState {
     authorable: boolean;
     /** Whether the host can open a team directory on a native desktop. */
     hasDocument: boolean;
-    /** The subagent ids a role's body may select from. */
-    bodies: readonly string[];
+    /** The subagent ids a role's subagent may select from. */
+    subagents: readonly string[];
     /** Every team the deployment currently supplies. */
     rows: readonly TeamRow[];
     /** The open create dialog, or null. */
@@ -144,11 +144,11 @@ export interface TeamSectionState {
     revealedPaths: Readonly<Record<string, string>>;
 }
 /** Why this create cannot be submitted yet, as a locale key, or undefined. */
-export declare function createBlocker(draft: CreateDraft, rows: readonly TeamRow[]): 'idRequired' | 'idInvalid' | 'idTaken' | 'roleIdRequired' | 'roleBodyRequired' | undefined;
+export declare function createBlocker(draft: CreateDraft, rows: readonly TeamRow[]): 'idRequired' | 'idInvalid' | 'idTaken' | 'roleIdRequired' | 'roleSubagentRequired' | undefined;
 /** Why an edit detail cannot be saved yet, as a locale key, or undefined. */
-export declare function detailBlocker(draft: DetailDraft): 'roleIdRequired' | 'roleBodyRequired' | undefined;
+export declare function detailBlocker(draft: DetailDraft): 'roleIdRequired' | 'roleSubagentRequired' | undefined;
 /** Why the role roster cannot be submitted, as a locale key, or undefined. */
-export declare function roleBlocker(roles: readonly RoleDraft[]): 'roleIdRequired' | 'roleBodyRequired' | undefined;
+export declare function roleBlocker(roles: readonly RoleDraft[]): 'roleIdRequired' | 'roleSubagentRequired' | undefined;
 /**
  * Read the roster and drive the create, edit detail, toggle, delete, and
  * location reveals.
@@ -211,7 +211,7 @@ export declare class TeamSectionController {
     /** Remove one role row from the team detail (and any open edit on it). */
     removeRole(index: number): void;
     /** Stage one field on the open role edit draft, marking it dirty. */
-    setRoleEditField(field: 'id' | 'description' | 'prompt' | 'body' | 'memory', value: string): void;
+    setRoleEditField(field: 'id' | 'description' | 'prompt' | 'subagent' | 'memory', value: string): void;
     /**
      * Commit the open role edit: validate, then write back into the roster
      * (replacing the existing row, or trimming the trailing new row). The

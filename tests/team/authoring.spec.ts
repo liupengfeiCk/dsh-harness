@@ -14,8 +14,8 @@ import Teams, {
 } from '../../src/team/index.ts'
 
 /** One minimal usable role. */
-function role(id: string, body = 'writer'): TeamRole {
-  return { id, body, memory: 'one-shot' }
+function role(id: string, subagent = 'writer'): TeamRole {
+  return { id, subagent, memory: 'one-shot' }
 }
 
 /** Mount a team registry over one writable temp root. */
@@ -67,7 +67,7 @@ describe('dsh-subagent-bundle/team authoring', () => {
     }
   })
 
-  it('refuses a role with no bound body', async () => {
+  it('refuses a role with no bound subagent', async () => {
     const root = await mkdtempPromise(join(tmpdir(), 'dsh-team-auth-'))
     const ctx = await makeCtx(root)
     try {
@@ -87,7 +87,7 @@ describe('dsh-subagent-bundle/team authoring', () => {
       expect(team.metadata.name).toBe('New')
       expect(team.metadata.enabled).toBe(true)
       expect(team.roles.map(r => r.id)).toEqual(['editor'])
-      expect(team.roles[0]!.body).toBe('reviewer')
+      expect(team.roles[0]!.subagent).toBe('reviewer')
     } finally {
       await ctx.fiber.dispose()
     }
@@ -134,7 +134,7 @@ describe('dsh-subagent-bundle/team authoring', () => {
       // Seed a shipped team with an id that also does NOT collide with a user one.
       await import('node:fs/promises').then(fs => fs.mkdir(join(systemRoot, 'shipped'), { recursive: true }))
       await import('node:fs/promises').then(fs =>
-        fs.writeFile(join(systemRoot, 'shipped', 'team.yml'), 'metadata:\n  name: Shipped\nroles:\n  - id: r\n    body: writer\n    memory: one-shot\n'))
+        fs.writeFile(join(systemRoot, 'shipped', 'team.yml'), 'metadata:\n  name: Shipped\nroles:\n  - id: r\n    subagent: writer\n    memory: one-shot\n'))
       await expect(ctx.teams.update('shipped', {}, [role('r')])).rejects.toThrow(TeamNotWritableError)
       await expect(ctx.teams.remove('shipped')).rejects.toThrow(TeamNotWritableError)
       await expect(ctx.teams.setEnabled('shipped', false)).rejects.toThrow(TeamNotWritableError)

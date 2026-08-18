@@ -1,16 +1,16 @@
 /**
  * User-defined teams ("编制表"): a registry over independently stored,
- * user-authored rosters of roles that bind a soul (role) to a body (subagent).
+ * user-authored rosters of roles that bind a prompt (role) to a subagent.
  *
  * A team is one directory holding a `team.yml` carrying the team's display
- * metadata and its role roster. Each role names a subagent id as its "body" —
- * the hard capability boundary — and carries its own prompt as the "soul" — the
- * soft behaviour guide. Roles live in their OWN roots (`config/teams/` for the
- * shipped, read-only set and `$DSH_HOME/.dsh/teams` for locally authored ones),
- * fully separate from both the agent-preset roster and the subagent roster.
+ * metadata and its role roster. Each role names a subagent id as its
+ * capability boundary and carries its own prompt as the behaviour guide. Roles
+ * live in their OWN roots (`config/teams/` for the shipped, read-only set and
+ * `$DSH_HOME/.dsh/teams` for locally authored ones), fully separate from both
+ * the agent-preset roster and the subagent roster.
  *
  * This service owns the team vocabulary, filesystem discovery, and the guarded
- * resolution of a role into a delegation target (body subagent + soul persona).
+ * resolution of a role into a delegation target (subagent + prompt persona).
  * It does not decide when a child is created; the team delegation tool calls
  * {@link Teams.resolveRole} and then starts the child through `ctx.subagents`.
  * @module dsh-harness-subagent-bundle/team
@@ -98,11 +98,11 @@ export class Teams extends Service {
   }
 
   /**
-   * Resolve one role's stored definition (its bound body and soul prompt) from
-   * the team's CURRENT file, without health-checking the bound body. Used by
-   * the cold-resume path to re-materialize a persistent role against the latest
-   * team definition ("reference semantics": if the team file was edited, the
-   * resumed role uses the new version). A role whose own fields are unusable
+   * Resolve one role's stored definition (its bound subagent and prompt) from
+   * the team's CURRENT file, without health-checking the bound subagent. Used
+   * by the cold-resume path to re-materialize a persistent role against the
+   * latest team definition ("reference semantics": if the team file was edited,
+   * the resumed role uses the new version). A role whose own fields are unusable
    * resolves to its structurally-broken form so the caller can decide.
    * @param teamId - the team id.
    * @param roleId - the role id.
@@ -126,40 +126,40 @@ export class Teams extends Service {
 
   /**
    * Resolve a role that is about to compose a child, health-checking its bound
-   * body (subagent). A role whose body is missing, structurally broken, or
+   * subagent. A role whose subagent is missing, structurally broken, or
    * disabled is refused with a per-role reason — the team's OTHER roles stay
    * usable. This is the delegation gate the team tool calls.
    * @param teamId - the team id.
    * @param roleId - the role id.
-   * @returns the usable role with its body (subagent id) and soul (prompt).
+   * @returns the usable role with its subagent (subagent id) and prompt.
    * @throws when the team is unknown/broken, the role is unknown, or the role's
-   *   bound body is not a usable subagent.
+   *   bound subagent is not a usable subagent.
    */
   async resolveRole(teamId: string, roleId: string): Promise<TeamRole> {
     const role = await this.resolveRoleDefinition(teamId, roleId)
     if (role.broken !== undefined) {
       throw new Error(`team-presets: team "${teamId}" role "${roleId}" cannot be delegated: ${role.broken}`)
     }
-    // The body is a subagent id resolved through the subagent registry. A role
-    // whose body is missing, broken, or disabled is refused here — the team's
+    // The subagent is resolved through the subagent registry. A role whose
+    // subagent is missing, broken, or disabled is refused here — the team's
     // other roles stay usable (broken semantics are per-role, not per-team).
     const subagents = this.ctx.get('subagentPresets')
     if (subagents === undefined) {
       throw new Error(
-        `team-presets: team "${teamId}" role "${roleId}" binds body subagent "${role.body}" but no subagent `
+        `team-presets: team "${teamId}" role "${roleId}" binds subagent "${role.subagent}" but no subagent `
         + 'registry is loaded (load dsh-harness-subagent-bundle/preset in the host composition)',
       )
     }
-    const body = await subagents.resolve(role.body)
-    if (body.broken !== undefined) {
+    const subagent = await subagents.resolve(role.subagent)
+    if (subagent.broken !== undefined) {
       throw new Error(
-        `team-presets: team "${teamId}" role "${roleId}" cannot be delegated: its body subagent "${role.body}" `
-        + `is broken: ${body.broken}`,
+        `team-presets: team "${teamId}" role "${roleId}" cannot be delegated: its subagent "${role.subagent}" `
+        + `is broken: ${subagent.broken}`,
       )
     }
-    if (body.metadata.enabled === false) {
+    if (subagent.metadata.enabled === false) {
       throw new Error(
-        `team-presets: team "${teamId}" role "${roleId}" cannot be delegated: its body subagent "${role.body}" `
+        `team-presets: team "${teamId}" role "${roleId}" cannot be delegated: its subagent "${role.subagent}" `
         + 'is disabled; enable it in the subagents settings to delegate to it',
       )
     }

@@ -51,7 +51,7 @@ export interface HarnessContinuableSubagentDescriptorData
   readonly subagent?: string
   /** Team id whose roster the role was delegated from, for cold-resume re-resolution. */
   readonly team?: string
-  /** Role id within the team, for cold-resume re-resolution of the body/soul. */
+  /** Role id within the team, for cold-resume re-resolution of the subagent/prompt. */
   readonly role?: string
 }
 

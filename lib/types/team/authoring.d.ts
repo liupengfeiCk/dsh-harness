@@ -37,7 +37,7 @@ export declare class TeamNotWritableError extends Error {
     /** What the caller tried to change, for the diagnostic. */
     teamId: string, reason: string);
 }
-/** A role the caller staged with no usable body reference. */
+/** A role the caller staged with no usable subagent reference. */
 export declare class TeamRoleInvalidError extends Error {
     /** The team id the role belongs to. */
     readonly teamId: string;
@@ -116,9 +116,9 @@ export declare function updateTeam(roots: readonly TeamRoot[], team: Team, metad
  * Delete a locally authored team.
  *
  * A shipped team is refused: it belongs to the deployment. A team whose roles
- * a live child already mounted is NOT refused — the role's body and soul were
- * read at child creation and a persistent child re-resolves from the latest
- * definition at resume, which after deletion simply fails that resume.
+ * a live child already mounted is NOT refused — the role's subagent and prompt
+ * were read at child creation and a persistent child re-resolves from the
+ * latest definition at resume, which after deletion simply fails that resume.
  * @param roots - the configured roots.
  * @param team - the resolved team to remove.
  * @throws when the team ships with the deployment or lies outside the writable

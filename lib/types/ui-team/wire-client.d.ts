@@ -39,7 +39,7 @@ export interface WireRole {
     readonly id: string;
     readonly description?: string;
     readonly prompt?: string;
-    readonly body: string;
+    readonly subagent: string;
     readonly memory: WireRoleMemory;
 }
 /** One fully-read team. */
@@ -56,7 +56,7 @@ export interface TeamPresetWire {
         teams: readonly WireTeamEntry[];
         authorable: boolean;
         hasDocument: boolean;
-        bodies: readonly string[];
+        subagents: readonly string[];
     }>>;
     read(payload: {
         id: string;

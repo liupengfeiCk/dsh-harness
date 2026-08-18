@@ -1,9 +1,9 @@
 /**
  * The team delegation tool: model-facing `team_delegate` over `ctx.subagents`,
- * resolving a role on a bound team into a body (subagent id) + soul (persona)
- * and starting a child composed from both. These assert the tool boundary on
- * the team code path: one-shot role dispatch, the role catalogue prompt
- * section, and the disabled-team exclusion.
+ * resolving a role on a bound team into a subagent (subagent id) + prompt
+ * (persona) and starting a child composed from both. These assert the tool
+ * boundary on the team code path: one-shot role dispatch, the role catalogue
+ * prompt section, and the disabled-team exclusion.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -55,12 +55,12 @@ function registerCapture(
   return { seen: () => holder.seen }
 }
 
-/** Write one mountable subagent directory acting as a role body. */
-async function writeBody(root: string, id: string): Promise<void> {
+/** Write one mountable subagent directory acting as a role subagent. */
+async function writeSubagent(root: string, id: string): Promise<void> {
   const dir = join(root, id)
   await mkdirPromise(dir, { recursive: true })
   await writeFilePromise(join(dir, 'agent.cordis.yml'),
-    "- id: persona\n  name: '@deepseek-ai/dsh-persona'\n  config:\n    text: I am a body.\n")
+    "- id: persona\n  name: '@deepseek-ai/dsh-persona'\n  config:\n    text: I am a subagent.\n")
   await writeFilePromise(join(dir, 'subagent.yml'), 'enabled: true\n')
 }
 
@@ -72,27 +72,27 @@ async function writeTeam(root: string, id: string, roles: string, enabled = true
     `metadata:\n  name: ${id}\n  enabled: ${String(enabled)}\nroles:\n${roles}\n`)
 }
 
-function roleYaml(id: string, body: string, extra = ''): string {
-  return `  - id: ${id}\n    body: ${body}\n    description: ${id} role\n${extra}`
+function roleYaml(id: string, subagent: string, extra = ''): string {
+  return `  - id: ${id}\n    subagent: ${subagent}\n    description: ${id} role\n${extra}`
 }
 
 /** Mount a context with loader, registries, a capture provider, and the team tool. */
 async function setup(
   toolConfig: Partial<teamTool.Config>,
 ): Promise<{ ctx: Context; seen: () => HarnessSubagentStartRequest | undefined }> {
-  const bodyRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-body-'))
+  const subagentRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-subagent-'))
   const teamRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-root-'))
-  await writeBody(bodyRoot, 'writer')
+  await writeSubagent(subagentRoot, 'writer')
   await writeTeam(teamRoot, 'edit', roleYaml('copywriter', 'writer', '    prompt: You are a copywriter.\n'))
   const ctx = new Context()
-  ctx.baseUrl = pathToFileURL(bodyRoot).href + '/'
+  ctx.baseUrl = pathToFileURL(subagentRoot).href + '/'
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(SubagentRuntime)
   const capture = registerCapture(ctx, 'capture')
-  await ctx.plugin(SubagentPresets, { roots: [{ path: bodyRoot, trust: 'system' }], includeUserRoot: false })
+  await ctx.plugin(SubagentPresets, { roots: [{ path: subagentRoot, trust: 'system' }], includeUserRoot: false })
   await ctx.plugin(Teams, { roots: [{ path: teamRoot, trust: 'system' }], includeUserRoot: false })
   await ctx.plugin(teamTool, { team: 'edit', provider: 'capture', ...toolConfig })
   return { ctx, seen: capture.seen }
@@ -123,12 +123,12 @@ describe('dsh-subagent-bundle/team/tool', () => {
     expect(Object.keys(props).sort()).toEqual(['description', 'prompt', 'role', 'run_in_background'])
   })
 
-  it('resolves a one-shot role and forwards body (subagent) + soul (persona) to the engine', async () => {
+  it('resolves a one-shot role and forwards subagent + prompt (persona) to the engine', async () => {
     const { ctx, seen } = await setup({})
     const result = await callTeam(ctx, { role: 'copywriter', description: 'write copy', prompt: 'write me copy' })
     expect(result.isError).toBe(false)
-    // The request composes the child from BOTH the role's body (subagent) and
-    // its soul (persona) — this is exactly what the engine's setupChildComposition
+    // The request composes the child from BOTH the role's subagent and its
+    // prompt (persona) — this is exactly what the engine's setupChildComposition
     // receives on the child's creation window.
     expect(seen()?.subagent).toBe('writer')
     expect(seen()?.persona).toBe('You are a copywriter.')
@@ -149,19 +149,19 @@ describe('dsh-subagent-bundle/team/tool', () => {
     expect(text(result)).toContain('has no role')
   })
 
-  it('fails loud when the named role\'s bound body is missing', async () => {
-    const bodyRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-body2-'))
+  it('fails loud when the named role\'s bound subagent is missing', async () => {
+    const subagentRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-subagent2-'))
     const teamRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-root2-'))
     await writeTeam(teamRoot, 'edit', roleYaml('ghostwriter', 'ghost'))
     const ctx = new Context()
-    ctx.baseUrl = pathToFileURL(bodyRoot).href + '/'
+    ctx.baseUrl = pathToFileURL(subagentRoot).href + '/'
     await ctx.plugin(Loader)
     ctx.loader.builtins.include = Include
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(SubagentRuntime)
     registerCapture(ctx, 'capture')
-    await ctx.plugin(SubagentPresets, { roots: [{ path: bodyRoot, trust: 'system' }], includeUserRoot: false })
+    await ctx.plugin(SubagentPresets, { roots: [{ path: subagentRoot, trust: 'system' }], includeUserRoot: false })
     await ctx.plugin(Teams, { roots: [{ path: teamRoot, trust: 'system' }], includeUserRoot: false })
     await ctx.plugin(teamTool, { team: 'edit', provider: 'capture' })
     const result = await callTeam(ctx, { role: 'ghostwriter', description: 'd', prompt: 'p' })
@@ -187,20 +187,20 @@ describe('dsh-subagent-bundle/team/tool', () => {
   })
 
   it('does not list a disabled team\'s roles in the system prompt', async () => {
-    const bodyRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-body3-'))
+    const subagentRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-subagent3-'))
     const teamRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-root3-'))
-    await writeBody(bodyRoot, 'writer')
+    await writeSubagent(subagentRoot, 'writer')
     // A disabled team: its role catalogue must not appear to the model.
     await writeTeam(teamRoot, 'edit', roleYaml('copywriter', 'writer'), false)
     const ctx = new Context()
-    ctx.baseUrl = pathToFileURL(bodyRoot).href + '/'
+    ctx.baseUrl = pathToFileURL(subagentRoot).href + '/'
     await ctx.plugin(Loader)
     ctx.loader.builtins.include = Include
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(SubagentRuntime)
     registerCapture(ctx, 'capture')
-    await ctx.plugin(SubagentPresets, { roots: [{ path: bodyRoot, trust: 'system' }], includeUserRoot: false })
+    await ctx.plugin(SubagentPresets, { roots: [{ path: subagentRoot, trust: 'system' }], includeUserRoot: false })
     await ctx.plugin(Teams, { roots: [{ path: teamRoot, trust: 'system' }], includeUserRoot: false })
     await ctx.plugin(teamTool, { team: 'edit', provider: 'capture' })
     // Wait for the catalogue refresh, then assert the role never appears.

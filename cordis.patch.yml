@@ -78,8 +78,8 @@
         backgroundMode: continuable
 
 # The team roster ("编制表"): user-authored rosters of roles, each binding a
-# soul (role) to a body (a user-defined subagent id). Same dual-root model as
-# the subagent roster — `config/teams/` ships read-only (`system` trust),
+# prompt (role) to a subagent (a user-defined subagent id). Same dual-root model
+# as the subagent roster — `config/teams/` ships read-only (`system` trust),
 # `$DSH_HOME/.dsh/teams` is where a person authors their own (`user`).
     - id: teams
       name: 'dsh-harness-subagent-bundle/team'
@@ -87,7 +87,7 @@
 # The team-management wire: the `/team-preset` connection channel carrying the
 # browser settings surface's read/write over the team roster (list/read/
 # create/update/remove/openLocation). It rides alongside the `teams` service
-# (and, for the role bodies' available ids, the `subagentPresets` service)
+# (and, for the role subagents' available ids, the `subagentPresets` service)
 # that it reads through the services' public interfaces, kept as a separate
 # host row so the registry's constructor stays zero-invasive.
     - id: team-wire

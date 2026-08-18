@@ -58,7 +58,7 @@ export class TeamNotWritableError extends Error {
   }
 }
 
-/** A role the caller staged with no usable body reference. */
+/** A role the caller staged with no usable subagent reference. */
 export class TeamRoleInvalidError extends Error {
   constructor(
     /** The team id the role belongs to. */
@@ -105,7 +105,7 @@ export function renderTeam(
   if (metadata.description !== undefined) cleanMetadata.description = metadata.description
   if (metadata.enabled !== undefined) cleanMetadata.enabled = metadata.enabled
   const cleanRoles = roles.map(role => {
-    const row: Record<string, unknown> = { id: role.id, body: role.body }
+    const row: Record<string, unknown> = { id: role.id, subagent: role.subagent }
     if (role.description !== undefined) row.description = role.description
     if (role.prompt !== undefined) row.prompt = role.prompt
     row.memory = role.memory
@@ -151,8 +151,8 @@ export async function createTeam(
 ): Promise<string> {
   if (!TEAM_ID.test(id)) throw new InvalidTeamIdError(id)
   for (const role of roles) {
-    if (role.body === '') {
-      throw new TeamRoleInvalidError(id, role.id, 'a role must bind a "body" (a subagent id)')
+    if (role.subagent === '') {
+      throw new TeamRoleInvalidError(id, role.id, 'a role must bind a "subagent" (a subagent id)')
     }
   }
   const dir = join(writableRoot(roots), id)
@@ -197,8 +197,8 @@ export async function updateTeam(
     throw new TeamNotWritableError(team.id, 'it does not live under the writable team root')
   }
   for (const role of roles) {
-    if (role.body === '') {
-      throw new TeamRoleInvalidError(team.id, role.id, 'a role must bind a "body" (a subagent id)')
+    if (role.subagent === '') {
+      throw new TeamRoleInvalidError(team.id, role.id, 'a role must bind a "subagent" (a subagent id)')
     }
   }
   await writeFileAtomic(team.path, renderTeam(metadata, roles), { mode: 0o600, dirMode: 0o700 })
@@ -208,9 +208,9 @@ export async function updateTeam(
  * Delete a locally authored team.
  *
  * A shipped team is refused: it belongs to the deployment. A team whose roles
- * a live child already mounted is NOT refused — the role's body and soul were
- * read at child creation and a persistent child re-resolves from the latest
- * definition at resume, which after deletion simply fails that resume.
+ * a live child already mounted is NOT refused — the role's subagent and prompt
+ * were read at child creation and a persistent child re-resolves from the
+ * latest definition at resume, which after deletion simply fails that resume.
  * @param roots - the configured roots.
  * @param team - the resolved team to remove.
  * @throws when the team ships with the deployment or lies outside the writable

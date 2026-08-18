@@ -24,7 +24,7 @@ const ROSTER_ONE = {
   teams: [{ id: 'edit', trust: 'user', metadata: { name: '编辑团队' }, roles: [{ id: 'copywriter' }] }],
   authorable: true,
   hasDocument: true,
-  bodies: ['writer'],
+  subagents: ['writer'],
 }
 
 async function bench() {
@@ -47,7 +47,7 @@ async function bench() {
         if (endpoint === 'read') {
           return Promise.resolve({
             ok: true as const,
-            value: { team: { id, trust: 'user', metadata: { name: '编辑团队' }, roles: [{ id: 'copywriter', body: 'writer', memory: 'one-shot' }] } },
+            value: { team: { id, trust: 'user', metadata: { name: '编辑团队' }, roles: [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot' }] } },
           })
         }
         if (endpoint === 'create') return Promise.resolve({ ok: true as const, value: { id } })
@@ -103,7 +103,7 @@ describe('ui-team apply', () => {
     section.beginCreate()
     section.setCreateId('news')
     section.setCreateRoleField(0, 'id', 'copywriter')
-    section.setCreateRoleField(0, 'body', 'writer')
+    section.setCreateRoleField(0, 'subagent', 'writer')
     await section.confirmCreate()
     expect(calls).toContain('team:create')
   })
@@ -115,7 +115,7 @@ describe('ui-team apply', () => {
     const section = (slots.entries('settings.section')[0]!.inject as unknown as () => TeamSectionInjected)()
     await section.load()
     await section.beginDetail('edit')
-    expect(section.hooks.teamSection.getSnapshot().detail?.roles[0]!.body).toBe('writer')
+    expect(section.hooks.teamSection.getSnapshot().detail?.roles[0]!.subagent).toBe('writer')
     section.closeDetail()
     section.confirmDelete('edit')
     await section.remove()

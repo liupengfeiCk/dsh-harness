@@ -80,10 +80,10 @@ import type {
 } from '@deepseek-ai/dsh-subagent'
 import type { HarnessSubagentStartRequest } from './request-types.ts'
 // Type-only: make `ctx.get('teams')` resolve to the user-defined team registry
-// when composed — a persistent-role cold resume re-resolves its body/soul from
-// the team's latest definition opportunistically (the documented `ctx.get`
+// when composed — a persistent-role cold resume re-resolves its subagent/prompt
+// from the team's latest definition opportunistically (the documented `ctx.get`
 // pattern), never as a hard dep. A deployment without the registry keeps the
-// persisted body/soul instead.
+// persisted subagent/prompt instead.
 import type {} from '../team/index.ts'
 import type { ActivationObserver, ActivationTerminal } from './upstream/lifecycle.ts'
 import type SubagentActivationSetupRegistry from './upstream/activation-setup-registry.ts'
@@ -992,14 +992,15 @@ export class SubagentContinuationManager {
    * Reconstruct a persistent role's child composition on cold resume.
    *
    * A persistent-role child is resumed from its persisted descriptor, which
-   * carries the body (subagent id) and soul (persona) it was created with, plus
-   * its `team`/`role` identity. When that identity is present, this re-resolves
-   * the role from the team's CURRENT file and prefers its latest body and soul
-   * over the persisted ones — "reference semantics": if the team file was
-   * edited since the child was created, the resumed role uses the new version.
-   * A re-resolution failure (team deleted, role removed, team broken) degrades
-   * gracefully to the persisted body/soul, so an already-established child can
-   * still be resumed rather than stranding its durable session.
+   * carries the subagent (subagent id) and persona it was created with, plus its
+   * `team`/`role` identity. When that identity is present, this re-resolves the
+   * role from the team's CURRENT file and prefers its latest subagent and
+   * prompt over the persisted ones — "reference semantics": if the team file
+   * was edited since the child was created, the resumed role uses the new
+   * version. A re-resolution failure (team deleted, role removed, team broken)
+   * degrades gracefully to the persisted subagent/prompt, so an
+   * already-established child can still be resumed rather than stranding its
+   * durable session.
    * @param descriptor - the folded continuable descriptor.
    * @returns the child composition to materialize.
    */
@@ -1013,15 +1014,15 @@ export class SubagentContinuationManager {
     }
     if (descriptor.team === undefined || descriptor.role === undefined) return base
     // Re-resolve the role from the team's latest definition. A failure keeps
-    // the persisted body/soul (degrade, never strand the durable child).
+    // the persisted subagent/prompt (degrade, never strand the durable child).
     const teams = this.ctx.get('teams')
     if (teams === undefined) return base
     try {
       const role = await teams.resolveRoleDefinition(descriptor.team, descriptor.role)
       return {
         ...base.toolFilter !== undefined ? { toolFilter: base.toolFilter } : {},
-        // The team's latest definition wins when it carries a body/soul.
-        ...role.body !== '' ? { subagent: role.body } : base.subagent !== undefined ? { subagent: base.subagent } : {},
+        // The team's latest definition wins when it carries a subagent.
+        ...role.subagent !== '' ? { subagent: role.subagent } : base.subagent !== undefined ? { subagent: base.subagent } : {},
         ...role.prompt !== undefined ? { persona: role.prompt } : base.persona !== undefined ? { persona: base.persona } : {},
       }
     } catch {

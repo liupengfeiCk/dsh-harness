@@ -345,14 +345,15 @@ export declare class SubagentContinuationManager {
      * Reconstruct a persistent role's child composition on cold resume.
      *
      * A persistent-role child is resumed from its persisted descriptor, which
-     * carries the body (subagent id) and soul (persona) it was created with, plus
-     * its `team`/`role` identity. When that identity is present, this re-resolves
-     * the role from the team's CURRENT file and prefers its latest body and soul
-     * over the persisted ones — "reference semantics": if the team file was
-     * edited since the child was created, the resumed role uses the new version.
-     * A re-resolution failure (team deleted, role removed, team broken) degrades
-     * gracefully to the persisted body/soul, so an already-established child can
-     * still be resumed rather than stranding its durable session.
+     * carries the subagent (subagent id) and persona it was created with, plus its
+     * `team`/`role` identity. When that identity is present, this re-resolves the
+     * role from the team's CURRENT file and prefers its latest subagent and
+     * prompt over the persisted ones — "reference semantics": if the team file
+     * was edited since the child was created, the resumed role uses the new
+     * version. A re-resolution failure (team deleted, role removed, team broken)
+     * degrades gracefully to the persisted subagent/prompt, so an
+     * already-established child can still be resumed rather than stranding its
+     * durable session.
      * @param descriptor - the folded continuable descriptor.
      * @returns the child composition to materialize.
      */

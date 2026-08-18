@@ -3,9 +3,9 @@
  *
  * A team tool instance is bound to ONE team (the roster of roles a user built
  * ahead of time). The model picks a `role` from that team's catalogue; the tool
- * resolves the role's body (a user-defined subagent id — the hard capability
- * boundary) and soul (the role's own prompt — the soft behaviour guide), and
- * starts a child through `ctx.subagents` composed from both.
+ * resolves the role's subagent (a user-defined subagent id — the hard
+ * capability boundary) and prompt (the role's own prompt — the soft behaviour
+ * guide), and starts a child through `ctx.subagents` composed from both.
  *
  * Two memory policies decide the execution route:
  * - `one-shot` roles start a fresh child every call (foreground by default,
@@ -13,7 +13,7 @@
  * - `persistent` roles start a durable continuable child through
  *   `startContinuable`, persisting `{ team, role }` in the descriptor so a cold
  *   resume re-resolves the role from the team's latest definition (reference
- *   semantics) and re-injects its soul persona + body tree.
+ *   semantics) and re-injects its prompt persona + subagent tree.
  *
  * In team form the main agent sees ONLY the team's role catalogue — never the
  * bare subagent roster. That is a COMPOSITION CONVENTION, not hidden logic: a
@@ -37,7 +37,7 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 // when composed — a team tool resolves a role from its bound team
 // opportunistically (the documented `ctx.get` pattern), never as a hard dep.
 import type { Teams } from './index.ts'
-// Type-only: make the optional subagent registry type resolve for the body
+// Type-only: make the optional subagent registry type resolve for the subagent
 // health check carried by `Teams.resolveRole`.
 import type {} from '../preset/index.ts'
 import type { HarnessSubagentStartRequest } from '../in-process/request-types.ts'
@@ -177,7 +177,7 @@ function providerWording(inheritsConversation: boolean): { description: string; 
     return {
       description:
         'Assign a task to a role on this team. The role runs as a child agent seeded with this conversation\'s '
-        + 'completed turns, composed from the role\'s body (its capability surface) and soul (its behaviour guide). '
+        + 'completed turns, composed from the role\'s subagent (its capability surface) and prompt (its behaviour guide). '
         + 'You receive its result, not its intermediate steps.',
       promptDescription:
         'The task for the team role. It already sees this conversation\'s completed turns, so build on them freely and state only what is new.',
@@ -186,7 +186,7 @@ function providerWording(inheritsConversation: boolean): { description: string; 
   return {
     description:
       'Assign a self-contained task to a role on this team. The role runs as a child agent composed from the role\'s '
-      + 'body (its capability surface) and soul (its behaviour guide), in its own context. You receive its result, '
+      + 'subagent (its capability surface) and prompt (its behaviour guide), in its own context. You receive its result, '
       + 'not its intermediate steps. Give it a complete, standalone prompt: it does not see this conversation.',
     promptDescription:
       'The complete, self-contained task for the team role. It does not share this conversation\'s context, so include everything it needs.',
@@ -217,7 +217,7 @@ function resolveDelegationRun(
 
 /**
  * Resolve a role on the bound team, failing loud when the team or role is
- * unusable or the role's body subagent is missing/broken/disabled.
+ * unusable or the role's subagent is missing/broken/disabled.
  * @param teams - the team registry.
  * @param teamId - the bound team id.
  * @param roleId - the role the model named.
@@ -256,7 +256,7 @@ export function apply(ctx: Context, config: Config): void {
         .map(role => `- ${role.id}: ${role.description ?? role.prompt ?? role.id}`)
       roleCatalogue = lines.length === 0
         ? ''
-        : `Team "${team.id}" roles (pass one as the \`role\` argument to ${toolName} to compose that child from the role's body and soul):\n${lines.join('\n')}`
+        : `Team "${team.id}" roles (pass one as the \`role\` argument to ${toolName} to compose that child from the role's subagent and prompt):\n${lines.join('\n')}`
     }).catch(() => {
       // A registry read failure leaves the last catalogue; never a broken prompt.
     })
@@ -350,21 +350,22 @@ export function apply(ctx: Context, config: Config): void {
           )
         }
         // Resolve the role; failing loud surfaces a bad pick (unknown team/role,
-        // or a role whose body is missing/broken/disabled) at the call.
+        // or a role whose subagent is missing/broken/disabled) at the call.
         const role = await resolveRole(teams, config.team, args.role)
         refreshRoleCatalogue()
 
         const maxDepth = typeof config.maxDepth === 'number' ? config.maxDepth : undefined
-        // The request composes the child from BOTH the role's body (a subagent
-        // id mounted onto the child) and its soul (a persona injected as the
-        // child's shadowing persona). The team/role identity rides along so a
-        // persistent child's descriptor can re-resolve the latest definition.
+        // The request composes the child from BOTH the role's subagent (a
+        // subagent id mounted onto the child) and its prompt (a persona
+        // injected as the child's shadowing persona). The team/role identity
+        // rides along so a persistent child's descriptor can re-resolve the
+        // latest definition.
         const request: Omit<HarnessSubagentStartRequest, 'signal' | 'outputSchema'> = {
           label: args.description,
           prompt: [{ type: 'text', text: args.prompt }] as ContentBlock[],
           parent,
           ...config.agentOptions !== undefined ? { agentOptions: config.agentOptions } : {},
-          ...role.body !== '' ? { subagent: role.body } : {},
+          ...role.subagent !== '' ? { subagent: role.subagent } : {},
           ...role.prompt !== undefined ? { persona: role.prompt } : {},
           ...{ team: config.team, role: role.id },
           ...maxDepth !== undefined ? { maxDepth } : {},

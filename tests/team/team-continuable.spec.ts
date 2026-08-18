@@ -2,7 +2,7 @@
  * Persistent team role continuation: a `persistent` role starts a durable
  * continuable child whose descriptor persists `{ team, role }`, and a cold
  * resume re-resolves the role from the team's LATEST definition — "reference
- * semantics" — re-injecting its current soul persona and body tree.
+ * semantics" — re-injecting its current prompt persona and subagent tree.
  */
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -31,8 +31,8 @@ import * as spawnPlugin from '../../src/in-process/spawn.ts'
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '../in-process/fixtures')
 const ROOTS = [{ path: join(FIXTURES, 'presets'), trust: 'system' as const }]
-// The fixture plugin used as an observable body tool; referenced by absolute
-// path so a dynamically-created body composition can mount it.
+// The fixture plugin used as an observable subagent tool; referenced by
+// absolute path so a dynamically-created subagent composition can mount it.
 const FIXTURE_TOOL = fileURLToPath(new URL('../in-process/fixtures/plugins/preset-tool.js', import.meta.url))
 
 /**
@@ -58,8 +58,8 @@ function release(gate: PromiseWithResolvers<undefined>): void {
   gate.resolve(undefined)
 }
 
-/** Write one body subagent whose composition mounts one observable tool. */
-async function writeBody(root: string, id: string, tool: string): Promise<void> {
+/** Write one subagent whose composition mounts one observable tool. */
+async function writeSubagent(root: string, id: string, tool: string): Promise<void> {
   const dir = join(root, id)
   await mkdirPromise(dir, { recursive: true })
   await writeFilePromise(join(dir, 'agent.cordis.yml'),
@@ -67,12 +67,12 @@ async function writeBody(root: string, id: string, tool: string): Promise<void> 
   await writeFilePromise(join(dir, 'subagent.yml'), 'enabled: true\n')
 }
 
-/** Write one team directory binding a role to a body/soul. */
-async function writeTeam(root: string, id: string, body: string, prompt: string): Promise<void> {
+/** Write one team directory binding a role to a subagent/prompt. */
+async function writeTeam(root: string, id: string, subagent: string, prompt: string): Promise<void> {
   const dir = join(root, id)
   await mkdirPromise(dir, { recursive: true })
   await writeFilePromise(join(dir, 'team.yml'),
-    `metadata:\n  name: ${id}\n  enabled: true\nroles:\n  - id: copywriter\n    body: ${body}\n    prompt: ${prompt}\n    memory: persistent\n`)
+    `metadata:\n  name: ${id}\n  enabled: true\nroles:\n  - id: copywriter\n    subagent: ${subagent}\n    prompt: ${prompt}\n    memory: persistent\n`)
 }
 
 /** Wait until the child's Activation is gone, i.e. its handle finished disposal. */
@@ -86,7 +86,7 @@ describe('persistent team role continuation (harness service)', () => {
   let ctx: Context
   let parent: Agent
   let adapter: GatedAdapter
-  let bodyRoot: string
+  let subagentRoot: string
   let teamRoot: string
 
   beforeAll(async () => {
@@ -95,10 +95,10 @@ describe('persistent team role continuation (harness service)', () => {
     await ctx.plugin(Loader)
     ctx.loader.builtins.include = Include
     await mountAgentLoopTestDependencies(ctx)
-    bodyRoot = mkdtempSync(join(tmpdir(), 'dsh-team-cont-body-'))
+    subagentRoot = mkdtempSync(join(tmpdir(), 'dsh-team-cont-subagent-'))
     teamRoot = mkdtempSync(join(tmpdir(), 'dsh-team-cont-team-'))
-    await writeBody(bodyRoot, 'writer', 'writer_tool')
-    await writeBody(bodyRoot, 'rewriter', 'rewriter_tool')
+    await writeSubagent(subagentRoot, 'writer', 'writer_tool')
+    await writeSubagent(subagentRoot, 'rewriter', 'rewriter_tool')
     await writeTeam(teamRoot, 'edit', 'writer', 'v1')
     const persistenceRoot = mkdtempSync(join(tmpdir(), 'dsh-team-cont-persist-'))
     await ctx.plugin(JsonlSessionPersistence, { root: persistenceRoot })
@@ -106,7 +106,7 @@ describe('persistent team role continuation (harness service)', () => {
     await ctx.plugin(ApprovalService)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(AgentPresets, { default: 'coding', roots: ROOTS, includeUserRoot: false })
-    await ctx.plugin(SubagentPresets, { roots: [{ path: bodyRoot, trust: 'system' }], includeUserRoot: false })
+    await ctx.plugin(SubagentPresets, { roots: [{ path: subagentRoot, trust: 'system' }], includeUserRoot: false })
     await ctx.plugin(Teams, { roots: [{ path: teamRoot, trust: 'system' }], includeUserRoot: false })
     await ctx.plugin(HarnessSubagentRuntime)
     await ctx.plugin(spawnPlugin, { providerName: 'spawn' })
@@ -121,8 +121,8 @@ describe('persistent team role continuation (harness service)', () => {
   })
 
   it('persists the durable team/role identity and cold-resumes against the latest team definition', async () => {
-    // First residency epoch: start a persistent-role child carrying the body
-    // (writer → writer_tool) and the team/role identity.
+    // First residency epoch: start a persistent-role child carrying the
+    // subagent (writer → writer_tool) and the team/role identity.
     const gate = Promise.withResolvers<undefined>()
     adapter.gates.push(gate)
     const started = await ctx.subagents.startContinuable({
@@ -140,13 +140,13 @@ describe('persistent team role continuation (harness service)', () => {
     })
     const first = ctx.agents.get(started.childId)
     expect(first).toBeDefined()
-    // The created child is composed from the role's initial body.
+    // The created child is composed from the role's initial subagent.
     expect(ctx.tools.schemas(first as Agent).map(s => s.name)).toContain('writer_tool')
     release(gate)
     await waitNoActivation(ctx, started.childId)
 
-    // The descriptor persists the team/role identity and the body/soul it was
-    // created with.
+    // The descriptor persists the team/role identity and the subagent/prompt
+    // it was created with.
     const loaded = await ctx.sessionPersistence.load(started.childId)
     const descriptor = loaded.events.find(event => event.type === 'subagent/descriptor')
     expect(descriptor?.data).toMatchObject({
@@ -157,8 +157,8 @@ describe('persistent team role continuation (harness service)', () => {
       role: 'copywriter',
     })
 
-    // Edit the team file: the role now binds a DIFFERENT body/soul. A cold
-    // resume must re-resolve the role's LATEST definition ("reference
+    // Edit the team file: the role now binds a DIFFERENT subagent/prompt. A
+    // cold resume must re-resolve the role's LATEST definition ("reference
     // semantics") and re-inject it, rather than keeping the persisted writer.
     await writeTeam(teamRoot, 'edit', 'rewriter', 'v2')
     const gate2 = Promise.withResolvers<undefined>()
@@ -172,8 +172,9 @@ describe('persistent team role continuation (harness service)', () => {
     expect(resumedMessage).toBeDefined()
     const resumed = ctx.agents.get(started.childId)
     expect(resumed).toBeDefined()
-    // The resumed child's BODY reflects the updated team definition: it now
-    // mounts `rewriter_tool` (the new body) instead of the persisted `writer_tool`.
+    // The resumed child's SUBAGENT reflects the updated team definition: it now
+    // mounts `rewriter_tool` (the new subagent) instead of the persisted
+    // `writer_tool`.
     const toolNames = ctx.tools.schemas(resumed as Agent).map(s => s.name)
     expect(toolNames).toContain('rewriter_tool')
     expect(toolNames).not.toContain('writer_tool')
@@ -183,7 +184,7 @@ describe('persistent team role continuation (harness service)', () => {
 
   afterAll(async () => {
     await ctx.fiber.dispose()
-    rmSync(bodyRoot, { recursive: true, force: true })
+    rmSync(subagentRoot, { recursive: true, force: true })
     rmSync(teamRoot, { recursive: true, force: true })
   })
 })

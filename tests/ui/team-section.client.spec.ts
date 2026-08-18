@@ -15,7 +15,7 @@ import type { TeamPresetWire } from '../../src/ui-team/wire-client.ts'
 /** A success wire result (the `/team-preset` channel returns RpcResult). */
 const wireOk = (value: unknown) => Promise.resolve({ ok: true as const, value })
 
-/** A wire face reporting one user team with two roles and two bodies. */
+/** A wire face reporting one user team with two roles and two subagents. */
 function fakeApi(): Pick<IApiClient, 'llm'> & { teamPresets: TeamPresetWire } {
   return {
     teamPresets: {
@@ -29,14 +29,14 @@ function fakeApi(): Pick<IApiClient, 'llm'> & { teamPresets: TeamPresetWire } {
         }],
         authorable: true,
         hasDocument: true,
-        bodies: ['writer', 'reviewer'],
+        subagents: ['writer', 'reviewer'],
       }),
       read: () => wireOk({
         team: {
           id: 'edit', trust: 'user', metadata: { name: 'Edit', enabled: true },
           roles: [
-            { id: 'copywriter', description: 'Writes copy.', prompt: 'You are a writer.', body: 'writer', memory: 'one-shot' },
-            { id: 'scout', description: 'Reads source.', prompt: 'You are a scout.', body: 'reviewer', memory: 'persistent' },
+            { id: 'copywriter', description: 'Writes copy.', prompt: 'You are a writer.', subagent: 'writer', memory: 'one-shot' },
+            { id: 'scout', description: 'Reads source.', prompt: 'You are a scout.', subagent: 'reviewer', memory: 'persistent' },
           ],
         },
       }),
@@ -50,7 +50,7 @@ function fakeApi(): Pick<IApiClient, 'llm'> & { teamPresets: TeamPresetWire } {
 }
 
 describe('team roster loading', () => {
-  it('loads the roster and forwards bodies', async () => {
+  it('loads the roster and forwards subagents', async () => {
     const controller = new TeamSectionController(fakeApi())
     await controller.load()
     const state = controller.store.getSnapshot()
@@ -58,7 +58,7 @@ describe('team roster loading', () => {
     expect(state.rows).toHaveLength(1)
     expect(state.rows[0]!.id).toBe('edit')
     expect(state.rows[0]!.roleCount).toBe(2)
-    expect(state.bodies).toEqual(['writer', 'reviewer'])
+    expect(state.subagents).toEqual(['writer', 'reviewer'])
     expect(state.authorable).toBe(true)
   })
 })
@@ -76,9 +76,9 @@ describe('create dialog', () => {
     expect(createBlocker(controller.store.getSnapshot().create!, controller.store.getSnapshot().rows)).toBe('idTaken')
 
     controller.setCreateId('news')
-    expect(createBlocker(controller.store.getSnapshot().create!, controller.store.getSnapshot().rows)).toBe('roleBodyRequired')
+    expect(createBlocker(controller.store.getSnapshot().create!, controller.store.getSnapshot().rows)).toBe('roleSubagentRequired')
 
-    controller.setCreateRoleField(0, 'body', 'writer')
+    controller.setCreateRoleField(0, 'subagent', 'writer')
     expect(createBlocker(controller.store.getSnapshot().create!, controller.store.getSnapshot().rows)).toBeUndefined()
   })
 
@@ -86,7 +86,7 @@ describe('create dialog', () => {
     let created: { id: string; roles: unknown[] } | undefined
     const api = {
       teamPresets: {
-        list: () => wireOk({ teams: [], authorable: true, hasDocument: true, bodies: ['writer'] }),
+        list: () => wireOk({ teams: [], authorable: true, hasDocument: true, subagents: ['writer'] }),
         create: (request: { id: string; roles: unknown[] }) => { created = request; return wireOk({ id: request.id }) },
         read: () => wireOk({ team: { id: 'x', trust: 'user', metadata: {}, roles: [] } }),
         update: (request: { id: string }) => wireOk({ id: request.id }),
@@ -100,11 +100,11 @@ describe('create dialog', () => {
     controller.beginCreate()
     controller.setCreateId('news')
     controller.setCreateRoleField(0, 'id', 'copywriter')
-    controller.setCreateRoleField(0, 'body', 'writer')
+    controller.setCreateRoleField(0, 'subagent', 'writer')
     controller.setCreateRoleField(0, 'memory', 'persistent')
     await controller.confirmCreate()
     expect(created?.id).toBe('news')
-    expect(created?.roles).toEqual([{ id: 'copywriter', body: 'writer', memory: 'persistent' }])
+    expect(created?.roles).toEqual([{ id: 'copywriter', subagent: 'writer', memory: 'persistent' }])
     expect(controller.store.getSnapshot().create).toBeNull()
   })
 })
@@ -117,12 +117,12 @@ describe('edit detail (list + role edits)', () => {
     const draft = controller.store.getSnapshot().detail!
     expect(draft.title).toBe('Edit')
     expect(draft.roles).toHaveLength(2)
-    expect(draft.roles[0]!.body).toBe('writer')
+    expect(draft.roles[0]!.subagent).toBe('writer')
     expect(draft.roleEdit).toBeNull()
     expect(detailBlocker(draft)).toBeUndefined()
   })
 
-  it('blocks a team save when a roster row lacks a body', async () => {
+  it('blocks a team save when a roster row lacks a subagent', async () => {
     const controller = new TeamSectionController(fakeApi())
     await controller.load()
     await controller.beginDetail('edit')
@@ -132,8 +132,8 @@ describe('edit detail (list + role edits)', () => {
     controller.cancelRoleEdit()
     const withEmpty = controller.store.getSnapshot().detail!
     expect(withEmpty.roles).toHaveLength(3)
-    expect(withEmpty.roles[2]!.body).toBe('')
-    expect(detailBlocker(withEmpty)).toBe('roleBodyRequired')
+    expect(withEmpty.roles[2]!.subagent).toBe('')
+    expect(detailBlocker(withEmpty)).toBe('roleSubagentRequired')
   })
 })
 
@@ -152,7 +152,7 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
     expect(edit!.dirty).toBe(false)
     expect(edit!.draft).toEqual(controller.store.getSnapshot().detail!.roles[0]!)
     // The roster is not mutated just by opening the edit.
-    expect(controller.store.getSnapshot().detail!.roles[0]!.body).toBe('writer')
+    expect(controller.store.getSnapshot().detail!.roles[0]!.subagent).toBe('writer')
   })
 
   it('setRoleEditField marks the draft dirty and updates a field', async () => {
@@ -175,13 +175,13 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
     await controller.load()
     await controller.beginDetail('edit')
     controller.beginRoleEdit(0)
-    controller.setRoleEditField('body', 'reviewer')
+    controller.setRoleEditField('subagent', 'reviewer')
 
     controller.saveRoleEdit()
     const detail = controller.store.getSnapshot().detail!
     expect(detail.roleEdit).toBeNull()
-    expect(detail.roles[0]!.body).toBe('reviewer')
-    expect(detail.roles[1]!.body).toBe('reviewer')
+    expect(detail.roles[0]!.subagent).toBe('reviewer')
+    expect(detail.roles[1]!.subagent).toBe('reviewer')
   })
 
   it('cancelRoleEdit on an existing edit discards the staged draft and leaves the roster untouched', async () => {
@@ -189,13 +189,13 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
     await controller.load()
     await controller.beginDetail('edit')
     controller.beginRoleEdit(0)
-    controller.setRoleEditField('body', 'reviewer')
+    controller.setRoleEditField('subagent', 'reviewer')
     controller.setRoleEditField('memory', 'persistent')
 
     controller.cancelRoleEdit()
     const detail = controller.store.getSnapshot().detail!
     expect(detail.roleEdit).toBeNull()
-    expect(detail.roles[0]!.body).toBe('writer')
+    expect(detail.roles[0]!.subagent).toBe('writer')
     expect(detail.roles[0]!.memory).toBe('one-shot')
   })
 
@@ -211,7 +211,7 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
     const edit = detail.roleEdit
     expect(edit).not.toBeNull()
     expect(edit!.kind).toBe('new')
-    expect(edit!.draft).toEqual({ id: '', description: '', prompt: '', body: '', memory: 'one-shot' })
+    expect(edit!.draft).toEqual({ id: '', description: '', prompt: '', subagent: '', memory: 'one-shot' })
     // roleBlocker only fails on the targeted single-role form — the blank
     // trailing row makes the whole roster block, but the new role is the
     // one being filled in.
@@ -224,14 +224,14 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
     await controller.beginDetail('edit')
     controller.addRoleInDetail()
     controller.setRoleEditField('id', 'editor')
-    controller.setRoleEditField('body', 'reviewer')
+    controller.setRoleEditField('subagent', 'reviewer')
 
     controller.saveRoleEdit()
     const detail = controller.store.getSnapshot().detail!
     expect(detail.roleEdit).toBeNull()
     expect(detail.roles).toHaveLength(3)
     expect(detail.roles[2]!.id).toBe('editor')
-    expect(detail.roles[2]!.body).toBe('reviewer')
+    expect(detail.roles[2]!.subagent).toBe('reviewer')
   })
 
   it('cancelRoleEdit on a new edit removes the trailing blank row', async () => {
@@ -254,7 +254,7 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
     await controller.load()
     await controller.beginDetail('edit')
     controller.beginRoleEdit(0)
-    controller.setRoleEditField('body', 'reviewer')
+    controller.setRoleEditField('subagent', 'reviewer')
 
     controller.removeRole(0)
     const detail = controller.store.getSnapshot().detail!
@@ -283,12 +283,12 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
       teamPresets: {
         list: () => wireOk({
           teams: [{ id: 'edit', trust: 'user', metadata: {}, roles: [{ id: 'copywriter' }] }],
-          authorable: true, hasDocument: true, bodies: ['writer'],
+          authorable: true, hasDocument: true, subagents: ['writer'],
         }),
         read: () => wireOk({
           team: {
             id: 'edit', trust: 'user', metadata: {},
-            roles: [{ id: 'copywriter', description: '', prompt: '', body: 'writer', memory: 'one-shot' }],
+            roles: [{ id: 'copywriter', description: '', prompt: '', subagent: 'writer', memory: 'one-shot' }],
           },
         }),
         update: () => { updateCalls++; return wireOk({ id: 'edit' }) },
@@ -302,7 +302,7 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
     await controller.load()
     await controller.beginDetail('edit')
     controller.beginRoleEdit(0)
-    controller.setRoleEditField('body', 'reviewer')
+    controller.setRoleEditField('subagent', 'reviewer')
 
     await controller.confirmDetail()
     expect(updateCalls).toBe(0)
@@ -314,30 +314,30 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
     await controller.load()
     await controller.beginDetail('edit')
     controller.beginRoleEdit(0)
-    controller.setRoleEditField('body', '')
+    controller.setRoleEditField('subagent', '')
 
     controller.saveRoleEdit()
     const detail = controller.store.getSnapshot().detail!
     // Edit stays open, roster stays untouched.
     expect(detail.roleEdit).not.toBeNull()
-    expect(detail.roles[0]!.body).toBe('writer')
+    expect(detail.roles[0]!.subagent).toBe('writer')
   })
 
   it('saves the staged roster once the role edit closes, and re-reads', async () => {
-    let updatePayload: { id: string; roles: { id: string; body: string; memory: string }[] } | undefined
+    let updatePayload: { id: string; roles: { id: string; subagent: string; memory: string }[] } | undefined
     const api = {
       teamPresets: {
         list: () => wireOk({
           teams: [{ id: 'edit', trust: 'user', metadata: {}, roles: [{ id: 'copywriter' }] }],
-          authorable: true, hasDocument: true, bodies: ['writer', 'reviewer'],
+          authorable: true, hasDocument: true, subagents: ['writer', 'reviewer'],
         }),
         read: () => wireOk({
           team: {
             id: 'edit', trust: 'user', metadata: {},
-            roles: [{ id: 'copywriter', description: '', prompt: '', body: 'writer', memory: 'one-shot' }],
+            roles: [{ id: 'copywriter', description: '', prompt: '', subagent: 'writer', memory: 'one-shot' }],
           },
         }),
-        update: (request: { id: string; roles: { id: string; body: string; memory: string }[] }) => {
+        update: (request: { id: string; roles: { id: string; subagent: string; memory: string }[] }) => {
           updatePayload = request
           return wireOk({ id: request.id })
         },
@@ -351,10 +351,10 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
     await controller.load()
     await controller.beginDetail('edit')
     controller.beginRoleEdit(0)
-    controller.setRoleEditField('body', 'reviewer')
+    controller.setRoleEditField('subagent', 'reviewer')
     controller.saveRoleEdit()
     await controller.confirmDetail()
-    expect(updatePayload?.roles).toEqual([{ id: 'copywriter', body: 'reviewer', memory: 'one-shot' }])
+    expect(updatePayload?.roles).toEqual([{ id: 'copywriter', subagent: 'reviewer', memory: 'one-shot' }])
     expect(controller.store.getSnapshot().detail).toBeNull()
   })
 })
@@ -366,7 +366,7 @@ describe('toggle and delete', () => {
       teamPresets: {
         list: () => wireOk({
           teams: [{ id: 'edit', trust: 'user', metadata: { enabled: true }, roles: [] }],
-          authorable: true, hasDocument: true, bodies: [],
+          authorable: true, hasDocument: true, subagents: [],
         }),
         read: () => wireOk({ team: { id: 'edit', trust: 'user', metadata: {}, roles: [] } }),
         update: (request: { id: string; metadata?: { enabled?: boolean } }) => { toggle = request; return wireOk({ id: request.id }) },

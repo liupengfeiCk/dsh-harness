@@ -1,7 +1,7 @@
 /**
  * Teams settings section: the independent "团队" (编制表) roster as cards, with
  * a create dialog, a row-level enable/disable switch, an edit detail over the
- * team's full role roster (body/soul/memory per role), delete, and
+ * team's full role roster (subagent/prompt/memory per role), delete, and
  * open-directory.
  *
  * This section reads the team registry — fully separate from both the
@@ -9,8 +9,8 @@
  * shipped (system) team is read-only: it cannot be toggled, edited, or deleted.
  *
  * The role roster renders as compact list rows (id + description one-line
- * summary + body id + memory tag + remove control); tapping a row opens a
- * single-role edit dialog over id / description / body / memory / soul prompt
+ * summary + subagent id + memory tag + remove control); tapping a row opens a
+ * single-role edit dialog over id / description / subagent / memory / prompt
  * — a single-column vertical form so future role attributes become one more
  * field row, not a layout overhaul. Adding a role enters the same edit dialog
  * in a fresh-draft state.
@@ -68,7 +68,7 @@ export interface TeamSectionInjected {
   /** Add a blank role to the team detail and open it in the edit dialog. */
   addRoleInDetail: () => void
   /** Stage one field of the role currently being edited. */
-  setRoleEditField: (field: 'id' | 'description' | 'prompt' | 'body' | 'memory', value: string) => void
+  setRoleEditField: (field: 'id' | 'description' | 'prompt' | 'subagent' | 'memory', value: string) => void
   /** Save the staged role back into the team detail's roster. */
   saveRoleEdit: () => Promise<void>
   /** Cancel the open role edit, rolling back the staged draft. */
@@ -98,7 +98,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
-/** A compact role-row: id + one-line description summary + body + memory tag + remove. */
+/** A compact role-row: id + one-line description summary + subagent + memory tag + remove. */
 function RoleListRow(props: {
   role: RoleDraft
   index: number
@@ -122,9 +122,9 @@ function RoleListRow(props: {
           {role.description === '' ? t('noRoleSummary') : role.description}
         </span>
         <span className={css.roleListMeta}>
-          <span className={css.roleListBody}>
-            <span className={css.roleListLabel}>{t('roleBodyLabelShort')}</span>
-            <span className={css.roleListBodyValue}>{role.body === '' ? '—' : role.body}</span>
+          <span className={css.roleListSubagent}>
+            <span className={css.roleListLabel}>{t('roleSubagentLabelShort')}</span>
+            <span className={css.roleListSubagentValue}>{role.subagent === '' ? '—' : role.subagent}</span>
           </span>
           <span className={css.roleListMemory}>
             <span className={css.roleListLabel}>{t('roleMemoryLabelShort')}</span>
@@ -264,7 +264,7 @@ function CreateDialog(props: {
         </div>
         <CreateRolesEditor
           roles={draft.roles}
-          bodies={state.bodies}
+          subagents={state.subagents}
           t={t}
           setRoleField={setRoleField}
           addRole={addRole}
@@ -279,13 +279,13 @@ function CreateDialog(props: {
 /** The roster editor used inside the create dialog (the only place a team is born with several roles at once). */
 function CreateRolesEditor(props: {
   roles: readonly RoleDraft[]
-  bodies: readonly string[]
+  subagents: readonly string[]
   t: (key: TeamSettingsKey) => string
   setRoleField: (index: number, field: string, value: string) => void
   addRole: () => void
   removeRole: (index: number) => void
 }): ReactNode {
-  const { roles, bodies, t, setRoleField, addRole, removeRole } = props
+  const { roles, subagents, t, setRoleField, addRole, removeRole } = props
   return (
     <section className={css.editorBlock}>
       <h4 className={css.blockTitle}>{t('rolesLabel')}</h4>
@@ -294,7 +294,7 @@ function CreateRolesEditor(props: {
           key={index}
           role={role}
           index={index}
-          bodies={bodies}
+          subagents={subagents}
           t={t}
           onField={setRoleField}
           onRemove={removeRole}
@@ -313,13 +313,13 @@ function CreateRolesEditor(props: {
 function CreateRoleRow(props: {
   role: RoleDraft
   index: number
-  bodies: readonly string[]
+  subagents: readonly string[]
   t: (key: TeamSettingsKey) => string
   onField: (index: number, field: string, value: string) => void
   onRemove: (index: number) => void
   removable: boolean
 }): ReactNode {
-  const { role, index, bodies, t, onField, onRemove, removable } = props
+  const { role, index, subagents, t, onField, onRemove, removable } = props
   return (
     <div className={css.roleRow}>
       <div className={css.roleGrid}>
@@ -342,16 +342,16 @@ function CreateRoleRow(props: {
           />
         </div>
         <div className={css.field}>
-          <span className={css.fieldLabel}>{t('roleBodyLabel')}</span>
+          <span className={css.fieldLabel}>{t('roleSubagentLabel')}</span>
           <select
             className={`${css.input} ${css.select}`}
-            value={role.body}
-            onChange={e => onField(index, 'body', e.target.value)}
+            value={role.subagent}
+            onChange={e => onField(index, 'subagent', e.target.value)}
           >
             <option value="" disabled>
-              {bodies.length === 0 ? t('noBodies') : t('roleBodyPlaceholder')}
+              {subagents.length === 0 ? t('noSubagents') : t('roleSubagentPlaceholder')}
             </option>
-            {bodies.map(body => <option key={body} value={body}>{body}</option>)}
+            {subagents.map(subagent => <option key={subagent} value={subagent}>{subagent}</option>)}
           </select>
         </div>
         <div className={css.field}>
@@ -391,7 +391,7 @@ function CreateRoleRow(props: {
 /** The team-detail modal: metadata fields + a compact role roster (rows + add). */
 function DetailDialog(props: {
   detail: DetailDraft
-  bodies: readonly string[]
+  subagents: readonly string[]
   t: (key: TeamSettingsKey) => string
   setDetailName: (name: string) => void
   setDetailDescription: (description: string) => void
@@ -401,7 +401,7 @@ function DetailDialog(props: {
   confirm: () => void
   cancel: () => void
 }): ReactNode {
-  const { detail, bodies: _bodies, t, setDetailName, setDetailDescription, beginRoleEdit, addRole, removeRole, confirm, cancel } = props
+  const { detail, subagents: _subagents, t, setDetailName, setDetailDescription, beginRoleEdit, addRole, removeRole, confirm, cancel } = props
   const rolesEditable = detail.id !== ''
   const blocker = detailBlocker(detail)
   const message = detail.error ?? (blocker === undefined ? null : t(blocker))
@@ -481,14 +481,14 @@ function DetailDialog(props: {
 /** The single-role edit dialog: a single-column vertical form over the staged draft. */
 function RoleEditDialog(props: {
   edit: RoleEditDraft
-  bodies: readonly string[]
+  subagents: readonly string[]
   t: (key: TeamSettingsKey) => string
-  setField: (field: 'id' | 'description' | 'prompt' | 'body' | 'memory', value: string) => void
+  setField: (field: 'id' | 'description' | 'prompt' | 'subagent' | 'memory', value: string) => void
   saving: boolean
   confirm: () => void
   cancel: () => void
 }): ReactNode {
-  const { edit, bodies, t, setField, saving, confirm, cancel } = props
+  const { edit, subagents, t, setField, saving, confirm, cancel } = props
   const draft = edit.draft
   const blocker = roleBlocker([draft])
   const message = edit.error ?? (blocker === undefined ? null : t(blocker))
@@ -537,16 +537,16 @@ function RoleEditDialog(props: {
           />
         </div>
         <div className={css.field}>
-          <span className={css.fieldLabel}>{t('roleBodyLabel')}</span>
+          <span className={css.fieldLabel}>{t('roleSubagentLabel')}</span>
           <select
             className={`${css.input} ${css.select}`}
-            value={draft.body}
-            onChange={e => setField('body', e.target.value)}
+            value={draft.subagent}
+            onChange={e => setField('subagent', e.target.value)}
           >
             <option value="" disabled>
-              {bodies.length === 0 ? t('noBodies') : t('roleBodyPlaceholder')}
+              {subagents.length === 0 ? t('noSubagents') : t('roleSubagentPlaceholder')}
             </option>
-            {bodies.map(body => <option key={body} value={body}>{body}</option>)}
+            {subagents.map(subagent => <option key={subagent} value={subagent}>{subagent}</option>)}
           </select>
         </div>
         <div className={css.field}>
@@ -642,7 +642,7 @@ export function TeamSection(props: TeamSectionProps): ReactNode {
             : (
               <DetailDialog
                 detail={state.detail}
-                bodies={state.bodies}
+                subagents={state.subagents}
                 t={t}
                 setDetailName={props.setDetailName}
                 setDetailDescription={props.setDetailDescription}
@@ -659,7 +659,7 @@ export function TeamSection(props: TeamSectionProps): ReactNode {
         ? (
           <RoleEditDialog
             edit={roleEdit}
-            bodies={state.bodies}
+            subagents={state.subagents}
             t={t}
             setField={props.setRoleEditField}
             saving={state.detail.saving}

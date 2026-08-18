@@ -2,9 +2,9 @@
  * Team vocabulary shared by discovery, registry, and consumers.
  *
  * A team ("编制表") is a user-authored roster of roles. Each role binds a
- * "soul" (role: id、职责描述、独立提示词) to a "body" (a user-defined subagent id
- * that bounds the role's capability surface). The body is a hard constraint on
- * what the role may do; the soul is a soft constraint on how it behaves.
+ * prompt (role: id、职责描述、独立提示词) to a subagent (a user-defined subagent id
+ * that bounds the role's capability surface). The subagent is a hard constraint
+ * on what the role may do; the prompt is a soft constraint on how it behaves.
  * Teams ship under the same dual-root trust model as subagents: `config/teams/`
  * is read-only (`system`), `$DSH_HOME/.dsh/teams` is where a person authors
  * their own (`user`).
@@ -37,16 +37,16 @@ export interface TeamRole {
   readonly id: string
   /** One sentence on what this role is for. */
   readonly description?: string
-  /** The role's independent persona ("soul") injected as the child's persona. */
+  /** The role's independent prompt injected as the child's persona. */
   readonly prompt?: string
-  /** The subagent id this role is bound to ("body"): the capability surface. */
-  readonly body: string
+  /** The subagent id this role is bound to: the capability surface. */
+  readonly subagent: string
   /** Memory policy: one-shot or persistent. */
   readonly memory: TeamRoleMemory
   /**
    * Why this role cannot be delegated, absent when it can. A role whose bound
-   * body (subagent) is missing, broken, or disabled is marked broken while the
-   * rest of the team stays usable.
+   * subagent is missing, broken, or disabled is marked broken while the rest of
+   * the team stays usable.
    */
   readonly broken?: string
 }

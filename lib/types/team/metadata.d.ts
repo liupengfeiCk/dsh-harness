@@ -9,8 +9,8 @@
  * the team file itself.
  *
  * Every read failure that makes the team unusable is surfaced as a `broken`
- * reason by discovery; a malformed role's body reference makes THAT role broken
- * while the rest of the roster stays usable.
+ * reason by discovery; a malformed role's subagent reference makes THAT role
+ * broken while the rest of the roster stays usable.
  * @module dsh-harness-subagent-bundle/team/metadata
  */
 import type { Team, TeamTrust } from './types.ts';

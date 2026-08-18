@@ -348,7 +348,7 @@
   white-space: nowrap;
 }
 
-.roleListBody,
+.roleListSubagent,
 .roleListMemory {
   display: inline-flex;
   align-items: center;
@@ -359,7 +359,7 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-.roleListBodyValue {
+.roleListSubagentValue {
   font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   color: var(--dsw-alias-label-secondary);
 }

@@ -1,7 +1,7 @@
 /**
  * Team management controller: the roster as a list, a create dialog, a
  * row-level enable/disable toggle, an edit detail over the team's role roster
- * (body/soul/memory per role), delete, and opening a team's directory.
+ * (subagent/prompt/memory per role), delete, and opening a team's directory.
  *
  * The host stays the single fact source. Every mutation writes through the
  * wire and the page re-reads the roster afterwards, because a toggle or edit
@@ -54,10 +54,10 @@ export interface RoleDraft {
   id: string
   /** One sentence on the role's responsibility. */
   description: string
-  /** The role's own soul prompt, injected as the child's persona. */
+  /** The role's own prompt, injected as the child's persona. */
   prompt: string
-  /** The bound body: a user-defined subagent id. */
-  body: string
+  /** The bound subagent: a user-defined subagent id. */
+  subagent: string
   /** Memory policy: one-shot or persistent. */
   memory: WireRoleMemory
 }
@@ -141,8 +141,8 @@ export interface TeamSectionState {
   authorable: boolean
   /** Whether the host can open a team directory on a native desktop. */
   hasDocument: boolean
-  /** The subagent ids a role's body may select from. */
-  bodies: readonly string[]
+  /** The subagent ids a role's subagent may select from. */
+  subagents: readonly string[]
   /** Every team the deployment currently supplies. */
   rows: readonly TeamRow[]
   /** The open create dialog, or null. */
@@ -162,7 +162,7 @@ const INITIAL: TeamSectionState = {
   error: null,
   authorable: false,
   hasDocument: false,
-  bodies: [],
+  subagents: [],
   rows: [],
   create: null,
   detail: null,
@@ -173,7 +173,7 @@ const INITIAL: TeamSectionState = {
 
 /** A fresh empty role row. */
 function emptyRole(): RoleDraft {
-  return { id: '', description: '', prompt: '', body: '', memory: 'one-shot' }
+  return { id: '', description: '', prompt: '', subagent: '', memory: 'one-shot' }
 }
 
 /** The failure message of a rejected wire call. */
@@ -185,7 +185,7 @@ function messageOf(error: unknown): string {
 export function createBlocker(
   draft: CreateDraft,
   rows: readonly TeamRow[],
-): 'idRequired' | 'idInvalid' | 'idTaken' | 'roleIdRequired' | 'roleBodyRequired' | undefined {
+): 'idRequired' | 'idInvalid' | 'idTaken' | 'roleIdRequired' | 'roleSubagentRequired' | undefined {
   if (draft.id === '') return 'idRequired'
   if (!TEAM_ID.test(draft.id)) return 'idInvalid'
   if (rows.some(row => row.id === draft.id)) return 'idTaken'
@@ -195,16 +195,16 @@ export function createBlocker(
 /** Why an edit detail cannot be saved yet, as a locale key, or undefined. */
 export function detailBlocker(
   draft: DetailDraft,
-): 'roleIdRequired' | 'roleBodyRequired' | undefined {
+): 'roleIdRequired' | 'roleSubagentRequired' | undefined {
   return roleBlocker(draft.roles)
 }
 
 /** Why the role roster cannot be submitted, as a locale key, or undefined. */
-export function roleBlocker(roles: readonly RoleDraft[]): 'roleIdRequired' | 'roleBodyRequired' | undefined {
+export function roleBlocker(roles: readonly RoleDraft[]): 'roleIdRequired' | 'roleSubagentRequired' | undefined {
   if (roles.length === 0) return 'roleIdRequired'
   for (const role of roles) {
     if (role.id === '') return 'roleIdRequired'
-    if (role.body === '') return 'roleBodyRequired'
+    if (role.subagent === '') return 'roleSubagentRequired'
   }
   return undefined
 }
@@ -256,10 +256,10 @@ export class TeamSectionController {
       this.set({ status: 'error', error: messageOf(error) })
       return
     }
-    const { teams, authorable, hasDocument, bodies } = value
+    const { teams, authorable, hasDocument, subagents } = value
     if (teams.length === 0) {
       this.set({
-        status: 'unavailable', rows: [], authorable, hasDocument, bodies,
+        status: 'unavailable', rows: [], authorable, hasDocument, subagents,
         create: null, detail: null,
       })
       return
@@ -272,7 +272,7 @@ export class TeamSectionController {
       error: null,
       authorable,
       hasDocument,
-      bodies,
+      subagents,
       rows: teams.map(team => ({
         id: team.id,
         trust: team.trust,
@@ -412,7 +412,7 @@ export class TeamSectionController {
             id: role.id,
             description: role.description ?? '',
             prompt: role.prompt ?? '',
-            body: role.body,
+            subagent: role.subagent,
             memory: role.memory,
           })),
           saving: false,
@@ -490,7 +490,7 @@ export class TeamSectionController {
   }
 
   /** Stage one field on the open role edit draft, marking it dirty. */
-  setRoleEditField(field: 'id' | 'description' | 'prompt' | 'body' | 'memory', value: string): void {
+  setRoleEditField(field: 'id' | 'description' | 'prompt' | 'subagent' | 'memory', value: string): void {
     const { detail } = this.store.getSnapshot()
     if (detail === null || detail.roleEdit === null) return
     this.patchDetail({
@@ -611,12 +611,12 @@ export class TeamSectionController {
   }
 }
 
-/** Patch one staged role field (id/description/prompt/body/memory). */
+/** Patch one staged role field (id/description/prompt/subagent/memory). */
 function patchRole(role: RoleDraft, field: string, value: string): RoleDraft {
   if (field === 'id') return { ...role, id: value }
   if (field === 'description') return { ...role, description: value }
   if (field === 'prompt') return { ...role, prompt: value }
-  if (field === 'body') return { ...role, body: value }
+  if (field === 'subagent') return { ...role, subagent: value }
   if (field === 'memory') return { ...role, memory: value === 'persistent' ? 'persistent' : 'one-shot' }
   return role
 }
@@ -627,7 +627,7 @@ function roleToWire(role: RoleDraft): WireRole {
     id: role.id,
     ...role.description === '' ? {} : { description: role.description },
     ...role.prompt === '' ? {} : { prompt: role.prompt },
-    body: role.body,
+    subagent: role.subagent,
     memory: role.memory,
   }
 }

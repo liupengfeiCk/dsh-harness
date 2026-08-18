@@ -46,7 +46,7 @@ export interface WireRole {
   readonly id: string
   readonly description?: string
   readonly prompt?: string
-  readonly body: string
+  readonly subagent: string
   readonly memory: WireRoleMemory
 }
 
@@ -65,7 +65,7 @@ export interface TeamPresetWire {
     teams: readonly WireTeamEntry[]
     authorable: boolean
     hasDocument: boolean
-    bodies: readonly string[]
+    subagents: readonly string[]
   }>>
   read(payload: { id: string }, signal?: AbortSignal): Promise<RpcResult<{ team: WireTeamDetail }>>
   create(payload: {
@@ -92,7 +92,7 @@ export function createTeamPresetWire(rpc: ClientConnectionRpc): TeamPresetWire {
       teams: readonly WireTeamEntry[]
       authorable: boolean
       hasDocument: boolean
-      bodies: readonly string[]
+      subagents: readonly string[]
     }>('list', payload, signal),
     read: (payload, signal) => call<{ team: WireTeamDetail }>('read', payload, signal),
     create: (payload, signal) => call<{ id: string }>('create', payload, signal),

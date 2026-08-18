@@ -24,7 +24,7 @@ export declare const wireRoleSchema: z.ZodObject<{
     id: z.ZodString;
     description: z.ZodOptional<z.ZodString>;
     prompt: z.ZodOptional<z.ZodString>;
-    body: z.ZodString;
+    subagent: z.ZodString;
     memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
 }, z.core.$strip>;
 /** A role summary on the roster: enough to render the row and its count. */
@@ -66,7 +66,7 @@ export declare const wireTeamDetailSchema: z.ZodObject<{
         id: z.ZodString;
         description: z.ZodOptional<z.ZodString>;
         prompt: z.ZodOptional<z.ZodString>;
-        body: z.ZodString;
+        subagent: z.ZodString;
         memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
     }, z.core.$strip>>;
     broken: z.ZodOptional<z.ZodString>;
@@ -91,7 +91,7 @@ export declare const wireListValueSchema: z.ZodObject<{
     }, z.core.$strip>>;
     authorable: z.ZodBoolean;
     hasDocument: z.ZodBoolean;
-    bodies: z.ZodArray<z.ZodString>;
+    subagents: z.ZodArray<z.ZodString>;
 }, z.core.$strip>;
 /** teamPreset.read request payload. */
 export declare const wireReadRequestSchema: z.ZodObject<{
@@ -111,18 +111,18 @@ export declare const wireReadValueSchema: z.ZodObject<{
             id: z.ZodString;
             description: z.ZodOptional<z.ZodString>;
             prompt: z.ZodOptional<z.ZodString>;
-            body: z.ZodString;
+            subagent: z.ZodString;
             memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
         }, z.core.$strip>>;
         broken: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>;
 }, z.core.$strip>;
-/** One staged role for create/update, with an optional body pick. */
+/** One staged role for create/update, with an optional subagent pick. */
 export declare const wireStagedRoleSchema: z.ZodObject<{
     id: z.ZodString;
     description: z.ZodOptional<z.ZodString>;
     prompt: z.ZodOptional<z.ZodString>;
-    body: z.ZodString;
+    subagent: z.ZodString;
     memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
 }, z.core.$strip>;
 /** teamPreset.create request payload: a new id plus its initial roster. */
@@ -134,7 +134,7 @@ export declare const wireCreateRequestSchema: z.ZodObject<{
         id: z.ZodString;
         description: z.ZodOptional<z.ZodString>;
         prompt: z.ZodOptional<z.ZodString>;
-        body: z.ZodString;
+        subagent: z.ZodString;
         memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
@@ -154,7 +154,7 @@ export declare const wireUpdateRequestSchema: z.ZodObject<{
         id: z.ZodString;
         description: z.ZodOptional<z.ZodString>;
         prompt: z.ZodOptional<z.ZodString>;
-        body: z.ZodString;
+        subagent: z.ZodString;
         memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
     }, z.core.$strip>>>;
 }, z.core.$strip>;
@@ -200,7 +200,7 @@ export declare const wireEndpoints: {
             }, z.core.$strip>>;
             authorable: z.ZodBoolean;
             hasDocument: z.ZodBoolean;
-            bodies: z.ZodArray<z.ZodString>;
+            subagents: z.ZodArray<z.ZodString>;
         }, z.core.$strip>;
     };
     readonly read: {
@@ -220,7 +220,7 @@ export declare const wireEndpoints: {
                     id: z.ZodString;
                     description: z.ZodOptional<z.ZodString>;
                     prompt: z.ZodOptional<z.ZodString>;
-                    body: z.ZodString;
+                    subagent: z.ZodString;
                     memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
                 }, z.core.$strip>>;
                 broken: z.ZodOptional<z.ZodString>;
@@ -236,7 +236,7 @@ export declare const wireEndpoints: {
                 id: z.ZodString;
                 description: z.ZodOptional<z.ZodString>;
                 prompt: z.ZodOptional<z.ZodString>;
-                body: z.ZodString;
+                subagent: z.ZodString;
                 memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
             }, z.core.$strip>>;
         }, z.core.$strip>;
@@ -256,7 +256,7 @@ export declare const wireEndpoints: {
                 id: z.ZodString;
                 description: z.ZodOptional<z.ZodString>;
                 prompt: z.ZodOptional<z.ZodString>;
-                body: z.ZodString;
+                subagent: z.ZodString;
                 memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
             }, z.core.$strip>>>;
         }, z.core.$strip>;

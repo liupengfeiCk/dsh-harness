@@ -27,8 +27,8 @@ export declare const TEAM_PRESET_CHANNEL = "/team-preset";
 /**
  * Parse and dispatch one endpoint against the team registry.
  * @param teams - the team registry service (the deployment may compose none).
- * @param subagents - the subagent registry, for the role bodies' available ids
- * (the deployment may compose none; bodies then read empty).
+ * @param subagents - the subagent registry, for the role subagents' available
+ * ids (the deployment may compose none; subagents then read empty).
  * @param endpoint - the channel-relative endpoint name.
  * @param payload - the unvalidated request payload.
  * @param signal - caller/connection lifetime.

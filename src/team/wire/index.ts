@@ -48,8 +48,8 @@ type StagedRole = EndpointPayload<'create'>['roles'][number]
 /**
  * Parse and dispatch one endpoint against the team registry.
  * @param teams - the team registry service (the deployment may compose none).
- * @param subagents - the subagent registry, for the role bodies' available ids
- * (the deployment may compose none; bodies then read empty).
+ * @param subagents - the subagent registry, for the role subagents' available
+ * ids (the deployment may compose none; subagents then read empty).
  * @param endpoint - the channel-relative endpoint name.
  * @param payload - the unvalidated request payload.
  * @param signal - caller/connection lifetime.
@@ -137,7 +137,7 @@ async function list(
   subagents: SubagentPresets | undefined,
 ): Promise<RpcResult<unknown>> {
   if (teams === undefined) {
-    return ok({ teams: [], authorable: false, hasDocument: canOpenDirectory(), bodies: [] })
+    return ok({ teams: [], authorable: false, hasDocument: canOpenDirectory(), subagents: [] })
   }
   const roster = await teams.list()
   return ok({
@@ -153,10 +153,10 @@ async function list(
     })),
     authorable: teams.authorable,
     hasDocument: canOpenDirectory(),
-    // The role bodies' available ids come from the subagent registry. An
-    // absent registry reads an empty body list — no role can bind a body, so
-    // the surface offers no picks.
-    bodies: subagents === undefined ? [] : (await subagents.list()).map(subagent => subagent.id),
+    // The role subagents' available ids come from the subagent registry. An
+    // absent registry reads an empty subagent list — no role can bind a
+    // subagent, so the surface offers no picks.
+    subagents: subagents === undefined ? [] : (await subagents.list()).map(subagent => subagent.id),
   })
 }
 
@@ -176,7 +176,7 @@ async function read(
           id: role.id,
           ...role.description === undefined ? {} : { description: role.description },
           ...role.prompt === undefined ? {} : { prompt: role.prompt },
-          body: role.body,
+          subagent: role.subagent,
           memory: role.memory,
         })),
         ...team.broken === undefined ? {} : { broken: team.broken },
@@ -294,7 +294,7 @@ function stagedRole(role: StagedRole): TeamRole {
     id: role.id,
     ...role.description === undefined ? {} : { description: role.description },
     ...role.prompt === undefined ? {} : { prompt: role.prompt },
-    body: role.body,
+    subagent: role.subagent,
     memory: role.memory,
   }
 }
