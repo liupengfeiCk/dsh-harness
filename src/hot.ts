@@ -233,6 +233,22 @@ export class HotManager {
       }
       throw error
     }
+    // TEMP DIAGNOSTIC: record what the mounted subtree's module resolves to.
+    try {
+      const loaderLike = (ctx as unknown as { loader?: LoaderLike }).loader
+      const internalAny = loaderLike?.internal as unknown as { import?: (s: string, p: string) => Promise<unknown> } | undefined
+      const imported = internalAny?.import
+        ? await internalAny.import(packageName, pathToFileURL(this.hotDir).href + '/')
+        : null
+      writeFileSync('/tmp/harness-hot-mount-debug.json', JSON.stringify({
+        packageName,
+        importedKeys: imported ? Object.keys(imported as object) : null,
+        importedApplyType: imported ? typeof (imported as { apply?: unknown }).apply : null,
+        hasInternal: !!loaderLike?.internal,
+      }))
+    } catch (e) {
+      writeFileSync('/tmp/harness-hot-mount-debug.json', JSON.stringify({ packageName, importError: e instanceof Error ? e.message : String(e) }))
+    }
     const record: HotMountRecord = {
       package: packageName,
       file,
