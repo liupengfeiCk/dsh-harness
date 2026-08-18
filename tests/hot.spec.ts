@@ -15,9 +15,11 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { randomBytes } from 'node:crypto'
 import {
-  clearPackageLoadCache, HOT_DIR, HotManager,
+  clearPackageLoadCache, collectPackageLoadCacheUrls, HOT_DIR, HotManager,
+  preflightUpgradeStructure,
   type HotContext, type StaticRowsAdapter,
 } from '../src/hot.ts'
+import { RestartRequiredError } from '../src/patch.ts'
 
 /** A minimal Map-shaped loadCache double (Node v1: plain Map<url, job>). */
 function plainLoadCache(entries: Array<[string, unknown]>): Map<string, unknown> {
@@ -452,5 +454,132 @@ console.log('second=' + secondCode)
     // keyed by package.json path and unreachable from JS. This is the documented
     // limitation; the only recovery is a host restart.
     expect(second).toBe('ERR_PACKAGE_PATH_NOT_EXPORTED')
+  })
+})
+
+/**
+ * The upgrade preflight: a hot upgrade that would change the package's
+ * structure (its `exports` map, or its nested `node_modules` layout) can never
+ * take effect in the live process because Node's C++ `readPackageJSON` cache is
+ * unreachable from JS — it must be refused with a restart-required error BEFORE
+ * any eviction or re-mount. The pure structure comparison is exercised here
+ * directly, plus the upgrade path's refusal through the real HotManager.
+ */
+describe('preflightUpgradeStructure', () => {
+  /** The on-disk package.json text for a package that exports only `./lib/index.js`. */
+  const exportsIndexOnly = (): string => JSON.stringify({
+    name: 'hotprobe', version: '2.0.0', type: 'module',
+    exports: { '.': './lib/index.js' },
+  })
+
+  it('passes when every loaded module still exists and is still exported', () => {
+    const { profileDir, pkgDir } = makeProfileDir()
+    // The package exports `./lib/index.js`, and that is the only loaded module;
+    // it exists on disk and is covered by the new exports map.
+    const result = preflightUpgradeStructure(
+      pkgDir,
+      [join(pkgDir, 'lib', 'index.js')],
+      exportsIndexOnly(),
+    )
+    expect(result).toEqual({ ok: true })
+  })
+
+  it('hits when a loaded module is no longer exported by the new exports map', () => {
+    const { profileDir, pkgDir } = makeProfileDir()
+    // `lib/helper.js` exists on disk (it was loaded earlier in this process) but
+    // the new exports map no longer exposes it — Node's cached exports keeps the
+    // old map, so the re-import would fail with ERR_PACKAGE_PATH_NOT_EXPORTED.
+    const result = preflightUpgradeStructure(
+      pkgDir,
+      [join(pkgDir, 'lib', 'helper.js')],
+      exportsIndexOnly(),
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toContain('no longer exported')
+  })
+
+  it('hits when a loaded module file no longer exists on disk (nested node_modules layout changed)', () => {
+    const { pkgDir } = makeProfileDir()
+    // The module was loaded from this path in an earlier process lifetime, but
+    // the file is gone from disk — the disk now lays the package (or a nested
+    // dependency) out differently, and only a restart re-reads it.
+    const gone = join(pkgDir, 'lib', 'deleted.js')
+    const result = preflightUpgradeStructure(pkgDir, [gone], exportsIndexOnly())
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toContain('no longer exists on disk')
+  })
+
+  it('passes when the package.json has no exports field', () => {
+    const { pkgDir } = makeProfileDir()
+    const noExports = JSON.stringify({ name: 'hotprobe', version: '2.0.0', type: 'module' })
+    expect(preflightUpgradeStructure(pkgDir, [join(pkgDir, 'lib', 'index.js')], noExports)).toEqual({ ok: true })
+  })
+
+  it('passes a wildcard exports conservatively (coverage unprovable)', () => {
+    const { pkgDir } = makeProfileDir()
+    // A `./lib/*` export cannot be expanded precisely without re-running Node's
+    // pattern matcher; the guard must not fail a change it cannot verify.
+    const wildcard = JSON.stringify({
+      name: 'hotprobe', version: '2.0.0', type: 'module',
+      exports: { '.': './lib/index.js', './lib/*': './lib/*.js' },
+    })
+    expect(preflightUpgradeStructure(pkgDir, [join(pkgDir, 'lib', 'helper.js')], wildcard)).toEqual({ ok: true })
+  })
+
+  it('passes when a loaded module is covered by a string (shorthand) exports', () => {
+    const { pkgDir } = makeProfileDir()
+    const stringExports = JSON.stringify({ name: 'hotprobe', version: '2.0.0', type: 'module', exports: './lib/index.js' })
+    expect(preflightUpgradeStructure(pkgDir, [join(pkgDir, 'lib', 'index.js')], stringExports)).toEqual({ ok: true })
+  })
+})
+
+/**
+ * The upgrade path refuses a structural-change upgrade BEFORE evicting the
+ * loadCache or unmounting, so the running hot copy and static layer stay
+ * untouched. When the preflight passes, the upgrade proceeds to its normal
+ * dispose → evict → re-mount flow.
+ */
+describe('HotManager upgrade preflight wiring', () => {
+  it('refuses (restart-required) and leaves the loadCache untouched when the exports structure changed', async () => {
+    const { profileDir, pkgDir } = makeProfileDir()
+    // The disk package has a NEW exports map that no longer covers the module
+    // already loaded into the cache — a structural change only a restart takes.
+    writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({
+      name: 'hotprobe', version: '2.0.0', type: 'module',
+      exports: { '.': './lib/index.js' },
+    }))
+    const loadedUrl = pathToFileURL(join(pkgDir, 'lib', 'helper.js')).href
+    const cache = plainLoadCache([[loadedUrl, { url: 'helper' }]])
+    const loader = { internal: { loadCache: cache } }
+    const manager = new HotManager(profileDir)
+
+    await expect(manager.upgrade({} as HotContext, loader, 'hotprobe')).rejects.toThrow(RestartRequiredError)
+
+    // The refusal happens before eviction: the cache still holds the loaded key.
+    expect(cache.has(loadedUrl)).toBe(true)
+  })
+
+  it('passes preflight and proceeds to evict the loadCache when the structure is unchanged', async () => {
+    const { profileDir, pkgDir } = makeProfileDir()
+    // The disk exports still covers the loaded module — the preflight passes.
+    writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({
+      name: 'hotprobe', version: '2.0.0', type: 'module',
+      exports: { '.': './lib/index.js' },
+    }))
+    const loadedUrl = pathToFileURL(join(pkgDir, 'lib', 'index.js')).href
+    const cache = plainLoadCache([[loadedUrl, { url: 'index' }]])
+    const loader = { internal: { loadCache: cache } }
+    const manager = new HotManager(profileDir)
+    const urlsBefore = collectPackageLoadCacheUrls(loader, profileDir, 'hotprobe')
+
+    // The upgrade's re-mount cannot complete without a real plugin factory (the
+    // host context is empty), so the call rejects — but only AFTER the preflight
+    // passed and the eviction step ran. The empty post-eviction cache proves the
+    // upgrade was NOT refused up front by the preflight.
+    await expect(manager.upgrade({} as HotContext, loader, 'hotprobe')).rejects.toThrow()
+
+    // collectPackageLoadCacheUrls re-reads the (now-evicted) cache: the key is gone.
+    expect(urlsBefore).toEqual([loadedUrl])
+    expect(collectPackageLoadCacheUrls(loader, profileDir, 'hotprobe')).toEqual([])
   })
 })

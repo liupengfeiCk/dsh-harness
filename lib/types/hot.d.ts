@@ -156,11 +156,22 @@ export declare class HotManager {
      * has no public API. If a hot upgrade leaves the package relying on a newly
      * exported subpath that failed to resolve earlier in this process, the only
      * recovery is a host restart.
+     *
+     * Because that C++ cache is unreachable, a hot upgrade that changes the
+     * package's *structure* — its `exports` map (add/remove/rewrite) or its
+     * nested `node_modules` layout — can never take effect in the live process
+     * and fails with a confusing `ERR_PACKAGE_PATH_NOT_EXPORTED`/`ENOENT` after
+     * the old copy is already disposed. {@link preflightUpgradeStructure} detects
+     * that structural change up front and refuses with a clear restart-required
+     * error *before* any eviction or re-mount, so the running hot copy (and the
+     * static layer) is left untouched.
      * @param ctx - the host context.
      * @param loader - the loader service (for `internal.loadCache`).
      * @param packageName - the package to re-activate.
      * @returns the new mount record.
-     * @throws when the deployment does not expose internals (restart required).
+     * @throws when the deployment does not expose internals (restart required),
+     * or a {@link RestartRequiredError} when the upgrade would change the package
+     * structure (only a host restart can take it).
      *
      * Failure semantics: the old hot copy is disposed up front (existing
      * behaviour). A failed re-mount restores every static row the old mount had
@@ -173,16 +184,76 @@ export declare class HotManager {
     list(): HotMountRecord[];
 }
 /**
- * Evict every `loadCache` record whose URL lives under the package's own
+ * Collect every `loadCache` key whose URL resolves under the package's own
  * `node_modules/<package>/` path — the package's modules only, never its
  * dependencies. pnpm's isolated layout is a symlink: the cached URL holds the
  * REAL path, so the package directory is realpath'd before matching.
+ * @param loader - the loader service (its `internal` may be undefined).
+ * @param profileDir - the profile directory holding `node_modules/<package>`.
+ * @param packageName - the package to inspect.
+ * @returns the package's own loadCache URL keys, or null when the loader
+ * internals are unavailable or not the expected Map shape.
+ */
+export declare function collectPackageLoadCacheUrls(loader: LoaderLike, profileDir: string, packageName: string): string[] | null;
+/**
+ * Evict every `loadCache` record whose URL lives under the package's own
+ * `node_modules/<package>/` path — the package's modules only, never its
+ * dependencies.
  * @param loader - the loader service (its `internal` may be undefined).
  * @param profileDir - the profile directory holding `node_modules/<package>`.
  * @param packageName - the package to evict.
  * @returns false when the loader internals are unavailable (restart required).
  */
 export declare function clearPackageLoadCache(loader: LoaderLike, profileDir: string, packageName: string): boolean;
+/** The result of an upgrade preflight: pass, or a restart-required reason. */
+export type UpgradePreflightResult = {
+    ok: true;
+} | {
+    ok: false;
+    reason: string;
+};
+/**
+ * Preflight a hot upgrade before any eviction or re-mount: detect whether the
+ * on-disk package's *structure* changed in a way the live process can never
+ * take, so the upgrade is refused up front with a clear restart-required error
+ * instead of failing later with a confusing `ERR_PACKAGE_PATH_NOT_EXPORTED` /
+ * `ENOENT` after the old copy is already disposed.
+ *
+ * Two structural changes are caught (both verified unreachable from JS):
+ *   1. **Nested `node_modules` layout change** — a module the package already
+ *      loaded (its URL lives under the package's own `node_modules/<pkg>/` path
+ *      in the loader `loadCache`) no longer exists on disk. The package now
+ *      resolves its dependencies differently; only a restart re-reads them.
+ *   2. **`exports` map change** — a module the package already loaded maps to a
+ *      relative subpath that the disk's new `package.json` `exports` no longer
+ *      exports. Node's C++ `readPackageJSON` cache freezes the old `exports`,
+ *      so the re-import keeps resolving against the stale map (or fails) even
+ *      after the JS-side caches are cleared.
+ *
+ * The preflight reads only (never mutates) the on-disk package.json and the
+ * package's own loadCache keys, so a refusal leaves the current hot copy — and
+ * the static layer — running untouched.
+ * @param profileDir - the profile directory holding `node_modules/<package>`.
+ * @param packageName - the package being upgraded.
+ * @param loader - the loader service (for `internal.loadCache`).
+ * @returns `{ ok: true }` when the live process can take the new package, or
+ * `{ ok: false, reason }` when a structural change requires a host restart.
+ * A deployment without loader internals (or a package never loaded into this
+ * process) passes preflight — the existing upgrade path then reports the
+ * internals/unmount problem on its own terms.
+ */
+export declare function preflightUpgrade(profileDir: string, packageName: string, loader: LoaderLike): UpgradePreflightResult;
+/**
+ * The pure structure-comparison core of {@link preflightUpgrade}, separated so
+ * the two structural-change checks are unit-testable without a live loader.
+ * @param pkgDir - the package directory on disk.
+ * @param loadedFiles - the real file paths this process already loaded from
+ * the package (from its `loadCache`).
+ * @param diskPackageJsonText - the on-disk (new) `package.json` text.
+ * @returns `{ ok: true }` or `{ ok: false, reason }` — see
+ * {@link preflightUpgrade} for the two checks' meaning.
+ */
+export declare function preflightUpgradeStructure(pkgDir: string, loadedFiles: readonly string[], diskPackageJsonText: string): UpgradePreflightResult;
 /**
  * Clear Node's module-resolution caches so a package newly installed into a
  * running process (first mount, or a re-add over the same name) resolves on

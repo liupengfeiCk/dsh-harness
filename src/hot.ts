@@ -32,10 +32,10 @@
  */
 
 import { createRequire } from 'node:module'
-import { mkdirSync, readdirSync, readFileSync, rmSync, realpathSync, writeFileSync } from 'node:fs'
-import { basename, dirname, join, sep } from 'node:path'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, realpathSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join, relative, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { parsePatch, type HotRow } from './patch.ts'
+import { parsePatch, RestartRequiredError, type HotRow } from './patch.ts'
 
 /** The hot-input directory, relative to the profile directory. */
 export const HOT_DIR = '.harness-hot'
@@ -366,11 +366,22 @@ export class HotManager {
    * has no public API. If a hot upgrade leaves the package relying on a newly
    * exported subpath that failed to resolve earlier in this process, the only
    * recovery is a host restart.
+   *
+   * Because that C++ cache is unreachable, a hot upgrade that changes the
+   * package's *structure* — its `exports` map (add/remove/rewrite) or its
+   * nested `node_modules` layout — can never take effect in the live process
+   * and fails with a confusing `ERR_PACKAGE_PATH_NOT_EXPORTED`/`ENOENT` after
+   * the old copy is already disposed. {@link preflightUpgradeStructure} detects
+   * that structural change up front and refuses with a clear restart-required
+   * error *before* any eviction or re-mount, so the running hot copy (and the
+   * static layer) is left untouched.
    * @param ctx - the host context.
    * @param loader - the loader service (for `internal.loadCache`).
    * @param packageName - the package to re-activate.
    * @returns the new mount record.
-   * @throws when the deployment does not expose internals (restart required).
+   * @throws when the deployment does not expose internals (restart required),
+   * or a {@link RestartRequiredError} when the upgrade would change the package
+   * structure (only a host restart can take it).
    *
    * Failure semantics: the old hot copy is disposed up front (existing
    * behaviour). A failed re-mount restores every static row the old mount had
@@ -379,6 +390,15 @@ export class HotManager {
    * in a "static disabled + no hot copy mounted" state.
    */
   async upgrade(ctx: HotContext, loader: LoaderLike, packageName: string): Promise<HotMountRecord> {
+    // Preflight: refuse before touching anything if the disk's new package
+    // structure cannot be taken by the live process (see preflightUpgradeStructure).
+    // The preflight reads the on-disk package.json and the package's own
+    // loadCache keys, neither of which a passing preflight mutates, so a
+    // restart-required refusal leaves the current hot copy running untouched.
+    const preflight = preflightUpgrade(this.profileDir, packageName, loader)
+    if (!preflight.ok) {
+      throw new RestartRequiredError(`upgrade would change the package structure of "${packageName}" (${preflight.reason}) — restart to activate`)
+    }
     await this.unmount(packageName, ctx)
     const cleared = clearPackageLoadCache(loader, this.profileDir, packageName)
     if (!cleared) {
@@ -394,23 +414,26 @@ export class HotManager {
 }
 
 /**
- * Evict every `loadCache` record whose URL lives under the package's own
+ * Collect every `loadCache` key whose URL resolves under the package's own
  * `node_modules/<package>/` path — the package's modules only, never its
  * dependencies. pnpm's isolated layout is a symlink: the cached URL holds the
  * REAL path, so the package directory is realpath'd before matching.
  * @param loader - the loader service (its `internal` may be undefined).
  * @param profileDir - the profile directory holding `node_modules/<package>`.
- * @param packageName - the package to evict.
- * @returns false when the loader internals are unavailable (restart required).
+ * @param packageName - the package to inspect.
+ * @returns the package's own loadCache URL keys, or null when the loader
+ * internals are unavailable or not the expected Map shape.
  */
-export function clearPackageLoadCache(loader: LoaderLike, profileDir: string, packageName: string): boolean {
+export function collectPackageLoadCacheUrls(
+  loader: LoaderLike, profileDir: string, packageName: string,
+): string[] | null {
   const internal = loader.internal
-  if (internal === undefined) return false
+  if (internal === undefined) return null
   const loadCache = internal.loadCache
   if (loadCache === null || typeof loadCache !== 'object' || typeof (loadCache as LoadCacheLike).keys !== 'function') {
     // A v1/v2 loadCache is always a Map; without a keys() iterator the loader
     // internals are not the shape we expect — treat as unsupported.
-    return false
+    return null
   }
   let packageReal: string
   try {
@@ -421,7 +444,7 @@ export function clearPackageLoadCache(loader: LoaderLike, profileDir: string, pa
     packageReal = join(profileDir, 'node_modules', packageName)
   }
   const prefix = packageReal + sep
-  const toDelete: string[] = []
+  const urls: string[] = []
   for (const url of (loadCache as LoadCacheLike).keys()) {
     let file: string
     try {
@@ -446,8 +469,31 @@ export function clearPackageLoadCache(loader: LoaderLike, profileDir: string, pa
         real = file
       }
     }
-    if (real.startsWith(prefix)) toDelete.push(url)
+    if (real.startsWith(prefix)) urls.push(url)
   }
+  return urls
+}
+
+/**
+ * Evict every `loadCache` record whose URL lives under the package's own
+ * `node_modules/<package>/` path — the package's modules only, never its
+ * dependencies.
+ * @param loader - the loader service (its `internal` may be undefined).
+ * @param profileDir - the profile directory holding `node_modules/<package>`.
+ * @param packageName - the package to evict.
+ * @returns false when the loader internals are unavailable (restart required).
+ */
+export function clearPackageLoadCache(loader: LoaderLike, profileDir: string, packageName: string): boolean {
+  const internal = loader.internal
+  if (internal === undefined) return false
+  const loadCache = internal.loadCache
+  if (loadCache === null || typeof loadCache !== 'object' || typeof (loadCache as LoadCacheLike).keys !== 'function') {
+    // A v1/v2 loadCache is always a Map; without a keys() iterator the loader
+    // internals are not the shape we expect — treat as unsupported.
+    return false
+  }
+  const toDelete = collectPackageLoadCacheUrls(loader, profileDir, packageName)
+  if (toDelete === null) return false
   for (const url of toDelete) {
     // Use the map-prototype delete directly: in Node 24 the loadCache is a
     // `Map<url, {[type]: ModuleJob}>` whose OWN `.delete()` only sets the type
@@ -458,6 +504,185 @@ export function clearPackageLoadCache(loader: LoaderLike, profileDir: string, pa
     protoDelete.call(target, url)
   }
   return true
+}
+
+/** The result of an upgrade preflight: pass, or a restart-required reason. */
+export type UpgradePreflightResult =
+  | { ok: true }
+  | { ok: false; reason: string }
+
+/**
+ * Preflight a hot upgrade before any eviction or re-mount: detect whether the
+ * on-disk package's *structure* changed in a way the live process can never
+ * take, so the upgrade is refused up front with a clear restart-required error
+ * instead of failing later with a confusing `ERR_PACKAGE_PATH_NOT_EXPORTED` /
+ * `ENOENT` after the old copy is already disposed.
+ *
+ * Two structural changes are caught (both verified unreachable from JS):
+ *   1. **Nested `node_modules` layout change** — a module the package already
+ *      loaded (its URL lives under the package's own `node_modules/<pkg>/` path
+ *      in the loader `loadCache`) no longer exists on disk. The package now
+ *      resolves its dependencies differently; only a restart re-reads them.
+ *   2. **`exports` map change** — a module the package already loaded maps to a
+ *      relative subpath that the disk's new `package.json` `exports` no longer
+ *      exports. Node's C++ `readPackageJSON` cache freezes the old `exports`,
+ *      so the re-import keeps resolving against the stale map (or fails) even
+ *      after the JS-side caches are cleared.
+ *
+ * The preflight reads only (never mutates) the on-disk package.json and the
+ * package's own loadCache keys, so a refusal leaves the current hot copy — and
+ * the static layer — running untouched.
+ * @param profileDir - the profile directory holding `node_modules/<package>`.
+ * @param packageName - the package being upgraded.
+ * @param loader - the loader service (for `internal.loadCache`).
+ * @returns `{ ok: true }` when the live process can take the new package, or
+ * `{ ok: false, reason }` when a structural change requires a host restart.
+ * A deployment without loader internals (or a package never loaded into this
+ * process) passes preflight — the existing upgrade path then reports the
+ * internals/unmount problem on its own terms.
+ */
+export function preflightUpgrade(
+  profileDir: string, packageName: string, loader: LoaderLike,
+): UpgradePreflightResult {
+  // The loadCache keys are realpath'd (pnpm symlinks); realpath the package
+  // dir the same way so the exports-coverage comparison and relative paths
+  // agree with the loaded module paths.
+  let pkgDir: string
+  try {
+    pkgDir = realpathSync(join(profileDir, 'node_modules', packageName))
+  } catch {
+    pkgDir = join(profileDir, 'node_modules', packageName)
+  }
+  let diskPackageJsonText: string
+  try {
+    diskPackageJsonText = readFileSync(join(pkgDir, 'package.json'), 'utf8')
+  } catch {
+    // No readable package.json — nothing structural to compare; let the normal
+    // mount path report whatever it finds.
+    return { ok: true }
+  }
+  const urls = collectPackageLoadCacheUrls(loader, profileDir, packageName)
+  if (urls === null) return { ok: true }
+  // The loadCache URLs are file:// URLs; convert to real file paths. A key that
+  // is not a file URL (node:, data:) can never be a package module and is skipped.
+  // The file is realpath'd (when it still exists) so the exports-coverage
+  // comparison shares the realpath basis of `pkgDir` (macOS /var → /private/var
+  // is a symlink; a literal-vs-realpath mismatch would falsely flag an unchanged
+  // package). A missing file keeps its literal path so the nested-layout check
+  // can still detect it.
+  const loadedFiles: string[] = []
+  for (const url of urls) {
+    let file: string
+    try {
+      file = fileURLToPath(url)
+    } catch {
+      continue // non-file URL, not a package module
+    }
+    try {
+      loadedFiles.push(realpathSync(file))
+    } catch {
+      loadedFiles.push(file)
+    }
+  }
+  return preflightUpgradeStructure(pkgDir, loadedFiles, diskPackageJsonText)
+}
+
+/**
+ * The pure structure-comparison core of {@link preflightUpgrade}, separated so
+ * the two structural-change checks are unit-testable without a live loader.
+ * @param pkgDir - the package directory on disk.
+ * @param loadedFiles - the real file paths this process already loaded from
+ * the package (from its `loadCache`).
+ * @param diskPackageJsonText - the on-disk (new) `package.json` text.
+ * @returns `{ ok: true }` or `{ ok: false, reason }` — see
+ * {@link preflightUpgrade} for the two checks' meaning.
+ */
+export function preflightUpgradeStructure(
+  pkgDir: string, loadedFiles: readonly string[], diskPackageJsonText: string,
+): UpgradePreflightResult {
+  // 1) Nested node_modules / layout change: any module this process already
+  //    loaded from the package must still exist on disk. A missing file means
+  //    the disk now lays the package (or its nested dependencies) out
+  //    differently — a restart is the only way to pick it up.
+  for (const file of loadedFiles) {
+    if (existsSync(file)) continue
+    return { ok: false, reason: `already-loaded module ${relative(pkgDir, file)} no longer exists on disk (nested node_modules layout changed)` }
+  }
+  // 2) exports map change: every still-existing loaded module must still be
+  //    covered by the disk's new `exports`. A loaded subpath the new exports
+  //    no longer exposes (or maps elsewhere) stays frozen by Node's C++ cache.
+  let exportsField: unknown
+  try {
+    exportsField = (JSON.parse(diskPackageJsonText) as { exports?: unknown }).exports
+  } catch {
+    // Unparsable package.json — nothing to compare; a malformed file fails
+    // elsewhere with its own diagnostic.
+    return { ok: true }
+  }
+  if (exportsField === undefined) return { ok: true }
+  const exact = collectExactExportedFiles(exportsField, pkgDir)
+  // A wildcard export (`./*`/`./*.js`) cannot be expanded precisely without
+  // re-running Node's pattern matcher, so we cannot prove a loaded file is
+  // dropped. Be conservative: treat a wildcard exports as covering every
+  // loaded file (do not fail a change we cannot verify). Only the exact-map
+  // case — where a previously exposed file is now absent — is a certain
+  // restart-required structural change.
+  if (exact.wildcard) return { ok: true }
+  for (const file of loadedFiles) {
+    if (exact.files.size === 0 || exact.files.has(file)) continue
+    return { ok: false, reason: `already-loaded module ${relative(pkgDir, file)} is no longer exported by the new package.json exports map` }
+  }
+  return { ok: true }
+}
+
+/** The exact file targets of an `exports` map, plus whether any wildcard was seen. */
+interface ExportedFilesResult {
+  /** Absolute paths the exports map can resolve to exactly (no `*`). */
+  files: Set<string>
+  /** True when the map contains any `*` subpath — coverage is then unprovable. */
+  wildcard: boolean
+}
+
+/**
+ * Collect the exact on-disk file targets of a package.json `exports` field.
+ * A string exports is shorthand for `{ ".": <string> }`; a subpath maps to a
+ * string file or a conditions object whose string leaves are the file targets.
+ * Subpath patterns (`./*`, `./*.js`) set `wildcard` and are not expanded —
+ * {@link preflightUpgradeStructure} treats their coverage as unprovable and
+ * conservatively passes rather than risk a false restart-required.
+ * @param exportsField - the parsed `exports` value (string | object).
+ * @param pkgDir - the package directory (targets resolve against it).
+ * @returns the exact file targets and whether any wildcard was present.
+ */
+function collectExactExportedFiles(exportsField: unknown, pkgDir: string): ExportedFilesResult {
+  const files = new Set<string>()
+  let wildcard = false
+  const pushTarget = (target: string): void => {
+    // A target is resolved against the package root (the `./` prefix is
+    // package-relative). A `*` (subpath or extension wildcard) cannot be
+    // expanded here; flag it and skip the exact path.
+    if (target.includes('*')) {
+      wildcard = true
+      return
+    }
+    files.add(join(pkgDir, target.replace(/^\.\//, '')))
+  }
+  if (typeof exportsField === 'string') {
+    pushTarget(exportsField)
+  } else if (exportsField !== null && typeof exportsField === 'object' && !Array.isArray(exportsField)) {
+    for (const value of Object.values(exportsField as Record<string, unknown>)) {
+      // A subpath maps to a string file, or to a conditions object whose
+      // leaves are the file targets.
+      if (typeof value === 'string') {
+        pushTarget(value)
+      } else if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        for (const leaf of Object.values(value as Record<string, unknown>)) {
+          if (typeof leaf === 'string') pushTarget(leaf)
+        }
+      }
+    }
+  }
+  return { files, wildcard }
 }
 
 /**

@@ -81,9 +81,58 @@ A deployment that does not expose the module-loader internals (no
 `--expose-internals`, so `ctx.loader.internal` is undefined) refuses the upgrade
 with **"restart to activate"**.
 
+#### Structural-change preflight
+
+Before disposing anything, `upgrade` compares the disk's **new** `package.json`
+against what this process already loaded, and refuses with
+**"restart to activate"** when the upgrade would change the package's
+*structure* — something the live process can never take because Node's C++
+`readPackageJSON` cache (which freezes the `exports` map and module-resolution
+results) is unreachable from JS:
+
+- **nested `node_modules` layout changed** — a module this process already
+  loaded (its URL sits under the package's own `node_modules/<package>/` path)
+  no longer exists on disk;
+- **`exports` map changed** — a module this process already loaded maps to a
+  relative subpath that the disk's new `exports` no longer exposes (an exact
+  map; a wildcard `./*` export is conservatively treated as covering everything
+  because it cannot be expanded precisely).
+
+A refusal happens **before** any eviction or re-mount, so the running hot copy —
+and the static layer — is left untouched. Only a host restart can take a
+structural change.
+
 ### `list`
 
 Returns the current hot mounts (package, row ids, mount time).
+
+## Recompose guard (read this)
+
+While a hot copy is mounted, editing the user-layer `cordis.patch.yml` makes the
+host recompose its **whole** root-include tree. That recompose re-applies the
+patches and rebuilds the static layer, which would otherwise resurrect the
+static rows a hot copy's convergence disabled and collide with it (a real
+incident: the hot copy's disable loses its target, the static copy comes back,
+and UI row state goes inconsistent).
+
+The guard listens on the loader's `internal/update` waterfall — the earliest
+reliable signal, emitted *before* the include handler recomposes — and, for the
+root include's own fiber, unmounts every hot copy first (symmetrically restoring
+its static rows), so the recompose runs on a clean static layer.
+
+There is **no public "recompose starting" event**: the loader's
+`'loader/config-update'` fires only *after* the recompose (it is emitted by the
+include's `write()` once the new tree is committed), too late to prevent the
+collision. The guard therefore relies on the cordis `internal/update` hook,
+which the loader uses to drive entry-group updates; if a future cordis/loader
+renames or removes that hook, the guard silently disarms (it never vetoes a
+recompose).
+
+**Operational note:** because the guard disarms silently if the hook changes,
+treat hot-mounted copies as ephemeral during any user-layer patch edit — prefer
+to unmount them first, and check `list` if you suspect a hot copy is still up.
+
+## Fiber-escape boundary (read this)
 
 ## Fiber-escape boundary (read this)
 

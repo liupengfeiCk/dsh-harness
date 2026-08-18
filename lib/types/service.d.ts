@@ -111,6 +111,57 @@ export declare class HarnessHot extends Service {
      */
     private hostCtx;
     /**
+     * The id of the bootstrap root include entry whose config update drives a
+     * full-tree recompose. Pinned by app-boot's `mountRootInclude`
+     * (`id: 'include'`, `name: 'cordis:include'`). A config update on this entry
+     * is what a user `cordis.patch.yml` change routes through: the loader's
+     * `internal/update` waterfall then re-applies patches and recomposes the
+     * root entry group.
+     */
+    private static readonly ROOT_INCLUDE_NAME;
+    /**
+     * Arm the full-tree recompose guard. A user `cordis.patch.yml` change makes
+     * the root include recompose its entry group; a hot copy still mounted at
+     * that moment collides because the recompose resurrects the static rows the
+     * hot copy's convergence disabled.
+     *
+     * There is no public "recompose starting" event — the loader's
+     * `'loader/config-update'` fires only AFTER the recompose (it is emitted by
+     * the include's `write()`, which the loader calls once the new tree has been
+     * committed), too late to prevent the collision. The earliest reliable signal
+     * is the cordis `internal/update` waterfall on the root include's fiber,
+     * which runs before the include's own `internal/update` handler performs the
+     * recompose (`root.update`). Registering a `{ global, prepend }` handler here
+     * places us ahead of the include handler in that waterfall, so the guard
+     * unmounts every hot copy — and symmetrically restores its static rows —
+     * before the recompose rebuilds the static layer, letting the recompose run
+     * on a clean static tree.
+     *
+     * The guard only fires for the root include's own fiber (`this.entry` is the
+     * root include entry); a hot copy's own config update is a different fiber
+     * and is never mistaken for a full recompose. A missing entry (non-loader
+     * host, or a root include with a different name) disarms the guard silently.
+     */
+    private installRecomposeGuard;
+    /**
+     * The guard's `internal/update` handler, separated so it is unit-testable
+     * without driving cordis's waterfall dispatch. Unmounts every hot copy when
+     * the update belongs to the root include's fiber (a full-tree recompose),
+     * then always continues the chain — the guard is best-effort defensive
+     * hygiene, never a reason to veto a user's tree change.
+     * @param fiber - the fiber whose config is updating (`this` of the handler).
+     * @param next - the waterfall continuation.
+     */
+    private handleInternalUpdate;
+    /**
+     * Unmount every currently-mounted hot copy, symmetrically restoring each
+     * one's disabled static rows so the static layer becomes the sole owner of
+     * every registration before a full-tree recompose. Runs before the recompose
+     * (see {@link installRecomposeGuard}); a failure on one copy is logged and
+     * does not stop the others, so the recompose always proceeds.
+     */
+    private handleRecompose;
+    /**
      * The root (boot) tree's entry group holding the static rows. The bootstrap
      * include is mounted under the fixed id `'include'` (see app-boot's
      * `mountRootInclude`), so its `subgroup` is the root entry group whose

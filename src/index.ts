@@ -18,8 +18,9 @@ import { registerHarnessHotWire } from './wire/index.ts'
 export { HarnessHot, deriveProfileDir, harnessHotConfigSchema } from './service.ts'
 export type { HotTarget, HarnessHotConfig } from './service.ts'
 export {
-  ActivationTimeout, clearPackageLoadCache, HotManager, HOT_DIR, HOT_ROW_PREFIX, HOT_MOUNT_TIMEOUT_MS,
-  type HotContext, type HotMountRecord, type PluginHandle, type StaticRowsAdapter,
+  ActivationTimeout, clearPackageLoadCache, collectPackageLoadCacheUrls, HotManager, HOT_DIR, HOT_ROW_PREFIX,
+  HOT_MOUNT_TIMEOUT_MS, preflightUpgrade, preflightUpgradeStructure,
+  type HotContext, type HotMountRecord, type PluginHandle, type StaticRowsAdapter, type UpgradePreflightResult,
 } from './hot.ts'
 export { parsePatch, RestartRequiredError, type HotDisableRow, type HotInsertRow, type HotRow } from './patch.ts'
 export {
