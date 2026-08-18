@@ -84,6 +84,15 @@
     - id: teams
       name: 'dsh-harness-subagent-bundle/team'
 
+# The team-management wire: the `/team-preset` connection channel carrying the
+# browser settings surface's read/write over the team roster (list/read/
+# create/update/remove/openLocation). It rides alongside the `teams` service
+# (and, for the role bodies' available ids, the `subagentPresets` service)
+# that it reads through the services' public interfaces, kept as a separate
+# host row so the registry's constructor stays zero-invasive.
+    - id: team-wire
+      name: 'dsh-harness-subagent-bundle/team/wire'
+
 # The team delegation tool, mounted in the host plane. Disabled by default: a
 # team-shaped deployment turns it on and, per the composition convention, does
 # NOT also mount the plain `delegate`/`subagent` rows — so the main agent sees
@@ -108,4 +117,11 @@
 # The subagent row in General settings: user-defined helper subagents,
 # independent of the agent-preset roster. A web-only client row.
     - id: ui-subagent-preset
+      name: 'dsh-harness-subagent-bundle'
+
+# The team row in General settings: user-defined team rosters ("编制表"),
+# beside the subagent row. Both sections ship in the same browser client
+# bundle (the single `./client` entry), registered as separate settings
+# sections; this row is the cordis-layer seat for the web-only client surface.
+    - id: ui-teams
       name: 'dsh-harness-subagent-bundle'

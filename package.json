@@ -38,6 +38,10 @@
       "types": "./lib/types/team/index.d.ts",
       "default": "./lib/types/team/index.js"
     },
+    "./team/wire": {
+      "types": "./lib/types/team/wire/index.d.ts",
+      "default": "./lib/types/team/wire/index.js"
+    },
     "./team/tool": {
       "types": "./lib/types/team/tool.d.ts",
       "default": "./lib/types/team/tool.js"

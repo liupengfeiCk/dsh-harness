@@ -18,9 +18,10 @@
 import { Service } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import type { Context } from '@deepseek-ai/cordis';
-import { type Config, type Team, type TeamRole } from './types.ts';
+import { type Config, type Team, type TeamRole, type TeamRoot } from './types.ts';
 export { TEAM_FILE } from './metadata.ts';
 export { discoverTeams, scanRoot, USER_TEAM_DIR } from './discovery.ts';
+export { InvalidTeamIdError, TeamExistsError, TeamNotWritableError, TeamRoleInvalidError, createTeam, deleteTeam, setTeamEnabled, updateTeam, writableRoot, } from './authoring.ts';
 export { TEAM_ID, UnknownTeamError, UnknownTeamRoleError } from './types.ts';
 export type { Config, Team, TeamRole, TeamRoot, TeamTrust, TeamRoleMemory } from './types.ts';
 declare module '@deepseek-ai/cordis' {
@@ -81,6 +82,54 @@ export declare class Teams extends Service {
      *   bound body is not a usable subagent.
      */
     resolveRole(teamId: string, roleId: string): Promise<TeamRole>;
+    /**
+     * The roots this roster scans, which is not `config.roots`: it is every
+     * configured root in order, then the harness-home user root unless
+     * `includeUserRoot` is false.
+     */
+    get roots(): readonly TeamRoot[];
+    /** Whether this deployment has a root locally authored teams go to. */
+    get authorable(): boolean;
+    /**
+     * Create a locally authored team from an initial role roster.
+     * @param id - the new team's id, which becomes its directory name.
+     * @param metadata - the team's display metadata.
+     * @param roles - the initial role roster.
+     * @throws when the id is unusable or already taken, a role is unusable, or
+     * the deployment configures no writable root.
+     */
+    create(id: string, metadata: {
+        readonly name?: string;
+        readonly description?: string;
+        readonly enabled?: boolean;
+    }, roles: readonly TeamRole[]): Promise<void>;
+    /**
+     * Rewrite one locally authored team's `team.yml` as a whole — display
+     * metadata and role roster together.
+     * @param id - the team id.
+     * @param metadata - the complete display metadata to store.
+     * @param roles - the complete role roster to store.
+     * @throws when the team is unknown or ships with the deployment.
+     */
+    update(id: string, metadata: {
+        readonly name?: string;
+        readonly description?: string;
+        readonly enabled?: boolean;
+    }, roles: readonly TeamRole[]): Promise<void>;
+    /**
+     * Delete a locally authored team.
+     * @param id - the team id.
+     * @throws when the team is unknown or ships with the deployment.
+     */
+    remove(id: string): Promise<void>;
+    /**
+     * Toggle one team's enabled switch. A shipped team is refused — its install
+     * is not the user's to manage.
+     * @param id - the team id.
+     * @param enabled - whether the team is usable for delegation.
+     * @throws when the team is unknown or ships with the deployment.
+     */
+    setEnabled(id: string, enabled: boolean): Promise<void>;
 }
 export default Teams;
 //# sourceMappingURL=index.d.ts.map
