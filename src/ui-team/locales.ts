@@ -27,6 +27,7 @@ export type TeamSettingsKey =
   | 'idRequired' | 'idInvalid' | 'idTaken'
   | 'roleIdRequired' | 'roleSubagentRequired'
   | 'noDescription'
+  | 'standard' | 'teamPrefix' | 'modeHint' | 'modeLocked'
 
 /** English copy. */
 export const en: Record<TeamSettingsKey, string> = {
@@ -105,6 +106,10 @@ export const en: Record<TeamSettingsKey, string> = {
   roleIdRequired: 'Give every role an identifier.',
   roleSubagentRequired: 'Bind every role to a subagent.',
   noDescription: 'No description.',
+  standard: 'Standard',
+  teamPrefix: 'Team: ',
+  modeHint: 'Delegation surface',
+  modeLocked: 'The conversation has started; the delegation surface can no longer be changed.',
 }
 
 /** Simplified Chinese copy. */
@@ -180,4 +185,8 @@ export const zh: Record<TeamSettingsKey, string> = {
   roleIdRequired: '请为每个角色填写标识符。',
   roleSubagentRequired: '请为每个角色绑定一个子代理。',
   noDescription: '暂无描述。',
+  standard: '标准',
+  teamPrefix: '团队：',
+  modeHint: '委派方式',
+  modeLocked: '对话已开始，委派方式无法再更改。',
 }

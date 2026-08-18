@@ -23,6 +23,9 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { TeamSectionController } from './section-store.ts'
 import type { TeamSectionInjected } from './TeamSection.tsx'
 import { TeamSection } from './TeamSection.tsx'
+import { TeamModeController } from './mode-store.ts'
+import type { TeamModeChipInjected } from './TeamModeChip.tsx'
+import { TeamModeChip } from './TeamModeChip.tsx'
 import { createTeamPresetWire } from './wire-client.ts'
 import { en, zh } from './locales.ts'
 
@@ -30,6 +33,8 @@ export type {
   CreateDraft, DetailDraft, RoleDraft, RoleEditDraft, TeamRow, TeamSectionState,
 } from './section-store.ts'
 export { createBlocker, detailBlocker, roleBlocker, TeamSectionController } from './section-store.ts'
+export type { TeamModeOption, TeamModeSelection, TeamModeState } from './mode-store.ts'
+export { TeamModeController } from './mode-store.ts'
 export type { TeamSettingsKey } from './locales.ts'
 
 /** Required services (cordis fiber inject), shared with the subagent section. */
@@ -41,9 +46,10 @@ export const inject = ['slots', 'locale', 'connection', 'remote']
  */
 export function apply(ctx: ClientContext): void {
   const { api, rpc } = ctx.get('connection') as ConnectionHandle
+  const teamPresets = createTeamPresetWire(rpc)
   const section = new TeamSectionController({
     ...api,
-    teamPresets: createTeamPresetWire(rpc),
+    teamPresets,
   })
 
   ctx.effect(() => ctx.locale.register('settings.subagentTeam', { zh, en }), 'ui-teams: settings section dictionary')
@@ -97,4 +103,23 @@ export function apply(ctx: ClientContext): void {
     locale: 'settings.subagentTeam',
     inject: sectionInjected,
   }, TeamSection))
+
+  // Register the session team-mode chip into the input card's tool row, beside
+  // the resident chrome. Each session gets its own controller (the mode is a
+  // per-session dimension and every wire call carries the session id), created
+  // on the slot's session-scoped inject.
+  ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
+    name: 'conversation.input.left',
+    id: 'teams-mode',
+    order: 10,
+    locale: 'settings.subagentTeam',
+    inject: (sessionId: string): TeamModeChipInjected => {
+      const mode = new TeamModeController(teamPresets, sessionId)
+      return {
+        hooks: { teamMode: mode.store },
+        load: () => mode.load(),
+        select: (modeKey, team) => mode.select(modeKey, team),
+      }
+    },
+  }, TeamModeChip))
 }

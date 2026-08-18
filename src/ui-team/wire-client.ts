@@ -59,8 +59,35 @@ export interface WireTeamDetail {
   readonly broken?: string
 }
 
+/** The session-level delegation surface a session may select. */
+export type WireTeamMode = 'standard' | 'team'
+
+/** The session's folded mode state as the wire reports it. */
+export interface WireTeamModeState {
+  readonly mode: WireTeamMode
+  readonly team?: string
+}
+
 /** The browser-side management face over the `/team-preset` channel. */
 export interface TeamPresetWire {
+  /**
+   * Read one session's current delegation surface (`standard` or a team).
+   * @param payload - the session whose mode to read.
+   * @param signal - caller/connection lifetime.
+   */
+  modeRead(payload: { sessionId: string }, signal?: AbortSignal): Promise<RpcResult<WireTeamModeState>>
+  /**
+   * Set one session's delegation surface (and its team in team mode). The
+   * host refuses the swap once the session has started, returning
+   * `team-mode-locked`.
+   * @param payload - the session, the target mode, and the team in team mode.
+   * @param signal - caller/connection lifetime.
+   */
+  modeSelect(payload: {
+    sessionId: string
+    mode: WireTeamMode
+    team?: string
+  }, signal?: AbortSignal): Promise<RpcResult<WireTeamModeState>>
   list(payload: Record<string, never>, signal?: AbortSignal): Promise<RpcResult<{
     teams: readonly WireTeamEntry[]
     authorable: boolean
@@ -88,6 +115,8 @@ export interface TeamPresetWire {
 /** Build the management wire face over one connection RPC caller. */
 export function createTeamPresetWire(rpc: ClientConnectionRpc): TeamPresetWire {
   return {
+    modeRead: (payload, signal) => call<WireTeamModeState>('modeRead', payload, signal),
+    modeSelect: (payload, signal) => call<WireTeamModeState>('modeSelect', payload, signal),
     list: (payload, signal) => call<{
       teams: readonly WireTeamEntry[]
       authorable: boolean

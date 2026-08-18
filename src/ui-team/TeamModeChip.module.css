@@ -1,0 +1,39 @@
+/* Session team-mode chip: a small always-visible control in the input card's
+   tool row, beside the resident chrome (access mode, plan, attach). Geometry
+   mirrors the official composer chip language. */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: min(100%, 200px);
+  min-height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.chip:not(:disabled):hover,
+.chip[aria-expanded='true'] {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.chip:disabled {
+  cursor: default;
+  color: var(--dsw-alias-label-quaternary);
+}
+
+.chevron {
+  flex: none;
+  color: var(--dsw-alias-label-caption);
+}
