@@ -133,6 +133,38 @@ distinct from the fiber-escape boundary above: that one is about held service
 references; this one is about Node's own resolution cache that no `upgrade`
 step can evict.
 
+### Does a version bump dodge this cache? No, under `nodeLinker: hoisted`
+
+An obvious workaround is to bump the package version on upgrade so pnpm installs
+it to a **new physical path**, which then resolves immediately (the cache is
+keyed by the package.json path). Verified empirically (Node v24.10.0, pnpm
+v10.27.0): a package at a fresh path imports a newly exported subpath fine.
+
+**But this only works when pnpm lays each version out under its own directory.**
+A profile configured with `nodeLinker: hoisted` (this project's web profile)
+flattens every git/file dependency onto `node_modules/<name>/` — the same
+physical path regardless of the declared version — and keeps no per-version
+store directory under `node_modules/.pnpm/`. Bumping the version therefore
+**does not change the physical path**, so the process-level `exports` cache
+stays hit and a newly added subpath still fails until a host restart.
+
+Empirically confirmed on the harness web profile:
+- After bumping the probe from `1.0.0` to `1.1.0` and re-adding it, `node_modules/
+  dsh-hotprobe-bundle` stayed the same physical directory and `.pnpm/` still
+  held only `lock.yaml` — no per-version directory was created.
+- `upgrade` correctly swapped the **existing entry's** code (`/hotprobe/version`
+  `v4 → v5`) because `clearPackageLoadCache` evicts the module `loadCache`; this
+  does **not** depend on the version number.
+- But a **newly added** `exports` subpath (`./version`) on that same path stayed
+  `ERR_MODULE_NOT_FOUND` even after the on-disk `exports` was fixed and every
+  JS-side cache was cleared — the exact process-cached failure above.
+
+So the version-bump trick only helps on a pnpm **isolated** layout (default,
+`nodeLinker` unset or `isolated`), where the store directory derives from the
+dependency specifier and a new commit materializes a fresh path. On this
+project's `hoisted` profile the version number is not a lever: hot-upgrading a
+package that adds a new `exports` subpath still needs a host restart.
+
 ## Boot cleanup
 
 When the `harnessHot` service starts it wipes `hot-*.yml` under

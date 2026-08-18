@@ -87,6 +87,33 @@ binding 层（`modulesBinding.readPackageJSON`），以 package.json 的**路径
 fiber 逃逸边界不同：那个是会话持有的服务引用问题；这个是 Node 自身的解析
 缓存，`upgrade` 的任何一步都驱逐不掉。
 
+### bump 版本号能绕开这个缓存吗？在 `nodeLinker: hoisted` 下不能
+
+一个明显的绕法：升级时 bump 版本号，让 pnpm 把包装到**新的物理路径**，从而
+立即解析成功（缓存以 package.json 路径为键）。已实证（Node v24.10.0、pnpm
+v10.27.0）：位于新路径的包能正常 import 新暴露的子路径。
+
+**但这只在使用默认 isolated 布局（每个版本独立目录）时成立。** 配置了
+`nodeLinker: hoisted` 的 profile（本项目 web profile 即如此）会把每个
+git/file 依赖平铺到 `node_modules/<name>/`——**声明版本号无论怎么变，物理路径
+都相同**，且 `node_modules/.pnpm/` 下没有任何按版本划分的 store 目录。因此
+bump 版本号**不会改变物理路径**，进程级 `exports` 缓存依旧命中，新加的子路径
+仍然失败，直到重启宿主。
+
+已在 harness web profile 上实证：
+- 探针从 `1.0.0` bump 到 `1.1.0` 并重新 add 后，`node_modules/
+  dsh-hotprobe-bundle` 仍是同一个物理目录，`.pnpm/` 下依旧只有 `lock.yaml`——
+  没有生成任何按版本划分的目录。
+- `upgrade` 能正确替换**既有入口**的代码（`/hotprobe/version` 由 `v4` 变 `v5`），
+  因为 `clearPackageLoadCache` 会驱逐模块 `loadCache`；这**不依赖版本号**。
+- 但同一路径下**新增的** `exports` 子路径（`./version`）在磁盘 `exports` 修好、
+  所有 JS 侧缓存清空后，仍是 `ERR_MODULE_NOT_FOUND`——正是上面的进程级缓存。
+
+所以版本号 bump 只在 pnpm **isolated**（默认，`nodeLinker` 未设置或为
+`isolated`）布局下有效：store 目录由依赖 specifier 派生，新 commit 会落地为
+新的物理路径。而在本项目的 `hoisted` profile 下，版本号不是杠杆：为热升级一个
+新增了 `exports` 子路径的包，仍然需要重启宿主。
+
 ## 启动清理
 
 `harnessHot` 服务启动时会清空 `<profileDir>/.harness-hot/` 下的 `hot-*.yml`。热挂输入纯属进程生命周期之物——持久激活仍由 `dsh.profile.bundles` 负责（CLI 安装时协调），因此下次启动会走正常 bundle 层加载插件。崩溃永远不会留下会与 bundle 层在下一次启动时冲突的热文件。
