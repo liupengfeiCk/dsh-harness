@@ -77,6 +77,34 @@
         toolName: delegate_fork
         backgroundMode: continuable
 
+# The team roster ("编制表"): user-authored rosters of roles, each binding a
+# prompt (role) to a subagent (a user-defined subagent id). Same dual-root model
+# as the subagent roster — `config/teams/` ships read-only (`system` trust),
+# `$DSH_HOME/.dsh/teams` is where a person authors their own (`user`).
+    - id: teams
+      name: 'dsh-harness-subagent-bundle/team'
+
+# The team-management wire: the `/team-preset` connection channel carrying the
+# browser settings surface's read/write over the team roster (list/read/
+# create/update/remove/openLocation). It rides alongside the `teams` service
+# (and, for the role subagents' available ids, the `subagentPresets` service)
+# that it reads through the services' public interfaces, kept as a separate
+# host row so the registry's constructor stays zero-invasive.
+    - id: team-wire
+      name: 'dsh-harness-subagent-bundle/team/wire'
+
+# The team delegation tool, mounted in the host plane. Disabled by default: a
+# team-shaped deployment turns it on and, per the composition convention, does
+# NOT also mount the plain `delegate`/`subagent` rows — so the main agent sees
+# only the team's role catalogue, never the bare subagent roster.
+    - id: team-delegate
+      name: 'dsh-harness-subagent-bundle/team/tool'
+      disabled: true
+      config:
+        team: my-team
+        provider: spawn
+        toolName: team_delegate
+
 # The subagent roster: user-defined helper subagents, kept apart from the
 # agent-preset roster. `config/subagents/` ships read-only (`system` trust);
 # `$DSH_HOME/.dsh/subagents` is where a person authors their own. Mounting is
@@ -89,4 +117,11 @@
 # The subagent row in General settings: user-defined helper subagents,
 # independent of the agent-preset roster. A web-only client row.
     - id: ui-subagent-preset
+      name: 'dsh-harness-subagent-bundle'
+
+# The team row in General settings: user-defined team rosters ("编制表"),
+# beside the subagent row. Both sections ship in the same browser client
+# bundle (the single `./client` entry), registered as separate settings
+# sections; this row is the cordis-layer seat for the web-only client surface.
+    - id: ui-teams
       name: 'dsh-harness-subagent-bundle'

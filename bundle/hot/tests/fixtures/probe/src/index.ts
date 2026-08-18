@@ -26,7 +26,7 @@ export const HOTPROBE_CHANNEL = '/hotprobe'
 const AUTHORITY: ConnectionRpcAuthority = 'loopback'
 
 /** The version this probe responds with. Bump this and reinstall to test upgrade. */
-export const PROBE_VERSION = 'v4'
+export const PROBE_VERSION = 'v5'
 
 /**
  * Parse and dispatch one probe endpoint.

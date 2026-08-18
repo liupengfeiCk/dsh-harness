@@ -20,6 +20,9 @@ import type { SubagentSectionInjected } from './SubagentPresetSection.tsx'
 import { SubagentPresetSection } from './SubagentPresetSection.tsx'
 import { createSubagentPresetWire } from './wire-client.ts'
 import { en, zh } from './locales.ts'
+// The independent "团队" (编制表) settings section rides the same single
+// browser client entry, so both sections ship in one client bundle.
+import { apply as applyTeamSection } from '../ui-team/index.ts'
 
 export type {
   CreateDraft, EditDraft, SubagentRow, SubagentSectionState,
@@ -83,4 +86,8 @@ export function apply(ctx: ClientContext): void {
     locale: 'settings.subagentPreset',
     inject: sectionInjected,
   }, SubagentPresetSection))
+
+  // The team settings section ("团队"/"编制表") shares this client bundle's
+  // entry and services, so it is mounted here beside the subagent section.
+  applyTeamSection(ctx)
 }

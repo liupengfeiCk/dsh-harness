@@ -14,7 +14,7 @@
  */
 
 import { fileURLToPath } from 'node:url'
-import { Context, Service, getTraceable } from '@deepseek-ai/cordis'
+import { Context, Service, getTraceable, type Fiber } from '@deepseek-ai/cordis'
 import type { Entry, EntryGroup, EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { z } from 'zod'
 import { HotManager, type HotMountRecord, type StaticRowsAdapter } from './hot.ts'
@@ -88,6 +88,11 @@ export class HarnessHot extends Service {
     // Boot-time wipe: leftover hot inputs must never collide with the bundle
     // layer on the next boot.
     this.manager.cleanHotDir()
+    // Arm the full-tree recompose guard: while a hot copy is mounted, a user
+    // patch change recomposes the root include tree, which would otherwise
+    // resurrect the static rows this mount disabled and collide with the hot
+    // copy (a real incident). Unmount every hot copy before that recompose runs.
+    this.installRecomposeGuard()
   }
 
   /**
@@ -177,6 +182,87 @@ export class HarnessHot extends Service {
    */
   private hostCtx(): Context {
     return getTraceable(this.ctx, this.ctx) as Context
+  }
+
+  /**
+   * The id of the bootstrap root include entry whose config update drives a
+   * full-tree recompose. Pinned by app-boot's `mountRootInclude`
+   * (`id: 'include'`, `name: 'cordis:include'`). A config update on this entry
+   * is what a user `cordis.patch.yml` change routes through: the loader's
+   * `internal/update` waterfall then re-applies patches and recomposes the
+   * root entry group.
+   */
+  private static readonly ROOT_INCLUDE_NAME = 'cordis:include'
+
+  /**
+   * Arm the full-tree recompose guard. A user `cordis.patch.yml` change makes
+   * the root include recompose its entry group; a hot copy still mounted at
+   * that moment collides because the recompose resurrects the static rows the
+   * hot copy's convergence disabled.
+   *
+   * There is no public "recompose starting" event — the loader's
+   * `'loader/config-update'` fires only AFTER the recompose (it is emitted by
+   * the include's `write()`, which the loader calls once the new tree has been
+   * committed), too late to prevent the collision. The earliest reliable signal
+   * is the cordis `internal/update` waterfall on the root include's fiber,
+   * which runs before the include's own `internal/update` handler performs the
+   * recompose (`root.update`). Registering a `{ global, prepend }` handler here
+   * places us ahead of the include handler in that waterfall, so the guard
+   * unmounts every hot copy — and symmetrically restores its static rows —
+   * before the recompose rebuilds the static layer, letting the recompose run
+   * on a clean static tree.
+   *
+   * The guard only fires for the root include's own fiber (`this.entry` is the
+   * root include entry); a hot copy's own config update is a different fiber
+   * and is never mistaken for a full recompose. A missing entry (non-loader
+   * host, or a root include with a different name) disarms the guard silently.
+   */
+  private installRecomposeGuard(): void {
+    const self = this
+    this.ctx.on('internal/update', function (this: Fiber, _config, _noSave, next) {
+      return self.handleInternalUpdate(this, next)
+    }, { global: true, prepend: true })
+  }
+
+  /**
+   * The guard's `internal/update` handler, separated so it is unit-testable
+   * without driving cordis's waterfall dispatch. Unmounts every hot copy when
+   * the update belongs to the root include's fiber (a full-tree recompose),
+   * then always continues the chain — the guard is best-effort defensive
+   * hygiene, never a reason to veto a user's tree change.
+   * @param fiber - the fiber whose config is updating (`this` of the handler).
+   * @param next - the waterfall continuation.
+   */
+  private async handleInternalUpdate(fiber: Fiber, next: () => void | Promise<void>): Promise<void> {
+    if (fiber.entry?.options.name !== HarnessHot.ROOT_INCLUDE_NAME) {
+      await next()
+      return
+    }
+    try {
+      await this.handleRecompose()
+    } catch (error) {
+      this.logger()?.warn?.(`[dsh-harness-hot] recompose guard could not fully unmount hot copies: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    // Always continue the recompose: the guard is best-effort defensive
+    // hygiene, never a reason to veto a user's tree change.
+    await next()
+  }
+
+  /**
+   * Unmount every currently-mounted hot copy, symmetrically restoring each
+   * one's disabled static rows so the static layer becomes the sole owner of
+   * every registration before a full-tree recompose. Runs before the recompose
+   * (see {@link installRecomposeGuard}); a failure on one copy is logged and
+   * does not stop the others, so the recompose always proceeds.
+   */
+  private async handleRecompose(): Promise<void> {
+    for (const record of this.manager.list()) {
+      try {
+        await this.manager.unmount(record.package, this.withStaticRows(this.hostCtx()))
+      } catch (error) {
+        this.logger()?.warn?.(`[dsh-harness-hot] failed to unmount hot copy "${record.package}" before recompose: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
   }
 
   /**

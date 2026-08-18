@@ -81,9 +81,58 @@ A deployment that does not expose the module-loader internals (no
 `--expose-internals`, so `ctx.loader.internal` is undefined) refuses the upgrade
 with **"restart to activate"**.
 
+#### Structural-change preflight
+
+Before disposing anything, `upgrade` compares the disk's **new** `package.json`
+against what this process already loaded, and refuses with
+**"restart to activate"** when the upgrade would change the package's
+*structure* — something the live process can never take because Node's C++
+`readPackageJSON` cache (which freezes the `exports` map and module-resolution
+results) is unreachable from JS:
+
+- **nested `node_modules` layout changed** — a module this process already
+  loaded (its URL sits under the package's own `node_modules/<package>/` path)
+  no longer exists on disk;
+- **`exports` map changed** — a module this process already loaded maps to a
+  relative subpath that the disk's new `exports` no longer exposes (an exact
+  map; a wildcard `./*` export is conservatively treated as covering everything
+  because it cannot be expanded precisely).
+
+A refusal happens **before** any eviction or re-mount, so the running hot copy —
+and the static layer — is left untouched. Only a host restart can take a
+structural change.
+
 ### `list`
 
 Returns the current hot mounts (package, row ids, mount time).
+
+## Recompose guard (read this)
+
+While a hot copy is mounted, editing the user-layer `cordis.patch.yml` makes the
+host recompose its **whole** root-include tree. That recompose re-applies the
+patches and rebuilds the static layer, which would otherwise resurrect the
+static rows a hot copy's convergence disabled and collide with it (a real
+incident: the hot copy's disable loses its target, the static copy comes back,
+and UI row state goes inconsistent).
+
+The guard listens on the loader's `internal/update` waterfall — the earliest
+reliable signal, emitted *before* the include handler recomposes — and, for the
+root include's own fiber, unmounts every hot copy first (symmetrically restoring
+its static rows), so the recompose runs on a clean static layer.
+
+There is **no public "recompose starting" event**: the loader's
+`'loader/config-update'` fires only *after* the recompose (it is emitted by the
+include's `write()` once the new tree is committed), too late to prevent the
+collision. The guard therefore relies on the cordis `internal/update` hook,
+which the loader uses to drive entry-group updates; if a future cordis/loader
+renames or removes that hook, the guard silently disarms (it never vetoes a
+recompose).
+
+**Operational note:** because the guard disarms silently if the hook changes,
+treat hot-mounted copies as ephemeral during any user-layer patch edit — prefer
+to unmount them first, and check `list` if you suspect a hot copy is still up.
+
+## Fiber-escape boundary (read this)
 
 ## Fiber-escape boundary (read this)
 
@@ -103,6 +152,67 @@ practical contract is:
   behaviour until that session is re-created.
 
 If you need a guarantee that every live reference is rebuilt, restart the host.
+
+## Known limitation: failed ESM `exports` subpath resolution is process-cached
+
+`upgrade`'s cache eviction reaches the loader `loadCache` and the CJS
+`_pathCache`/`require.cache`. It does **not** reach Node's process-level ESM
+package resolution cache.
+
+Node caches a package's parsed `package.json` (including its `exports` map) in
+a C++ binding layer (`modulesBinding.readPackageJSON`) keyed by the package.json
+path. This cache does not check the file's mtime, and it has no JS-side handle or
+public API (verified empirically on Node v24.10.0):
+
+- A subpath that fails `exports` resolution once
+  (`ERR_PACKAGE_PATH_NOT_EXPORTED`, e.g. `import './team'` before `exports`
+  gains `"./team"`) stays failed for the life of the process, even after:
+  - the on-disk `exports` is fixed;
+  - the package's `loadCache` records are evicted;
+  - `Module._pathCache` and `require.cache` are fully cleared;
+  - the same bare-specifier subpath is imported again.
+- The cached value is bound to the package.json **path**: a package at a fresh
+  path resolves immediately, while the same path keeps returning the stale
+  result no matter how the file changes.
+
+Consequence for hot upgrade: if a hot-upgraded package starts relying on a newly
+exported subpath that previously failed to resolve in this process, the live
+process cannot pick it up — **the only recovery is a host restart**. This is
+distinct from the fiber-escape boundary above: that one is about held service
+references; this one is about Node's own resolution cache that no `upgrade`
+step can evict.
+
+### Does a version bump dodge this cache? No, under `nodeLinker: hoisted`
+
+An obvious workaround is to bump the package version on upgrade so pnpm installs
+it to a **new physical path**, which then resolves immediately (the cache is
+keyed by the package.json path). Verified empirically (Node v24.10.0, pnpm
+v10.27.0): a package at a fresh path imports a newly exported subpath fine.
+
+**But this only works when pnpm lays each version out under its own directory.**
+A profile configured with `nodeLinker: hoisted` (this project's web profile)
+flattens every git/file dependency onto `node_modules/<name>/` — the same
+physical path regardless of the declared version — and keeps no per-version
+store directory under `node_modules/.pnpm/`. Bumping the version therefore
+**does not change the physical path**, so the process-level `exports` cache
+stays hit and a newly added subpath still fails until a host restart.
+
+Empirically confirmed on the harness web profile:
+- After bumping the probe from `1.0.0` to `1.1.0` and re-adding it, `node_modules/
+  dsh-hotprobe-bundle` stayed the same physical directory and `.pnpm/` still
+  held only `lock.yaml` — no per-version directory was created.
+- `upgrade` correctly swapped the **existing entry's** code (`/hotprobe/version`
+  `v4 → v5`) because `clearPackageLoadCache` evicts the module `loadCache`; this
+  does **not** depend on the version number.
+- But a **newly added** `exports` subpath (`./version`) on that same path stayed
+  `ERR_MODULE_NOT_FOUND` even after the on-disk `exports` was fixed and every
+  JS-side cache was cleared — the exact process-cached failure above.
+
+So the version-bump trick only helps on a pnpm **isolated** layout (default,
+`nodeLinker` unset or `isolated`), where the store directory derives from the
+dependency specifier and a new commit materializes a fresh path. On this
+project's `hoisted` profile the version number is not a lever: hot-upgrading a
+package that adds a new `exports` subpath still needs a host restart.
 
 ## Boot cleanup
 

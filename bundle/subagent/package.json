@@ -34,6 +34,18 @@
       "types": "./lib/types/in-process/tool.d.ts",
       "default": "./lib/types/in-process/tool.js"
     },
+    "./team": {
+      "types": "./lib/types/team/index.d.ts",
+      "default": "./lib/types/team/index.js"
+    },
+    "./team/wire": {
+      "types": "./lib/types/team/wire/index.d.ts",
+      "default": "./lib/types/team/wire/index.js"
+    },
+    "./team/tool": {
+      "types": "./lib/types/team/tool.d.ts",
+      "default": "./lib/types/team/tool.js"
+    },
     "./preset": {
       "types": "./lib/types/preset/index.d.ts",
       "default": "./lib/types/preset/index.js"
@@ -93,7 +105,6 @@
     "@deepseek-ai/dsh-client-ui-settings": "0.1.0-rc.6",
     "@deepseek-ai/dsh-client-ui-slots": "0.1.0-rc.6",
     "@deepseek-ai/dsh-client-web-react": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-home-paths": "0.1.0-rc.6",
     "@deepseek-ai/dsh-host-apiproxy": "0.1.0-rc.6",
     "@deepseek-ai/dsh-invariants": "0.1.0-rc.7",
     "@deepseek-ai/dsh-jobs": "0.1.0-rc.6",
@@ -141,9 +152,6 @@
     "@deepseek-ai/dsh-client-web-react": {
       "optional": true
     },
-    "@deepseek-ai/dsh-home-paths": {
-      "optional": true
-    },
     "@deepseek-ai/dsh-native-command": {
       "optional": true
     },
@@ -184,7 +192,6 @@
     "@deepseek-ai/dsh-client-ui-settings": "0.1.0-rc.6",
     "@deepseek-ai/dsh-client-ui-slots": "0.1.0-rc.6",
     "@deepseek-ai/dsh-client-web-react": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-home-paths": "0.1.0-rc.6",
     "@deepseek-ai/dsh-host-apiproxy": "0.1.0-rc.6",
     "@deepseek-ai/dsh-invariants": "0.1.0-rc.7",
     "@deepseek-ai/dsh-jobs": "0.1.0-rc.6",

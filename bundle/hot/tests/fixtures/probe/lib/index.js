@@ -19,7 +19,7 @@ export const HOTPROBE_CHANNEL = '/hotprobe';
 /** Loopback-pinned authority: this is a live-composition probe. */
 const AUTHORITY = 'loopback';
 /** The version this probe responds with. Bump this and reinstall to test upgrade. */
-export const PROBE_VERSION = 'v4';
+export const PROBE_VERSION = 'v5';
 /**
  * Parse and dispatch one probe endpoint.
  * @param endpoint - the channel-relative endpoint name.

@@ -67,7 +67,7 @@ import {
   foldHarnessSubagentDescriptor,
   snapshotHarnessSubagentDescriptor,
 } from './descriptor.ts'
-import type { HarnessSubagentDescriptorData } from './descriptor.ts'
+import type { HarnessContinuableSubagentDescriptorData, HarnessSubagentDescriptorData } from './descriptor.ts'
 import { setupChildComposition } from './engine.ts'
 // Official seam pieces, imported from the official package (never copied) per
 // the harness policy; the official package is restored upstream in task 3, and
@@ -79,6 +79,12 @@ import type {
   SubagentResult,
 } from '@deepseek-ai/dsh-subagent'
 import type { HarnessSubagentStartRequest } from './request-types.ts'
+// Type-only: make `ctx.get('teams')` resolve to the user-defined team registry
+// when composed — a persistent-role cold resume re-resolves its subagent/prompt
+// from the team's latest definition opportunistically (the documented `ctx.get`
+// pattern), never as a hard dep. A deployment without the registry keeps the
+// persisted subagent/prompt instead.
+import type {} from '../team/index.ts'
 import type { ActivationObserver, ActivationTerminal } from './upstream/lifecycle.ts'
 import type SubagentActivationSetupRegistry from './upstream/activation-setup-registry.ts'
 
@@ -469,6 +475,8 @@ export class SubagentContinuationManager {
       ...request.persona !== undefined ? { persona: request.persona } : {},
       ...request.toolFilter !== undefined ? { toolFilter: request.toolFilter } : {},
       ...request.subagent !== undefined ? { subagent: request.subagent } : {},
+      ...request.team !== undefined ? { team: request.team } : {},
+      ...request.role !== undefined ? { role: request.role } : {},
     })
     // Capture before the first await: a later parent switch belongs to the
     // parent's future, not to this child.
@@ -969,7 +977,7 @@ export class SubagentContinuationManager {
           ...descriptor.agentProvider !== undefined ? { provider: descriptor.agentProvider } : {},
           ...descriptor.agentModel !== undefined ? { model: descriptor.agentModel } : {},
         },
-        composition: { persona: descriptor.persona, toolFilter: descriptor.toolFilter, subagent: descriptor.subagent },
+        composition: await this.resolveResumeComposition(descriptor),
         signal: options.signal,
       })
     } catch (error: unknown) {
@@ -978,6 +986,48 @@ export class SubagentContinuationManager {
       throw new SubagentError(`subagent "${childId}" is unavailable`, 'NOT_RESUMABLE', { cause: error })
     }
     return this.submitMaterialized(activation, content, options.source, parent, options.signal)
+  }
+
+  /**
+   * Reconstruct a persistent role's child composition on cold resume.
+   *
+   * A persistent-role child is resumed from its persisted descriptor, which
+   * carries the subagent (subagent id) and persona it was created with, plus its
+   * `team`/`role` identity. When that identity is present, this re-resolves the
+   * role from the team's CURRENT file and prefers its latest subagent and
+   * prompt over the persisted ones — "reference semantics": if the team file
+   * was edited since the child was created, the resumed role uses the new
+   * version. A re-resolution failure (team deleted, role removed, team broken)
+   * degrades gracefully to the persisted subagent/prompt, so an
+   * already-established child can still be resumed rather than stranding its
+   * durable session.
+   * @param descriptor - the folded continuable descriptor.
+   * @returns the child composition to materialize.
+   */
+  private async resolveResumeComposition(
+    descriptor: HarnessContinuableSubagentDescriptorData,
+  ): Promise<{ persona?: string | undefined; toolFilter?: ToolRestriction | undefined; subagent?: string | undefined }> {
+    const base = {
+      persona: descriptor.persona,
+      toolFilter: descriptor.toolFilter,
+      subagent: descriptor.subagent,
+    }
+    if (descriptor.team === undefined || descriptor.role === undefined) return base
+    // Re-resolve the role from the team's latest definition. A failure keeps
+    // the persisted subagent/prompt (degrade, never strand the durable child).
+    const teams = this.ctx.get('teams')
+    if (teams === undefined) return base
+    try {
+      const role = await teams.resolveRoleDefinition(descriptor.team, descriptor.role)
+      return {
+        ...base.toolFilter !== undefined ? { toolFilter: base.toolFilter } : {},
+        // The team's latest definition wins when it carries a subagent.
+        ...role.subagent !== '' ? { subagent: role.subagent } : base.subagent !== undefined ? { subagent: base.subagent } : {},
+        ...role.prompt !== undefined ? { persona: role.prompt } : base.persona !== undefined ? { persona: base.persona } : {},
+      }
+    } catch {
+      return base
+    }
   }
 
   /**

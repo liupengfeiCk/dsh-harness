@@ -17,7 +17,7 @@
 import { chmod, cp, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
-import { dshHomePath, expandHomePath } from '@deepseek-ai/dsh-home-paths'
+import { dshHomePath, expandHomePath } from '../home-path.ts'
 import { METADATA_FILE, readSubagentMetadata, renderSubagentMetadata, type SubagentMetadata } from './metadata.ts'
 import { SUBAGENT_ID, type SubagentPreset, type SubagentRoot } from './types.ts'
 

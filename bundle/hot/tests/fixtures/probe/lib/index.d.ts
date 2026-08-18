@@ -19,7 +19,7 @@ import type { RpcResult } from '@deepseek-ai/dsh-host-apiproxy/api';
 /** Absolute logical channel owning the probe endpoint. */
 export declare const HOTPROBE_CHANNEL = "/hotprobe";
 /** The version this probe responds with. Bump this and reinstall to test upgrade. */
-export declare const PROBE_VERSION = "v4";
+export declare const PROBE_VERSION = "v5";
 /**
  * Parse and dispatch one probe endpoint.
  * @param endpoint - the channel-relative endpoint name.

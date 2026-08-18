@@ -18,7 +18,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { load } from 'js-yaml';
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include';
-import { expandHomePath } from '@deepseek-ai/dsh-home-paths';
+import { expandHomePath } from "../home-path.js";
 import { readEnabledOverrides } from "./authoring.js";
 import { readSubagentMetadata } from "./metadata.js";
 import { SUBAGENT_ID } from "./types.js";

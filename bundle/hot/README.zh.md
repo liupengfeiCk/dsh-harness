@@ -47,7 +47,30 @@ dispose 已挂载的子树，立即把该包的行从运行中组合移除。
 
 未暴露模块加载器内部（无 `--expose-internals`，`ctx.loader.internal` 为 undefined）的部署会拒绝升级并提示 **「重启生效」**。
 
+#### 结构变更预检
+
+在 dispose 任何东西之前，`upgrade` 会把磁盘上**新的** `package.json` 与本进程已经加载的内容做对比；当本次升级会改变包的**结构**——而活进程因为 Node C++ 层 `readPackageJSON` 缓存（冻结 `exports` 映射与模块解析结果）无法从 JS 触达、从而永远无法生效——时，直接拒绝并提示 **「重启生效」**：
+
+- **嵌套 `node_modules` 布局变化**——本进程已加载的某个模块（其 URL 位于包自身的 `node_modules/<package>/` 下）在磁盘上已不存在；
+- **`exports` 映射变化**——本进程已加载的某个模块对应的相对子路径，已不再被磁盘新的 `exports` 暴露（仅精确映射；`./*` 通配因无法精确展开而保守视为覆盖一切）。
+
+拒绝发生在**任何驱逐/重挂之前**，因此运行中的热副本与静态层保持原样。结构变更只能靠重启宿主生效。
+
 ### `list`
+
+返回当前热挂载（包名、行 id、挂载时间）。
+
+## 重组装防线（务必阅读）
+
+热副本运行期间，编辑用户层 `cordis.patch.yml` 会让宿主对整个 **root-include 树做重组装**。该重组装会重新应用 patch 并重建静态层，否则热副本收敛时 disable 掉的静态行会被复活、与热副本撞车（真实事故：热副本的 disable 失去目标、静态副本复活、UI 行状态混乱）。
+
+防线监听 loader 的 `internal/update` waterfall——最早可靠的信号，在 include 处理器真正重组装**之前**触发——对 root include 自己的 fiber 先卸载所有热副本（对称恢复其静态行），让重组装在干净的静态层上进行。
+
+**没有公开的「重组装开始」事件**：loader 的 `'loader/config-update'` 只在重组装**之后**触发（它由 include 的 `write()` 在新树提交后发出），来不及阻止撞车。因此防线依赖 cordis 的 `internal/update` 钩子——loader 正是用它驱动 entry-group 更新的。如果未来 cordis/loader 改名或移除该钩子，防线会静默解除（它从不否决重组装）。
+
+**操作提示：** 因为钩子变化时防线会静默解除，编辑用户层 patch 期间请把热副本视为临时的——最好先卸载它们；若怀疑热副本仍在，用 `list` 查询。
+
+## fiber 逃逸引用边界（务必阅读）
 
 返回当前热挂清单（包名、行 id、挂载时间）。
 
@@ -61,6 +84,58 @@ dispose 已挂载的子树，立即把该包的行从运行中组合移除。
 - 长会话中**已持有的服务引用**可能观察到过期行为，直到该会话重建。
 
 如果需要保证每个活引用都被重建，请重启宿主。
+
+## 已知限制：失败的 ESM `exports` 子路径解析被进程级缓存
+
+`upgrade` 的缓存驱逐能触达 loader 的 `loadCache` 和 CJS 的
+`_pathCache`/`require.cache`，但**触达不到** Node 进程级的 ESM 包解析缓存。
+
+Node 把包的 `package.json` 解析结果（包括 `exports` 映射）缓存在一个 C++
+binding 层（`modulesBinding.readPackageJSON`），以 package.json 的**路径**为键。
+该缓存不校验文件 mtime，也没有任何 JS 侧句柄或公开 API（已在 Node v24.10.0
+上实证）：
+
+- 某个子路径一旦 `exports` 解析失败
+  （`ERR_PACKAGE_PATH_NOT_EXPORTED`，例如在 `exports` 尚未加入 `"./team"`
+  时执行 `import './team'`），在进程存续期内会一直失败，即使之后：
+  - 磁盘上的 `exports` 已修好；
+  - 该包的 `loadCache` 记录已驱逐；
+  - `Module._pathCache` 与 `require.cache` 已全部清空；
+  - 再次 import 同一个 bare-specifier 子路径。
+- 缓存值与 package.json 的**路径**绑定：换一个新路径的包立即解析成功，而
+  同一路径无论文件怎么改都一直返回旧的（过期的）结果。
+
+对热升级的影响：如果热升级后的包开始依赖一个本进程之前解析失败的、新暴露的
+子路径，活进程无法加载到它——**唯一恢复方式是重启宿主**。这与上面的
+fiber 逃逸边界不同：那个是会话持有的服务引用问题；这个是 Node 自身的解析
+缓存，`upgrade` 的任何一步都驱逐不掉。
+
+### bump 版本号能绕开这个缓存吗？在 `nodeLinker: hoisted` 下不能
+
+一个明显的绕法：升级时 bump 版本号，让 pnpm 把包装到**新的物理路径**，从而
+立即解析成功（缓存以 package.json 路径为键）。已实证（Node v24.10.0、pnpm
+v10.27.0）：位于新路径的包能正常 import 新暴露的子路径。
+
+**但这只在使用默认 isolated 布局（每个版本独立目录）时成立。** 配置了
+`nodeLinker: hoisted` 的 profile（本项目 web profile 即如此）会把每个
+git/file 依赖平铺到 `node_modules/<name>/`——**声明版本号无论怎么变，物理路径
+都相同**，且 `node_modules/.pnpm/` 下没有任何按版本划分的 store 目录。因此
+bump 版本号**不会改变物理路径**，进程级 `exports` 缓存依旧命中，新加的子路径
+仍然失败，直到重启宿主。
+
+已在 harness web profile 上实证：
+- 探针从 `1.0.0` bump 到 `1.1.0` 并重新 add 后，`node_modules/
+  dsh-hotprobe-bundle` 仍是同一个物理目录，`.pnpm/` 下依旧只有 `lock.yaml`——
+  没有生成任何按版本划分的目录。
+- `upgrade` 能正确替换**既有入口**的代码（`/hotprobe/version` 由 `v4` 变 `v5`），
+  因为 `clearPackageLoadCache` 会驱逐模块 `loadCache`；这**不依赖版本号**。
+- 但同一路径下**新增的** `exports` 子路径（`./version`）在磁盘 `exports` 修好、
+  所有 JS 侧缓存清空后，仍是 `ERR_MODULE_NOT_FOUND`——正是上面的进程级缓存。
+
+所以版本号 bump 只在 pnpm **isolated**（默认，`nodeLinker` 未设置或为
+`isolated`）布局下有效：store 目录由依赖 specifier 派生，新 commit 会落地为
+新的物理路径。而在本项目的 `hoisted` profile 下，版本号不是杠杆：为热升级一个
+新增了 `exports` 子路径的包，仍然需要重启宿主。
 
 ## 启动清理
 
