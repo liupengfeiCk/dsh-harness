@@ -265,7 +265,11 @@ export class Teams extends Service {
    * @throws when the session has no live agent (the fold needs its event log).
    */
   readMode(sessionId: SessionId): TeamModeState {
-    const agent = this.ctx.agents?.get(sessionId)
+    // `ctx.get('agents')` — dynamic lookup, not a property read: this service
+    // activates inside hot-mounted Include subtrees where an inject
+    // declaration chain is absent, and cordis refuses bare property access
+    // there ("cannot get property 'agents' without inject").
+    const agent = this.ctx.get('agents')?.get(sessionId)
     if (agent === undefined) {
       throw new Error(`team-presets: no live agent for session "${sessionId}"; cannot read its delegation mode`)
     }
@@ -293,7 +297,7 @@ export class Teams extends Service {
    * an unknown team.
    */
   async selectMode(sessionId: SessionId, mode: TeamMode, team?: string): Promise<void> {
-    const agent = this.ctx.agents?.get(sessionId)
+    const agent = this.ctx.get('agents')?.get(sessionId)
     if (agent === undefined) {
       throw new Error(`team-presets: no live agent for session "${sessionId}"; cannot change its delegation mode`)
     }
