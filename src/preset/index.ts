@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url'
 import { Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Context } from '@deepseek-ai/cordis'
-import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
+import { dshHomePath } from '../home-path.ts'
 import { discoverSubagents, USER_SUBAGENT_DIR } from './discovery.ts'
 
 /**

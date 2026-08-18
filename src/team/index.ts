@@ -19,7 +19,7 @@
 import { Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Context } from '@deepseek-ai/cordis'
-import { dshHomePath } from './home-path.ts'
+import { dshHomePath } from '../home-path.ts'
 import { discoverTeams, USER_TEAM_DIR } from './discovery.ts'
 import {
   UnknownTeamError, UnknownTeamRoleError,

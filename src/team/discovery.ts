@@ -16,7 +16,7 @@
 
 import { readdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { expandHomePath } from './home-path.ts'
+import { expandHomePath } from '../home-path.ts'
 import { readTeam } from './metadata.ts'
 import { TEAM_ID, type Team, type TeamRoot } from './types.ts'
 

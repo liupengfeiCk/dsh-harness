@@ -8,6 +8,7 @@
   "include": [
     "src/index.ts",
     "src/invariant.ts",
+    "src/home-path.ts",
     "src/in-process",
     "src/preset",
     "src/preset-edit",
