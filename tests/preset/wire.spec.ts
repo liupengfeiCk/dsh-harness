@@ -225,20 +225,20 @@ describe('subagent-preset wire registration', () => {
       return () => Promise.resolve()
     })
     const effects: Array<() => void> = []
+    const listeners: Array<(name: string) => void> = []
     const fakeCtx = {
-      inject: vi.fn((deps: string[], cb: (ctx: Record<string, unknown>) => void) => {
-        expect(deps).toEqual(['connection'])
-        // Simulate connection becoming available: invoke with a connection face.
-        cb({
-          connection: { rpc: { handle } },
-          get: () => undefined,
-          effect: (thunk: () => () => void, _name: string) => {
-            const disposer = thunk()
-            if (typeof disposer === 'function') effects.push(disposer)
-            return disposer ?? (() => {})
-          },
-        })
+      get: vi.fn((name: string) => {
+        if (name === 'connection') return { rpc: { handle } }
+        return undefined
       }),
+      on: vi.fn((_event: string, cb: (name: string) => void) => {
+        listeners.push(cb)
+      }),
+      effect: (thunk: () => () => void, _name: string) => {
+        const disposer = thunk()
+        if (typeof disposer === 'function') effects.push(disposer)
+        return disposer ?? (() => {})
+      },
     } as unknown as Context
     registerSubagentPresetWire(fakeCtx)
 
@@ -247,5 +247,8 @@ describe('subagent-preset wire registration', () => {
     expect(registered[0]!.authority).toBe('loopback')
     // The channel disposer was attached as a cordis effect.
     expect(effects).toHaveLength(1)
+    // A late `connection` signal re-runs registration on the same ctx.
+    listeners.forEach(cb => cb('connection'))
+    expect(handle).toHaveBeenCalledTimes(2)
   })
 })

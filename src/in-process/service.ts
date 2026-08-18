@@ -121,24 +121,42 @@ export class HarnessSubagentRuntime extends Service {
   constructor(ctx: Context) {
     super(ctx, 'subagents')
     this.emitLifecycle = createLifecycleEmitter(this.ctx, parent => scopeTarget(this, parent))
-    ctx.inject(['agents'], (childCtx: Context) => {
+    // This row mounts through the harness hot loader, where an `ctx.inject`
+    // child fiber may never be driven ACTIVE. Both bindings therefore run
+    // through an immediate `ctx.get` plus the shared-registry
+    // `internal/service` event: identical to inject at boot, and actually
+    // reached on a runtime hot mount.
+    const tryBindContinuations = (): void => {
+      if (this.continuations !== undefined) return
+      if (ctx.get('agents') === undefined) return
       // OUR continuation manager, not the official one: it composes children
       // through OUR engine's `setupChildComposition` and folds/snapshots the
       // harness descriptor, keeping the inheritance switch and the persisted
       // `subagent` id after the official package is restored upstream.
-      const manager = new SubagentContinuationManager(childCtx, {
+      const manager = new SubagentContinuationManager(ctx, {
         prepareContinuable: (name, request) => this.prepareContinuable(name, request),
         observeActivation: (provider, childId, parent) => this.observeActivation(provider, childId, parent),
       }, this.setupRegistry)
       this.continuations = manager
-      childCtx.effect(() => () => {
+      ctx.effect(() => () => {
         /* v8 ignore else -- one injected binding owns the slot until its fiber disposes. */
         if (this.continuations === manager) this.continuations = undefined
       }, 'subagents.continuationBinding()')
-    })
-    ctx.inject(['sessionProjections'], (projectionCtx) => {
-      projectionCtx.sessionProjections.register(subagentTimingProjectionDefinition)
-      projectionCtx.sessionProjections.register(subagentIdentityProjectionDefinition)
+    }
+    let projectionsRegistered = false
+    const tryRegisterProjections = (): void => {
+      if (projectionsRegistered) return
+      const projections = ctx.get('sessionProjections')
+      if (projections === undefined) return
+      projections.register(subagentTimingProjectionDefinition)
+      projections.register(subagentIdentityProjectionDefinition)
+      projectionsRegistered = true
+    }
+    tryBindContinuations()
+    tryRegisterProjections()
+    ctx.on('internal/service', (name) => {
+      if (name === 'agents') tryBindContinuations()
+      if (name === 'sessionProjections') tryRegisterProjections()
     })
   }
 

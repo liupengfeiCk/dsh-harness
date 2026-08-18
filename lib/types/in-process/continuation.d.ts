@@ -188,6 +188,15 @@ export declare class SubagentContinuationManager {
     private draining;
     constructor(ctx: Context, host: ContinuationHost, setupRegistry: SubagentActivationSetupRegistry);
     /**
+     * The live agent registry. This row mounts through the harness hot loader,
+     * where the manager's context has no injected `agents` getter (an `inject`
+     * child fiber may never be driven ACTIVE), so every agent lookup resolves
+     * through the shared registry's `get` instead. The agent service is present
+     * for the whole manager lifetime (creation already gated on it); if it is
+     * ever absent at use time, that is a broken composition and fails loud.
+     */
+    private agentsRegistry;
+    /**
      * Start one continuable background child: reserve its durable identity,
      * resolve the provider's detached creation spec, create the child Agent
      * through the private activation-owner scope, establish any continuable-parent

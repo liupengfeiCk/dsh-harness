@@ -415,6 +415,25 @@ export class SubagentContinuationManager {
   }
 
   /**
+   * The live agent registry. This row mounts through the harness hot loader,
+   * where the manager's context has no injected `agents` getter (an `inject`
+   * child fiber may never be driven ACTIVE), so every agent lookup resolves
+   * through the shared registry's `get` instead. The agent service is present
+   * for the whole manager lifetime (creation already gated on it); if it is
+   * ever absent at use time, that is a broken composition and fails loud.
+   */
+  private agentsRegistry(): Context['agents'] {
+    const agents = this.ctx.get('agents')
+    if (agents === undefined) {
+      throw new SubagentError(
+        'continuable subagents require the agents service',
+        'CONTINUATION_UNAVAILABLE',
+      )
+    }
+    return agents
+  }
+
+  /**
    * Start one continuable background child: reserve its durable identity,
    * resolve the provider's detached creation spec, create the child Agent
    * through the private activation-owner scope, establish any continuable-parent
@@ -560,7 +579,7 @@ export class SubagentContinuationManager {
       const caller = authority.agent
       // A stale caller is rejected even when the target is absent, so a
       // replaced same-id Agent can never probe this manager's state.
-      if (this.ctx.agents.get(caller.id) !== caller) {
+      if (this.agentsRegistry().get(caller.id) !== caller) {
         throw new SubagentError(
           `interrupting "${targetSessionId}" requires the exact live ancestor agent`,
           'UNAUTHORIZED',
@@ -646,7 +665,7 @@ export class SubagentContinuationManager {
   private resolveReportParent(child: Agent): Agent {
     const parentId = child.session.header.parentSession
     /* v8 ignore next -- every continuation-managed child has direct-parent metadata. */
-    const parent = parentId === undefined ? undefined : this.ctx.agents.get(parentId)
+    const parent = parentId === undefined ? undefined : this.agentsRegistry().get(parentId)
     if (parent === undefined) {
       throw new SubagentError(
         'direct parent is not live; report was not delivered',
@@ -757,7 +776,7 @@ export class SubagentContinuationManager {
    * @throws an aggregate error after all scoped branches settle when any failed.
    */
   async drainDescendants(parents: readonly Agent[]): Promise<void> {
-    const roots = new Set(parents.filter(parent => this.ctx.agents.get(parent.id) === parent))
+    const roots = new Set(parents.filter(parent => this.agentsRegistry().get(parent.id) === parent))
     if (roots.size === 0) return
 
     // Publish the scoped admission cutoff before the first await. Merge with an
@@ -851,7 +870,7 @@ export class SubagentContinuationManager {
     const seen = new Set<SessionId>([agent.id])
     let parentSession = agent.session.header.parentSession
     while (parentSession !== undefined) {
-      const parent = this.ctx.agents.get(parentSession)
+      const parent = this.agentsRegistry().get(parentSession)
       if (parent === undefined || seen.has(parent.id)) break
       lineage.push(parent)
       seen.add(parent.id)
@@ -1037,16 +1056,28 @@ export class SubagentContinuationManager {
       return this.setupRegistry.apply(childCtx)
     }
     const observer = this.host.observeActivation(provider, childId, parent)
+    // This row mounts through the harness hot loader, where the activation-owner
+    // scope has no injected `agents` getter (an `inject` child fiber may never
+    // be driven ACTIVE). Resolve the registry through `get` — reachable on the
+    // shared registry regardless of injection — and fail loud only if the agent
+    // service is genuinely absent at materialization time.
+    const agents = this.ownerCtx.get('agents')
+    if (agents === undefined) {
+      throw new SubagentError(
+        'continuable subagents require the agents service',
+        'CONTINUATION_UNAVAILABLE',
+      )
+    }
     // Agent creation owns rollback before handle transfer. A rejection leaves
     // no resident Activation and therefore publishes no lifecycle edge.
     const handle: AgentHandle = create === undefined
-      ? await this.ownerCtx.agents.resume({
+      ? await agents.resume({
         resumeSessionId: childId,
         agentOptions: inputs.agentOptions,
         signal: inputs.signal,
         setup,
       })
-      : await this.ownerCtx.agents.create({
+      : await agents.create({
         sessionId: childId,
         meta: create.meta,
         seed: create.seed,
@@ -1246,7 +1277,7 @@ export class SubagentContinuationManager {
     childId: SessionId,
     parentSession: SessionId | undefined,
   ): void {
-    if (this.ctx.agents.get(parent.id) !== parent) {
+    if (this.agentsRegistry().get(parent.id) !== parent) {
       throw new SubagentError(
         `subagent "${childId}" delivery requires the exact live parent agent`,
         'UNAUTHORIZED',
@@ -1433,7 +1464,7 @@ export class SubagentContinuationManager {
   private notifySettlement(activation: Activation, terminal: ActivationTerminal): void {
     if (!activation.announced) return
     try {
-      const parent = this.ctx.agents.get(activation.parentSession)
+      const parent = this.agentsRegistry().get(activation.parentSession)
       if (parent === undefined) return
       const summary = settlementSummary(activation.childId, terminal.stopReason)
       const message = createUserMessage({
