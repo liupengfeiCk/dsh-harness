@@ -13,6 +13,7 @@
  * @module dsh-harness-hot-bundle/service
  */
 import { Context, Service } from '@deepseek-ai/cordis';
+import { z } from 'zod';
 import { type HotMountRecord } from './hot.ts';
 declare module '@deepseek-ai/cordis' {
     interface Context {
@@ -25,6 +26,24 @@ export interface HotTarget {
     /** Explicit profile directory; defaults to the service's derived profile. */
     profileDir?: string;
 }
+/**
+ * The `harness-hot` row config. Business plugins activated exclusively
+ * through `autoMount` keep their rows out of the static bundle layers, so a
+ * live `upgrade` never collides with a frozen boot-era mount — and this list
+ * is what brings them back after every restart.
+ */
+export interface HarnessHotConfig {
+    /**
+     * Packages hot-mounted as part of the service's own activation (boot or a
+     * live recompose of the row). A package that fails to mount (uninstalled,
+     * unpatchable) is logged and skipped; it never takes the tree down.
+     */
+    autoMount?: string[];
+}
+/** Zod schema validating the row config at the plugin boundary. */
+export declare const harnessHotConfigSchema: z.ZodObject<{
+    autoMount: z.ZodOptional<z.ZodArray<z.ZodString>>;
+}, z.core.$strip>;
 /**
  * Resolve the active profile directory. The loader's `baseUrl` is pinned to
  * the profile directory by `bootApp`; when that is unavailable (no loader, or
@@ -39,7 +58,17 @@ export declare class HarnessHot extends Service {
     static inject: string[];
     private readonly defaultProfileDir;
     private readonly manager;
-    constructor(ctx: Context);
+    private readonly autoMount;
+    constructor(ctx: Context, config?: HarnessHotConfig);
+    /**
+     * Mount every configured package as the service activates. Runs as the
+     * class-plugin init hook (the fiber awaits it), so this row settles only
+     * once the whole list has been attempted; one package's failure is logged
+     * and skipped rather than failing the tree.
+     */
+    [Service.init](): Promise<void>;
+    /** The deployment's logger service, when one is composed. */
+    private logger;
     /** The profile directory this service derives, or null when unavailable. */
     get profileDir(): string | null;
     private resolveManager;

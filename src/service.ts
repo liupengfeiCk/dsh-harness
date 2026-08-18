@@ -15,6 +15,7 @@
 
 import { fileURLToPath } from 'node:url'
 import { Context, Service } from '@deepseek-ai/cordis'
+import { z } from 'zod'
 import { HotManager, type HotMountRecord } from './hot.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -29,6 +30,26 @@ export interface HotTarget {
   /** Explicit profile directory; defaults to the service's derived profile. */
   profileDir?: string
 }
+
+/**
+ * The `harness-hot` row config. Business plugins activated exclusively
+ * through `autoMount` keep their rows out of the static bundle layers, so a
+ * live `upgrade` never collides with a frozen boot-era mount — and this list
+ * is what brings them back after every restart.
+ */
+export interface HarnessHotConfig {
+  /**
+   * Packages hot-mounted as part of the service's own activation (boot or a
+   * live recompose of the row). A package that fails to mount (uninstalled,
+   * unpatchable) is logged and skipped; it never takes the tree down.
+   */
+  autoMount?: string[]
+}
+
+/** Zod schema validating the row config at the plugin boundary. */
+export const harnessHotConfigSchema = z.object({
+  autoMount: z.array(z.string().min(1)).optional(),
+})
 
 /**
  * Resolve the active profile directory. The loader's `baseUrl` is pinned to
@@ -56,14 +77,37 @@ export class HarnessHot extends Service {
 
   private readonly defaultProfileDir: string | null
   private readonly manager: HotManager
+  private readonly autoMount: readonly string[]
 
-  constructor(ctx: Context) {
+  constructor(ctx: Context, config?: HarnessHotConfig) {
     super(ctx, 'harnessHot')
     this.defaultProfileDir = deriveProfileDir(ctx)
     this.manager = new HotManager(this.defaultProfileDir ?? process.cwd())
+    this.autoMount = Object.freeze([...(config?.autoMount ?? [])])
     // Boot-time wipe: leftover hot inputs must never collide with the bundle
     // layer on the next boot.
     this.manager.cleanHotDir()
+  }
+
+  /**
+   * Mount every configured package as the service activates. Runs as the
+   * class-plugin init hook (the fiber awaits it), so this row settles only
+   * once the whole list has been attempted; one package's failure is logged
+   * and skipped rather than failing the tree.
+   */
+  async [Service.init](): Promise<void> {
+    for (const packageName of this.autoMount) {
+      try {
+        await this.mount({ package: packageName })
+      } catch (error) {
+        this.logger()?.warn?.(`[dsh-harness-hot] auto-mount of ${packageName} failed: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+  }
+
+  /** The deployment's logger service, when one is composed. */
+  private logger(): { info?(message: string): void; warn(message: string): void } | undefined {
+    return (this.ctx as Context & { logger?: { info?(message: string): void; warn(message: string): void } }).logger
   }
 
   /** The profile directory this service derives, or null when unavailable. */

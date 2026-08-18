@@ -12,11 +12,11 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
-import { HarnessHot } from './service.ts'
+import { HarnessHot, harnessHotConfigSchema, type HarnessHotConfig } from './service.ts'
 import { registerHarnessHotWire } from './wire/index.ts'
 
-export { HarnessHot, deriveProfileDir } from './service.ts'
-export type { HotTarget } from './service.ts'
+export { HarnessHot, deriveProfileDir, harnessHotConfigSchema } from './service.ts'
+export type { HotTarget, HarnessHotConfig } from './service.ts'
 export {
   ActivationTimeout, clearPackageLoadCache, HotManager, HOT_DIR, HOT_ROW_PREFIX, HOT_MOUNT_TIMEOUT_MS,
   type HotContext, type HotMountRecord, type PluginHandle,
@@ -29,10 +29,22 @@ export type { WireEndpointName, WireResult } from './wire/schema.ts'
 
 /**
  * Host plugin body: provide the `harnessHot` service and register the
- * `/harness-hot` loopback channel.
+ * `/harness-hot` loopback channel. The row's config carries the autoMount
+ * list — packages the service hot-mounts as it activates, so a business
+ * plugin lives entirely on this surface (no static bundle row) yet still
+ * comes back after every restart.
  * @param ctx - the host plugin context.
+ * @param config - the row config (`autoMount` list); invalid shapes fail loud.
  */
-export function apply(ctx: Context): void {
-  ctx.plugin(HarnessHot)
+export function apply(ctx: Context, config?: unknown): void {
+  ctx.plugin(HarnessHot, parseRowConfig(config))
   registerHarnessHotWire(ctx)
+}
+
+/** Validate the loader row config at the plugin boundary. */
+function parseRowConfig(config: unknown): HarnessHotConfig {
+  if (config === undefined || config === null) return {}
+  // The schema already proves the shape (autoMount is a non-empty string
+  // array, or absent); narrow the optional to satisfy exactOptionalPropertyTypes.
+  return harnessHotConfigSchema.parse(config) as HarnessHotConfig
 }
