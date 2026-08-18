@@ -272,6 +272,86 @@ describe('HotManager double-mount convergence', () => {
 })
 
 /**
+ * Mount/upgrade failure rollback: a failed mount (an import/apply error or an
+ * activation timeout) must NEVER strand the composition in a "static rows
+ * disabled + no hot copy mounted" state. The mount rolls back symmetrically —
+ * disposing the half-mounted subtree and restoring every static row it had
+ * disabled — before rethrowing, so the static layer runs again exactly as it
+ * did before the call.
+ */
+describe('HotManager mount/upgrade failure rollback', () => {
+  /** A static-row adapter double recording disable/restore calls. */
+  function adapterSpy(rows: Set<string>): {
+    adapter: StaticRowsAdapter
+    disabled: string[]
+    restored: string[]
+  } {
+    const disabled: string[] = []
+    const restored: string[] = []
+    return {
+      adapter: {
+        has: (id: string) => rows.has(id),
+        disable: async (id: string) => { disabled.push(id) },
+        restore: async (id: string) => { restored.push(id) },
+      },
+      disabled,
+      restored,
+    }
+  }
+
+  it('restores disabled static rows and records no mount when import/apply fails', async () => {
+    const { profileDir } = makeProfileDir()
+    const { adapter, disabled, restored } = adapterSpy(new Set(['probe']))
+    // The hot subtree's await rejects immediately — an import/apply error.
+    const ctx = {
+      plugin: () => ({ await: async () => { throw new Error('import failed') }, dispose: async () => {} }),
+      staticRows: adapter,
+    } as HotContext
+    const manager = new HotManager(profileDir)
+
+    await expect(manager.mount(ctx, 'hotprobe')).rejects.toThrow('import failed')
+
+    // The static row this mount disabled is restored (symmetric rollback)...
+    expect(disabled).toEqual(['probe'])
+    expect(restored).toEqual(['probe'])
+    // ...and no hot-mount record survives a failed mount.
+    expect(manager.list()).toEqual([])
+  })
+
+  it('upgrade failure restores the static rows and leaves no hot mount', async () => {
+    const { profileDir } = makeProfileDir()
+    const { adapter, disabled, restored } = adapterSpy(new Set(['probe']))
+    // First plugin call (initial mount) settles; the second (inside upgrade's
+    // re-mount) fails — a broken import on the upgraded copy.
+    let pluginCalls = 0
+    const ctx = {
+      plugin: () => {
+        pluginCalls += 1
+        if (pluginCalls === 1) return { await: async () => {}, dispose: async () => {} }
+        return { await: async () => { throw new Error('upgrade import failed') }, dispose: async () => {} }
+      },
+      staticRows: adapter,
+    } as HotContext
+    const loader = { internal: { loadCache: new Map<string, unknown>() } }
+    const manager = new HotManager(profileDir)
+
+    await manager.mount(ctx, 'hotprobe')
+    disabled.length = 0
+    restored.length = 0
+
+    await expect(manager.upgrade(ctx, loader, 'hotprobe')).rejects.toThrow('upgrade import failed')
+
+    // upgrade disposes the old copy (unmount restores the old static row), then
+    // the re-mount disables it again and — on failure — restores it in its
+    // rollback. Both restores are idempotent; the static layer is running again.
+    expect(disabled).toEqual(['probe'])
+    expect(restored).toEqual(['probe', 'probe'])
+    // No hot-mount record survives the failed upgrade.
+    expect(manager.list()).toEqual([])
+  })
+})
+
+/**
  * Documented limitation: Node's process-level ESM package resolution cache
  * (`modulesBinding.readPackageJSON`) caches a package's parsed `exports` map
  * keyed by its package.json path, with no JS-side handle or public API. A

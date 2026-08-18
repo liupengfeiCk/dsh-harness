@@ -235,6 +235,14 @@ export class HotManager {
    * @returns the mount record on success.
    * @throws {@link RestartRequiredError} when the patch cannot hot-mount, or an
    * activation/timeout error when the subtree fails to settle.
+   *
+   * Failure semantics: on any failure after static-row convergence (an
+   * import/apply error or an activation timeout), this mount rolls back
+   * symmetrically — it disposes the half-mounted subtree best-effort and
+   * restores every static row it had disabled — before rethrowing. A failed
+   * mount therefore leaves the static layer running exactly as it did before
+   * the call; it can never strand the composition in a "static disabled + hot
+   * not mounted" state.
    */
   async mount(ctx: HotContext, packageName: string): Promise<HotMountRecord> {
     // A same-name re-mount supersedes the previous one (restoring the static
@@ -283,10 +291,19 @@ export class HotManager {
     try {
       await raceActivationTimeout(handle.await(), HOT_MOUNT_TIMEOUT_MS)
     } catch (error) {
-      if (error instanceof ActivationTimeout) {
-        // A wedged activation would otherwise hold the caller open forever;
-        // unwind the half-mounted subtree best-effort and let the error surface.
-        try { Promise.resolve(handle.dispose()).catch(() => {}) } catch { /* best effort */ }
+      // A failed mount — an import/apply error or an activation timeout — must
+      // NEVER leave the composition in a "static rows disabled + no hot rows
+      // mounted" state: that is exactly the outage this harness hit (a failed
+      // subagent import left /subagent-preset dead with 405 until a manual
+      // restart). Roll back symmetrically before surfacing the error: unwind
+      // the half-mounted subtree best-effort AND restore every static row this
+      // mount disabled, so the static layer runs again exactly as it did before
+      // the mount. The original error still surfaces to the caller.
+      try { Promise.resolve(handle.dispose()).catch(() => {}) } catch { /* best effort */ }
+      if (staticRowsAdapter) {
+        for (const id of staticRows) {
+          if (staticRowsAdapter.has(id)) await staticRowsAdapter.restore(id)
+        }
       }
       throw error
     }
@@ -354,6 +371,12 @@ export class HotManager {
    * @param packageName - the package to re-activate.
    * @returns the new mount record.
    * @throws when the deployment does not expose internals (restart required).
+   *
+   * Failure semantics: the old hot copy is disposed up front (existing
+   * behaviour). A failed re-mount restores every static row the old mount had
+   * disabled AND every row the new mount was about to disable (via {@link mount}'s
+   * rollback), so the static layer resumes running. The process is never left
+   * in a "static disabled + no hot copy mounted" state.
    */
   async upgrade(ctx: HotContext, loader: LoaderLike, packageName: string): Promise<HotMountRecord> {
     await this.unmount(packageName, ctx)

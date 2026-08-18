@@ -122,6 +122,14 @@ export declare class HotManager {
      * @returns the mount record on success.
      * @throws {@link RestartRequiredError} when the patch cannot hot-mount, or an
      * activation/timeout error when the subtree fails to settle.
+     *
+     * Failure semantics: on any failure after static-row convergence (an
+     * import/apply error or an activation timeout), this mount rolls back
+     * symmetrically — it disposes the half-mounted subtree best-effort and
+     * restores every static row it had disabled — before rethrowing. A failed
+     * mount therefore leaves the static layer running exactly as it did before
+     * the call; it can never strand the composition in a "static disabled + hot
+     * not mounted" state.
      */
     mount(ctx: HotContext, packageName: string): Promise<HotMountRecord>;
     /**
@@ -153,6 +161,12 @@ export declare class HotManager {
      * @param packageName - the package to re-activate.
      * @returns the new mount record.
      * @throws when the deployment does not expose internals (restart required).
+     *
+     * Failure semantics: the old hot copy is disposed up front (existing
+     * behaviour). A failed re-mount restores every static row the old mount had
+     * disabled AND every row the new mount was about to disable (via {@link mount}'s
+     * rollback), so the static layer resumes running. The process is never left
+     * in a "static disabled + no hot copy mounted" state.
      */
     upgrade(ctx: HotContext, loader: LoaderLike, packageName: string): Promise<HotMountRecord>;
     /** Current hot-mount list, in mount order. */
