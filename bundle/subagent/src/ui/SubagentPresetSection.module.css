@@ -1,0 +1,482 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.intro {
+  margin: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* One card per subagent: the same card language as the agent-preset roster,
+   only column-stacked because a subagent is a thing you toggle, not a thing
+   you pick. */
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  background: var(--dsw-alias-bg-layer-3);
+  transition: border-color .16s, background .16s;
+}
+
+.card:hover {
+  border-color: var(--dsw-alias-label-dimmed);
+}
+
+/* A broken subagent reads as damaged before anything else. */
+.cardBroken {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.cardBroken:hover {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px 0;
+}
+
+.cardName {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.badge,
+.brokenBadge {
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  line-height: 17px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.badge {
+  border: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.brokenBadge {
+  background: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-bg-layer-3);
+}
+
+/* The on/off switch rides the card head's free end, so the enabled state is
+   the first thing read about a row. */
+.headSpacer {
+  margin-left: auto;
+}
+
+.toggle {
+  appearance: none;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-1);
+  position: relative;
+  cursor: pointer;
+  transition: background .16s, border-color .16s;
+  flex: none;
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-dimmed);
+  transition: transform .16s, background .16s;
+}
+
+.toggle:checked {
+  background: var(--dsw-alias-brand-primary);
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.toggle:checked::after {
+  transform: translateX(14px);
+  background: var(--dsw-alias-bg-layer-3);
+}
+
+.toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cardDesc {
+  margin: 0;
+  padding: 6px 16px 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
+
+.cardId {
+  padding: 6px 16px 0;
+  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  color: var(--dsw-alias-label-dimmed);
+}
+
+.cardFoot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 6px 10px 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
+
+/* Icon-only actions: the label rides `title` so the row stays quiet until
+   someone reaches for it. */
+.iconButton {
+  position: relative;
+  appearance: none;
+  border: 0;
+  border-radius: 7px;
+  padding: 6px;
+  background: none;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.iconButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.iconButton:hover:not(:disabled) {
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: -1px;
+}
+
+.iconDanger:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* ── the editor's blocks (mirrors the agent-preset section) ───────────── */
+
+/* A titled block of related controls (tools). */
+.editorBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.blockTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* One tool inventory row: switch, id, install state, and a collapsible info
+   marker. A fixed four-column grid keeps every row's columns aligned so the
+   list reads evenly even when descriptions are expanded. */
+.toolRow {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.toolState {
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--dsw-alias-label-dimmed);
+  border: 1px solid var(--dsw-alias-border-l2);
+  white-space: nowrap;
+}
+
+.toolId {
+  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+  color: var(--dsw-alias-label-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolExpr {
+  font-size: 11px;
+  color: var(--dsw-alias-label-dimmed);
+  white-space: nowrap;
+}
+
+.toolInfo {
+  position: relative;
+}
+
+.toolInfoSummary {
+  list-style: none;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-dimmed);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: color .16s, border-color .16s;
+}
+
+.toolInfoSummary:hover {
+  color: var(--dsw-alias-brand-primary);
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.toolInfoSummary::marker,
+.toolInfoSummary::-webkit-details-marker {
+  display: none;
+}
+
+.toolInfoBody {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 10;
+  width: min(320px, 70vw);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+}
+
+.toolInfoSpacer {
+  width: 20px;
+}
+
+.toolDesc {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Read-only composition text in the viewer dialog. */
+.viewer {
+  margin: 0;
+  padding: 12px;
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+/* The create entry after the card list: dashed like the agent-preset creator
+   affordance, reading as a place a subagent will appear. */
+.creatorButton {
+  box-sizing: border-box;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  border: 1px dashed var(--dsw-alias-border-l3);
+  border-radius: 12px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+.creatorButton:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.creatorButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.input {
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.textarea {
+  min-height: 96px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.input::placeholder {
+  color: var(--dsw-alias-label-dimmed);
+}
+
+.select {
+  appearance: none;
+  cursor: pointer;
+}
+
+/* The Auto Run switch rides the label row, like the delegation toggles. */
+.toggleField {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* The "inherit the main agent" switch: the toggle next to its label, with the
+   clarifying hint beneath, matching the field-column rhythm of the dialog. */
+.inheritRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.inheritLabel {
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* A short clarifying line under a control whose on/off meaning needs one. */
+.fieldHint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.dialog {
+  width: min(560px, 100%);
+}
+
+/* Tall dialogs (edit/view) scroll inside the card instead of spilling past
+   the viewport; the footer stays pinned so actions remain reachable. */
+.dialogScroll {
+  max-height: min(80vh, 640px);
+  overflow: auto;
+}
+
+.dialogFields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.deleteDialog {
+  width: min(480px, 100%);
+}
+
+.deleteConfirm:not(:disabled) {
+  border-color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.deleteConfirm:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+.error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* Where the host has no desktop opener, the row answers with the directory
+   itself — text to copy, not a control that would spawn into nothing. */
+.revealedPath {
+  margin: 0;
+  padding: 0 16px 10px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.revealedPath code {
+  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: var(--dsw-alias-label-secondary);
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
+.revealedPathLabel {
+  white-space: nowrap;
+}

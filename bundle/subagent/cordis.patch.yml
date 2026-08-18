@@ -1,0 +1,92 @@
+# The dsh-subagent-bundle patch: the Harness-owned subagent capability over the
+# official dsh-base layer. Applied after dsh-base (and, in the shipped web
+# profile, after dsh-web-app). This layer disables the official in-process
+# subagent rows and mounts the Harness replacement providers plus the
+# user-defined subagent registry and its settings surface.
+#
+# A later layer (the profile's own cordis.patch.yml or a --patch overlay)
+# wins per row. Rows below address base rows by id; they never restate `name`
+# (a patch that names a row with a mismatching name is skipped by the Loader),
+# so disabling a row only needs its `id`.
+#
+# Plane split: this bundle owns the HOST plane backends — the `ctx.subagents`
+# service, the `spawn`/`fork` providers, and the user-defined subagent
+# registry — plus the browser settings row. The model-facing delegation TOOLS
+# stay in the preset plane: dsh-web-app disables the host tool rows and each
+# agent preset mounts its own `tool-subagent`/`tool-subagent-fork` from
+# dsh-harness-subagent-bundle/in-process/tool, so this bundle does NOT insert a
+# host tool row (a host + preset copy would surface two `subagent` tools to
+# the model).
+
+# ── disable the official in-process subagent rows ──────────────────────────
+# These rows ship in dsh-base. The Harness replacement providers bind the same
+# `ctx.subagents` service and the same `spawn`/`fork` providerName contract,
+# so the preset-plane delegation tools keep working unchanged.
+
+- id: subagent
+  disabled: true
+
+- id: subagent-spawn-in-process
+  disabled: true
+
+- id: subagent-fork-in-process
+  disabled: true
+
+- id: tool-subagent
+  disabled: true
+
+- id: tool-subagent-fork
+  disabled: true
+
+# ── the Harness replacement rows ────────────────────────────────────────────
+# Distinct ids from the official rows (the Loader rejects duplicate ids), each
+# mounting a dsh-harness-subagent-bundle export.
+
+- insert:
+    # The `ctx.subagents` capability seam, provided by the Harness engine.
+    - id: subagent-harness
+      name: 'dsh-harness-subagent-bundle/in-process/service'
+
+    # Harness-owned in-process spawn/fork providers, registering the same
+    # providerName contract (`spawn` / `fork`) the official ones did.
+    - id: subagent-spawn-harness
+      name: 'dsh-harness-subagent-bundle/in-process/spawn'
+      config:
+        providerName: spawn
+
+    - id: subagent-fork-harness
+      name: 'dsh-harness-subagent-bundle/in-process/fork'
+      config:
+        providerName: fork
+
+# The Harness delegation tools, mounted in the host plane under their own tool
+# names (`delegate` / `delegate_fork`). The official `subagent` tools keep
+# shipping in the preset plane from @deepseek-ai/dsh-tool-subagent — the two
+# coexist, and no preset file is ever touched.
+    - id: tool-delegate
+      name: 'dsh-harness-subagent-bundle/in-process/tool'
+      config:
+        provider: spawn
+        toolName: delegate
+        backgroundMode: continuable
+
+    - id: tool-delegate-fork
+      name: 'dsh-harness-subagent-bundle/in-process/tool'
+      config:
+        provider: fork
+        toolName: delegate_fork
+        backgroundMode: continuable
+
+# The subagent roster: user-defined helper subagents, kept apart from the
+# agent-preset roster. `config/subagents/` ships read-only (`system` trust);
+# `$DSH_HOME/.dsh/subagents` is where a person authors their own. Mounting is
+# separate so a helper never appears in the main-preset picker. This row needs
+# the web layer (dsh-client-connection / dsh-host-apiproxy) for its browser
+# Remote endpoints, so this bundle is meant for the web profile.
+    - id: subagent-presets
+      name: 'dsh-harness-subagent-bundle/preset'
+
+# The subagent row in General settings: user-defined helper subagents,
+# independent of the agent-preset roster. A web-only client row.
+    - id: ui-subagent-preset
+      name: 'dsh-harness-subagent-bundle'

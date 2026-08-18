@@ -1,0 +1,6 @@
+# A subagent that opts in to inheriting the parent's preset: the delegated
+# child first inherits the main agent's composition, then overlays this
+# subagent's own tree. Distinct from the `helper` fixture, which stays on the
+# default (no inheritance) so a test can tell the two behaviors apart.
+enabled: true
+inheritParent: true

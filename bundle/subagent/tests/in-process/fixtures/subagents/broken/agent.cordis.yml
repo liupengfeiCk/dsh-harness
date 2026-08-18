@@ -1,0 +1,6 @@
+# A broken subagent: its composition is intentionally invalid YAML so the
+# registry marks it broken and delegation fails loud.
+- id: only
+  name: ../../plugins/preset-tool.js
+  config:
+    tool: [unterminated
