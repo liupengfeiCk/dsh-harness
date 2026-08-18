@@ -23,7 +23,7 @@ export {
 } from './hot.ts'
 export { parsePatch, RestartRequiredError, type HotDisableRow, type HotInsertRow, type HotRow } from './patch.ts'
 export {
-  HARNESS_HOT_CHANNEL, dispatchHarnessHot, registerHarnessHotWire,
+  HARNESS_HOT_CHANNEL, dispatchHarnessHot, registerHarnessHotWire, type HarnessHotHost,
 } from './wire/index.ts'
 export type { WireEndpointName, WireResult } from './wire/schema.ts'
 

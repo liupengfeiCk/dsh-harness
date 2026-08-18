@@ -69,12 +69,21 @@ export const wireListRequestSchema = z.object({})
 /** list response value. */
 export const wireListValueSchema = z.array(wireMountRowSchema)
 
+/** shutdown request payload (empty). */
+export const wireShutdownRequestSchema = z.object({})
+
+/** shutdown response value. */
+export const wireShutdownValueSchema = z.object({
+  shuttingDown: z.boolean(),
+})
+
 /** The full harness-hot surface: endpoint name → request/value schemas. */
 export const wireEndpoints = {
   mount: { request: wireMountRequestSchema, value: wireMountValueSchema },
   unmount: { request: wireUnmountRequestSchema, value: wireUnmountValueSchema },
   upgrade: { request: wireUpgradeRequestSchema, value: wireUpgradeValueSchema },
   list: { request: wireListRequestSchema, value: wireListValueSchema },
+  shutdown: { request: wireShutdownRequestSchema, value: wireShutdownValueSchema },
 } as const
 
 /** One endpoint name the wire channel serves. */

@@ -15,7 +15,7 @@ export { HarnessHot, deriveProfileDir } from './service.ts';
 export type { HotTarget } from './service.ts';
 export { ActivationTimeout, clearPackageLoadCache, HotManager, HOT_DIR, HOT_ROW_PREFIX, HOT_MOUNT_TIMEOUT_MS, type HotContext, type HotMountRecord, type PluginHandle, } from './hot.ts';
 export { parsePatch, RestartRequiredError, type HotDisableRow, type HotInsertRow, type HotRow } from './patch.ts';
-export { HARNESS_HOT_CHANNEL, dispatchHarnessHot, registerHarnessHotWire, } from './wire/index.ts';
+export { HARNESS_HOT_CHANNEL, dispatchHarnessHot, registerHarnessHotWire, type HarnessHotHost, } from './wire/index.ts';
 export type { WireEndpointName, WireResult } from './wire/schema.ts';
 /**
  * Host plugin body: provide the `harnessHot` service and register the

@@ -23,14 +23,23 @@ export declare const HARNESS_HOT_CHANNEL = "/harness-hot";
 /** The `harnessHot` service the wire needs from the host context. */
 type HarnessHotService = HarnessHot;
 /**
+ * The host facts the shutdown endpoint needs from the deployment: the bounded
+ * exit request the launcher wired onto the host context.
+ */
+export interface HarnessHotHost {
+    /** Bounded process-exit request; absent when the launcher provided none. */
+    appExit?: ((code: number) => void) | undefined;
+}
+/**
  * Parse and dispatch one endpoint against the harness-hot service.
  * @param service - the `harnessHot` service (the deployment may compose none).
  * @param endpoint - the channel-relative endpoint name.
  * @param payload - the unvalidated request payload.
  * @param signal - caller/connection lifetime.
+ * @param host - host facts the shutdown endpoint reads (`appExit`).
  * @returns the validated result, or the matching failure.
  */
-export declare function dispatchHarnessHot(service: HarnessHotService | undefined, endpoint: string, payload: unknown, signal: AbortSignal): Promise<RpcResult<unknown>>;
+export declare function dispatchHarnessHot(service: HarnessHotService | undefined, endpoint: string, payload: unknown, signal: AbortSignal, host?: HarnessHotHost): Promise<RpcResult<unknown>>;
 /**
  * Register the `/harness-hot` channel once the connection service becomes
  * available. Called by the profile bundle that composes a web deployment.

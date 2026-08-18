@@ -39,11 +39,21 @@ type EndpointPayload<N extends WireEndpointName> = z.infer<typeof wireEndpoints[
 type HarnessHotService = HarnessHot
 
 /**
+ * The host facts the shutdown endpoint needs from the deployment: the bounded
+ * exit request the launcher wired onto the host context.
+ */
+export interface HarnessHotHost {
+  /** Bounded process-exit request; absent when the launcher provided none. */
+  appExit?: ((code: number) => void) | undefined
+}
+
+/**
  * Parse and dispatch one endpoint against the harness-hot service.
  * @param service - the `harnessHot` service (the deployment may compose none).
  * @param endpoint - the channel-relative endpoint name.
  * @param payload - the unvalidated request payload.
  * @param signal - caller/connection lifetime.
+ * @param host - host facts the shutdown endpoint reads (`appExit`).
  * @returns the validated result, or the matching failure.
  */
 export async function dispatchHarnessHot(
@@ -51,6 +61,7 @@ export async function dispatchHarnessHot(
   endpoint: string,
   payload: unknown,
   signal: AbortSignal,
+  host: HarnessHotHost = {},
 ): Promise<RpcResult<unknown>> {
   try {
     if (service === undefined) {
@@ -69,6 +80,8 @@ export async function dispatchHarnessHot(
         return await upgrade(service, parse(wireEndpoints.upgrade.request, payload), signal)
       case 'list':
         return await list(service, signal)
+      case 'shutdown':
+        return await shutdown(service, parse(wireEndpoints.shutdown.request, payload), signal, host.appExit)
       default:
         return fail(badEndpointError(endpoint))
     }
@@ -140,6 +153,41 @@ async function list(
 }
 
 /**
+ * Request bounded process shutdown: inject the deployment's `appExit` service
+ * and call it once the RPC response has been handed back to the connection
+ * layer. The launcher wires `appExit` to its bounded-shutdown controller, so
+ * the process disposes its whole tree and exits — the standard way to stop any
+ * instance carrying this bundle.
+ * @param service - the `harnessHot` service (unused by shutdown; present for a
+ * uniform dispatch surface).
+ * @param request - the shutdown request (empty).
+ * @param signal - caller/connection lifetime.
+ * @param appExit - the host's bounded exit request.
+ * @returns ok when shutdown was requested, or a failure when no exit service
+ * is available.
+ */
+async function shutdown(
+  _service: HarnessHotService,
+  _request: EndpointPayload<'shutdown'>,
+  signal: AbortSignal,
+  appExit: HarnessHotHost['appExit'],
+): Promise<RpcResult<unknown>> {
+  if (appExit === undefined) {
+    return fail({
+      code: 'no-exit-service',
+      message: 'this deployment does not provide an appExit service — cannot shut down',
+      details: {},
+    })
+  }
+  signal.throwIfAborted()
+  // Defer the exit request past the current task so the server-response
+  // envelope is flushed to the caller before the process begins its bounded
+  // shutdown.
+  setTimeout(() => { appExit(0) }, 0)
+  return ok({ shuttingDown: true })
+}
+
+/**
  * Register the `/harness-hot` channel once the connection service becomes
  * available. Called by the profile bundle that composes a web deployment.
  * @param ctx - the host plugin context.
@@ -151,7 +199,13 @@ export function registerHarnessHotWire(ctx: Context): void {
       () => connection.rpc.handle(
         HARNESS_HOT_CHANNEL,
         (endpoint, payload, signal) =>
-          dispatchHarnessHot(connectionCtx.get('harnessHot'), endpoint, payload, signal),
+          dispatchHarnessHot(
+            connectionCtx.get('harnessHot'),
+            endpoint,
+            payload,
+            signal,
+            { appExit: connectionCtx.get('appExit') },
+          ),
         { authority: AUTHORITY },
       ),
       'dsh-harness-hot: /harness-hot rpc channel',

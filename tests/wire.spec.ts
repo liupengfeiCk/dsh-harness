@@ -100,6 +100,32 @@ describe('harness-hot wire list', () => {
   })
 })
 
+describe('harness-hot wire shutdown', () => {
+  it('requests bounded shutdown when an appExit service is provided', async () => {
+    const { service } = fakeService()
+    const exited: number[] = []
+    const result = await dispatchHarnessHot(service, 'shutdown', {}, signal, {
+      appExit: (code) => { exited.push(code) },
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('unreachable')
+    expect(result.value).toEqual({ shuttingDown: true })
+    // The exit request is deferred past the current task so the response
+    // flushes first.
+    expect(exited).toEqual([])
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(exited).toEqual([0])
+  })
+
+  it('fails closed with no-exit-service when appExit is absent', async () => {
+    const { service } = fakeService()
+    const result = await dispatchHarnessHot(service, 'shutdown', {}, signal)
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('unreachable')
+    expect(result.error.code).toBe('no-exit-service')
+  })
+})
+
 describe('harness-hot wire failure folding', () => {
   it('fails closed with hot-not-found when no service is composed', async () => {
     const result = await dispatchHarnessHot(undefined, 'list', {}, signal)

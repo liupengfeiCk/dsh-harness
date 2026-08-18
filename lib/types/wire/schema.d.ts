@@ -61,6 +61,12 @@ export declare const wireListValueSchema: z.ZodArray<z.ZodObject<{
     rowIds: z.ZodArray<z.ZodString>;
     mountedAt: z.ZodNumber;
 }, z.core.$strip>>;
+/** shutdown request payload (empty). */
+export declare const wireShutdownRequestSchema: z.ZodObject<{}, z.core.$strip>;
+/** shutdown response value. */
+export declare const wireShutdownValueSchema: z.ZodObject<{
+    shuttingDown: z.ZodBoolean;
+}, z.core.$strip>;
 /** The full harness-hot surface: endpoint name → request/value schemas. */
 export declare const wireEndpoints: {
     readonly mount: {
@@ -102,6 +108,12 @@ export declare const wireEndpoints: {
             rowIds: z.ZodArray<z.ZodString>;
             mountedAt: z.ZodNumber;
         }, z.core.$strip>>;
+    };
+    readonly shutdown: {
+        readonly request: z.ZodObject<{}, z.core.$strip>;
+        readonly value: z.ZodObject<{
+            shuttingDown: z.ZodBoolean;
+        }, z.core.$strip>;
     };
 };
 /** One endpoint name the wire channel serves. */
