@@ -103,8 +103,13 @@ export function applyModeRestrictions(
 ): Array<() => void> {
   const disposers: Array<() => void> = []
   const denyIfPresent = (name: string): void => {
-    if (ctx.tools.get(name, agent) === undefined) return
-    disposers.push(agent.ctx.tools.restrict({ deny: [name] }))
+    // `ctx.get` — dynamic lookup on both contexts: this runs from the
+    // `agent/created` hook whose listener context carries no inject chain,
+    // and cordis refuses bare property access there.
+    if (ctx.get('tools')?.get(name, agent) === undefined) return
+    const scoped = agent.ctx.get('tools')
+    if (scoped === undefined) return
+    disposers.push(scoped.restrict({ deny: [name] }))
   }
   if (state.mode === 'team') {
     for (const name of STANDARD_TOOLS) denyIfPresent(name)
