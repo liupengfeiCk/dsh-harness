@@ -107,13 +107,28 @@ async function loadHotTreeClass(): Promise<unknown | null> {
     // fallback but is not a typechecked dependency of this host bundle.
     const specifier = '@deepseek-ai/cordis-plugin-include'
     const mod = (await import(specifier)) as {
-      Include?: new (...args: never[]) => { write(): void }
+      Include?: new (...args: never[]) => {
+        write(): void
+        import(name: string, getOuterStack?: () => string[]): unknown
+      }
     }
     const Include = mod.Include
     if (Include === undefined) throw new Error('no Include export')
     class HarnessHotTree extends Include {
       /** Runtime-only mount list; the bundle layer owns persistence. */
       override write(): void {}
+      // TEMP DIAGNOSTIC
+      override import(name: string, getOuterStack?: () => string[]): unknown {
+        const r = super.import(name, getOuterStack)
+        if (r && typeof (r as Promise<unknown>).then === 'function') {
+          return (r as Promise<unknown>).then(
+            (m) => { writeFileSync('/tmp/harness-hot-import-debug.json', JSON.stringify({ name, ok: true, keys: m ? Object.keys(m as object) : null })); return m },
+            (e) => { writeFileSync('/tmp/harness-hot-import-debug.json', JSON.stringify({ name, ok: false, error: e instanceof Error ? `${e.message}\n${e.stack}` : String(e) })); throw e },
+          )
+        }
+        writeFileSync('/tmp/harness-hot-import-debug.json', JSON.stringify({ name, ok: true, sync: true }))
+        return r
+      }
     }
     hotTreeClass = HarnessHotTree
   } catch {
