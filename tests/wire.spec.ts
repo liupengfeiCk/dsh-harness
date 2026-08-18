@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  dispatchHarnessHot, HARNESS_HOT_CHANNEL,
+  dispatchHarnessHot, HARNESS_HOT_CHANNEL, flattenErrorMessages,
 } from '../src/wire/index.ts'
 import { RestartRequiredError } from '../src/patch.ts'
 import type { HarnessHot } from '../src/service.ts'
@@ -171,6 +171,31 @@ describe('harness-hot wire failure folding', () => {
     expect(result.ok).toBe(false)
     if (result.ok) throw new Error('unreachable')
     expect(result.error.code).toBe('internal')
+  })
+
+  it('flattens an AggregateError tree into per-leaf cause messages', async () => {
+    const leafA = new Error('service "subagents" has been registered')
+    const leafB = new Error('duplicate route /subagent-preset')
+    const nested = new AggregateError([leafA, leafB], 'loader entries failed to apply')
+    const { service } = fakeService({
+      mount: async () => { throw nested },
+    })
+    const result = await dispatchHarnessHot(service, 'mount', { package: 'probe' }, signal)
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('unreachable')
+    expect(result.error.code).toBe('internal')
+    expect(result.error.message).toContain('loader entries failed to apply')
+    const causes = (result.error.details as { causes?: string[] }).causes
+    expect(causes).toEqual([
+      'service "subagents" has been registered',
+      'duplicate route /subagent-preset',
+    ])
+  })
+
+  it('walks a cause chain for non-aggregate errors', async () => {
+    const root = new Error('outer', { cause: new Error('inner cause') })
+    expect(flattenErrorMessages(root)).toEqual(['inner cause'])
+    expect(flattenErrorMessages('not-an-error')).toEqual([])
   })
 
   it('exports the channel constant for registration', () => {

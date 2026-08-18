@@ -41,6 +41,20 @@ export interface HarnessHotHost {
  */
 export declare function dispatchHarnessHot(service: HarnessHotService | undefined, endpoint: string, payload: unknown, signal: AbortSignal, host?: HarnessHotHost): Promise<RpcResult<unknown>>;
 /**
+ * Recursively flatten a thrown value's message tree into one line per leaf.
+ *
+ * A single failing hot mount surfaces as one `AggregateError` whose own
+ * message ("loader entries failed to apply") names none of the rows that
+ * failed; without flattening, the operator sees only the wrapper. Each nested
+ * `AggregateError`/`cause` chain is walked depth-first so every leaf reason is
+ * reported, mirroring the loader's own `mountDetail` rendering in
+ * `agent-presets` so the two failure surfaces agree.
+ * @param error - the value the handler rejected with.
+ * @returns one message line per leaf error (an empty array for a non-Error
+ * value, whose text is captured by the caller's `message` prefix).
+ */
+export declare function flattenErrorMessages(error: unknown): string[];
+/**
  * Register the `/harness-hot` channel once the connection service becomes
  * available. Called by the profile bundle that composes a web deployment.
  * @param ctx - the host plugin context.
