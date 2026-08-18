@@ -77,6 +77,25 @@
         toolName: delegate_fork
         backgroundMode: continuable
 
+# The team roster ("编制表"): user-authored rosters of roles, each binding a
+# soul (role) to a body (a user-defined subagent id). Same dual-root model as
+# the subagent roster — `config/teams/` ships read-only (`system` trust),
+# `$DSH_HOME/.dsh/teams` is where a person authors their own (`user`).
+    - id: teams
+      name: 'dsh-harness-subagent-bundle/team'
+
+# The team delegation tool, mounted in the host plane. Disabled by default: a
+# team-shaped deployment turns it on and, per the composition convention, does
+# NOT also mount the plain `delegate`/`subagent` rows — so the main agent sees
+# only the team's role catalogue, never the bare subagent roster.
+    - id: team-delegate
+      name: 'dsh-harness-subagent-bundle/team/tool'
+      disabled: true
+      config:
+        team: my-team
+        provider: spawn
+        toolName: team_delegate
+
 # The subagent roster: user-defined helper subagents, kept apart from the
 # agent-preset roster. `config/subagents/` ships read-only (`system` trust);
 # `$DSH_HOME/.dsh/subagents` is where a person authors their own. Mounting is

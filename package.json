@@ -34,6 +34,14 @@
       "types": "./lib/types/in-process/tool.d.ts",
       "default": "./lib/types/in-process/tool.js"
     },
+    "./team": {
+      "types": "./lib/types/team/index.d.ts",
+      "default": "./lib/types/team/index.js"
+    },
+    "./team/tool": {
+      "types": "./lib/types/team/tool.d.ts",
+      "default": "./lib/types/team/tool.js"
+    },
     "./preset": {
       "types": "./lib/types/preset/index.d.ts",
       "default": "./lib/types/preset/index.js"

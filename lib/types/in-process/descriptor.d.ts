@@ -32,19 +32,25 @@ import type { ContinuableSubagentDescriptorData, OneShotSubagentDescriptorData }
 export declare const HARNESS_SUBAGENT_DESCRIPTOR_VERSION = 3;
 /**
  * The harness continuable descriptor: the official fields plus the optional
- * user-defined `subagent` id whose plugin tree is re-mounted on cold resume.
+ * user-defined `subagent` id whose plugin tree is re-mounted on cold resume,
+ * and the optional `team`/`role` identity used to re-resolve that subagent from
+ * the team's latest definition on cold resume.
  * Extends the official type so a value is assignable wherever the official
  * `ContinuableSubagentDescriptorData` is expected.
  */
 export interface HarnessContinuableSubagentDescriptorData extends ContinuableSubagentDescriptorData {
     /** User-defined subagent id whose plugin tree is re-mounted onto the child on resume. */
     readonly subagent?: string;
+    /** Team id whose roster the role was delegated from, for cold-resume re-resolution. */
+    readonly team?: string;
+    /** Role id within the team, for cold-resume re-resolution of the body/soul. */
+    readonly role?: string;
 }
 /** The harness supported durable subagent identity. */
 export type HarnessSubagentDescriptorData = OneShotSubagentDescriptorData | HarnessContinuableSubagentDescriptorData;
 /**
  * The harness continuable descriptor input: the official input plus the
- * optional user-defined `subagent` id.
+ * optional user-defined `subagent` id and the optional `team`/`role` identity.
  */
 export interface HarnessContinuableSubagentDescriptorInput {
     readonly mode: 'continuable';
@@ -62,6 +68,10 @@ export interface HarnessContinuableSubagentDescriptorInput {
     readonly toolFilter?: ToolRestriction;
     /** Requested user-defined subagent to mount onto the child. */
     readonly subagent?: string;
+    /** Team id whose roster the role was delegated from. */
+    readonly team?: string;
+    /** Role id within the team. */
+    readonly role?: string;
 }
 /**
  * Validate and detach a harness continuable descriptor input, before any Task

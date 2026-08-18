@@ -10,6 +10,7 @@
     "src/invariant.ts",
     "src/in-process",
     "src/preset",
-    "src/preset-edit"
+    "src/preset-edit",
+    "src/team"
   ]
 }

@@ -21,10 +21,18 @@ import type { ResolvedSubagentStartRequest, SubagentStartRequest } from '@deepse
 export interface HarnessSubagentStartRequest extends SubagentStartRequest {
     /** User-defined subagent id whose plugin tree mounts onto the child. */
     readonly subagent?: string;
+    /** Team id whose roster the delegation came from (persistent-role identity). */
+    readonly team?: string;
+    /** Role id within the team (persistent-role identity). */
+    readonly role?: string;
 }
 /** The provider-facing one-shot request after the harness service resolves the descriptor. */
 export interface HarnessResolvedSubagentStartRequest extends ResolvedSubagentStartRequest {
     /** User-defined subagent id whose plugin tree mounts onto the child. */
     readonly subagent?: string;
+    /** Team id whose roster the delegation came from (persistent-role identity). */
+    readonly team?: string;
+    /** Role id within the team (persistent-role identity). */
+    readonly role?: string;
 }
 //# sourceMappingURL=request-types.d.ts.map

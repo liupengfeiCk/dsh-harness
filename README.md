@@ -45,6 +45,36 @@ This bundle mounts the user-defined subagent registry (`subagent-presets` → `d
 
 **Toggle without uninstalling**: keep the package installed and flip only the rows — the disable-list above is OFF; deleting it from the user layer is ON. Both directions are hot.
 
+## Teams (编制表)
+
+A **team** is a user-built roster of roles: each role (a "soul") binds to a body (a user-defined subagent id). The body is the hard capability boundary (from the subagent's plugin tree); the soul is the soft behaviour guide (the role's own prompt, injected as the child's persona). Teams live under their own dual roots, fully separate from both the agent-preset roster and the subagent roster: `config/teams/` (read-only, `system` trust) + `$DSH_HOME/.dsh/teams` (`user` trust).
+
+A team is `<root>/<teamId>/team.yml`:
+
+```yaml
+metadata:
+  name: Editing team
+  description: Handles copy.
+  enabled: true
+roles:
+  - id: copywriter
+    description: Writes copy.
+    prompt: You are a senior copywriter.
+    body: writer          # body = subagent id (capability boundary)
+    memory: persistent    # persistent | one-shot
+  - id: factchecker
+    description: Verifies facts.
+    prompt: You are a rigorous fact-checker.
+    body: reviewer
+    memory: one-shot
+```
+
+**Two memory modes**:
+- `one-shot`: every call starts a fresh child; the role dissolves after the task.
+- `persistent`: the role keeps a durable continuable child; the descriptor persists `{ team, role }` and a cold resume **re-resolves the team's latest definition** (reference semantics — if the team file was edited, the resumed role uses the new version) to re-inject its body tree and soul persona.
+
+**Composition convention**: in team form the main agent sees ONLY the team's role catalogue (the `role` parameter of the `team_delegate` tool) — never the bare subagent roster. This is a composition-layer convention, not hidden logic: a team-shaped deployment mounts the `team-delegate` row and simply does not mount the `delegate`/`subagent` rows, so the bare subagent catalogue never reaches the model. The `team-delegate` tool row ships in `cordis.patch.yml` disabled by default (`disabled: true`) and is enabled in a preset composition.
+
 ## Model Experience
 
 Indirectly, through the inserted rows: the Harness service, spawn/fork providers, registry, and settings row own their model-facing behavior, and the delegation tools come from the preset plane.
@@ -57,3 +87,5 @@ None directly; each inserted row's package owns its effect.
 
 - **Web-layer dependency**: this bundle mounts the registry and settings rows that require `dsh-client-connection` / `dsh-host-apiproxy` and the client settings surface, so it is intended for the web profile; installing it into a headless or custom profile fails loud on the missing web rows.
 - **Distinct replacement ids**: the Loader rejects duplicate ids and a patch cannot rewrite `name`, so the replacement rows use `subagent-harness` / `subagent-spawn-harness` / `subagent-fork-harness` instead of the official ids. A later patch layer targeting the official `subagent` id configures the disabled official row, not the Harness replacement.
+- **Soul persona vs body persona scope conflict**: `dsh-system-prompt` throws when a section is registered twice with the same name in the SAME scope (a different scope shadows). The team tool injects the soul as `deployment:persona` (order 0); a body subagent whose own composition also carries a persona section would collide with the soul in the same child scope and throw. A team body should therefore bound capability only and carry no persona of its own; if a body genuinely needs its own persona, inject the soul under a distinct section name (e.g. `team:role`, order 1) instead — not built in for phase one, extensible later.
+- **No team UI in phase one**: team assets are persisted fixed assets (`team.yml` hand-authored); the management UI is deferred.
