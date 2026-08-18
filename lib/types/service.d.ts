@@ -119,10 +119,21 @@ export declare class HarnessHot extends Service {
     private staticRootGroup;
     /**
      * Build the static-row adapter for a host context: runtime-disable/restore
-     * a static root-tree row in memory only — the loader's `Entry.update` disposes
-     * the fiber without persisting, and we mirror the disabled flag onto the root
-     * group's `data` array so a later recomposition does not resurrect the static
-     * copy while the hot row owns its registration.
+     * a static root-tree row in memory only — we stop/restart the row's running
+     * fiber directly and mirror the disabled flag onto the root group's `data`
+     * array so a later recomposition does not resurrect the static copy while
+     * the hot row owns its registration.
+     *
+     * Two loader facts drive the implementation:
+     * - The static rows live in the `include` entry's own subtree tree, not the
+     *   root loader tree, so `loader.resolve(id)` (which searches only the root
+     *   tree) misses them; `loader.entries()` walks every subtree, matching on
+     *   the local `options.id`.
+     * - `entry.update({ disabled: true })` does NOT stop the running fiber in
+     *   this deployment — its dispose branch never fires against the loaded
+     *   entry (verified live: uid unchanged after the update) — so we dispose
+     *   the fiber directly to converge a double mount. Restore mirrors this:
+     *   flip the flags and `refresh()` re-imports the stopped fiber.
      */
     private staticRowsAdapter;
     /** The host context carrying the static-row adapter the hot core needs. */
