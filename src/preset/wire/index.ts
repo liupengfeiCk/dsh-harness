@@ -100,27 +100,17 @@ export async function dispatchSubagentPreset(
  * @param ctx - the host plugin context.
  */
 export function registerSubagentPresetWire(ctx: Context): void {
-  // `ctx.inject(['connection'])` inside a hot-mounted Include subtree may
-  // never be driven ACTIVE (proven against the harness hot loader), so this
-  // registers through an immediate `ctx.get` plus the shared-registry
-  // `internal/service` event — reaching the connection whether it is already
-  // present (runtime hot mount) or arrives later (boot auto-mount).
-  const tryRegister = (): void => {
-    const connection = ctx.get('connection')
-    if (connection === undefined) return
-    ctx.effect(
+  ctx.inject(['connection'], (connectionCtx) => {
+    const connection = connectionCtx.connection
+    connectionCtx.effect(
       () => connection.rpc.handle(
         SUBAGENT_PRESET_CHANNEL,
         (endpoint, payload, signal) =>
-          dispatchSubagentPreset(ctx.get('subagentPresets'), endpoint, payload, signal),
+          dispatchSubagentPreset(connectionCtx.get('subagentPresets'), endpoint, payload, signal),
         { authority: AUTHORITY },
       ),
       'dsh-subagent-preset: /subagent-preset rpc channel',
     )
-  }
-  tryRegister()
-  ctx.on('internal/service', (name) => {
-    if (name === 'connection') tryRegister()
   })
 }
 

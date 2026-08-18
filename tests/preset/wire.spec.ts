@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import { SubagentNotWritableError, UnknownSubagentError, type SubagentPresets } from '../../src/preset/index.ts'
 import {
   dispatchSubagentPreset,
@@ -218,37 +218,39 @@ describe('subagent-preset update semantics', () => {
 })
 
 describe('subagent-preset wire registration', () => {
-  it('registers the dedicated loopback channel once connection is available', () => {
-    const registered: { channel: string; authority: string; disposer: () => void }[] = []
+  it('registers the dedicated loopback channel via ctx.inject once connection is available', async () => {
+    const root = new Context()
+    const registered: { channel: string; authority: string }[] = []
     const handle = vi.fn((channel: string, _handler: unknown, options: { authority: string }) => {
-      registered.push({ channel, authority: options.authority, disposer: () => {} })
+      registered.push({ channel, authority: options.authority })
       return () => Promise.resolve()
     })
-    const effects: Array<() => void> = []
-    const listeners: Array<(name: string) => void> = []
-    const fakeCtx = {
-      get: vi.fn((name: string) => {
-        if (name === 'connection') return { rpc: { handle } }
-        return undefined
-      }),
-      on: vi.fn((_event: string, cb: (name: string) => void) => {
-        listeners.push(cb)
-      }),
-      effect: (thunk: () => () => void, _name: string) => {
-        const disposer = thunk()
-        if (typeof disposer === 'function') effects.push(disposer)
-        return disposer ?? (() => {})
-      },
-    } as unknown as Context
-    registerSubagentPresetWire(fakeCtx)
-
+    registerSubagentPresetWire(root)
+    // The inject child fiber stays PENDING until connection is provided; the
+    // official ctx.inject form drives registration once it is ACTIVE.
+    expect(handle).not.toHaveBeenCalled()
+    root.provide('connection', { rpc: { handle } })
+    await new Promise(resolve => setTimeout(resolve, 20))
     expect(handle).toHaveBeenCalledTimes(1)
     expect(registered[0]!.channel).toBe(SUBAGENT_PRESET_CHANNEL)
     expect(registered[0]!.authority).toBe('loopback')
-    // The channel disposer was attached as a cordis effect.
-    expect(effects).toHaveLength(1)
-    // A late `connection` signal re-runs registration on the same ctx.
-    listeners.forEach(cb => cb('connection'))
-    expect(handle).toHaveBeenCalledTimes(2)
+    await root.fiber.dispose()
+  })
+
+  it('registers through ctx.inject with a loopback authority and a connection that is already present', async () => {
+    const root = new Context()
+    const registered: { channel: string; authority: string }[] = []
+    const handle = vi.fn((channel: string, _handler: unknown, options: { authority: string }) => {
+      registered.push({ channel, authority: options.authority })
+      return () => Promise.resolve()
+    })
+    // connection already present when the wire registers — inject activates immediately.
+    root.provide('connection', { rpc: { handle } })
+    registerSubagentPresetWire(root)
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(handle).toHaveBeenCalledTimes(1)
+    expect(registered[0]!.channel).toBe(SUBAGENT_PRESET_CHANNEL)
+    expect(registered[0]!.authority).toBe('loopback')
+    await root.fiber.dispose()
   })
 })
