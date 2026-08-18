@@ -1,0 +1,8 @@
+# The dsh-hotprobe-bundle patch: mounts the /hotprobe loopback RPC channel as a
+# single host row. The probe's `apply` registers a `/hotprobe` channel that
+# echoes the probe's version string — the live probe that a hot mount/upgrade
+# end-to-end check reaches over the wire.
+
+- insert:
+    - id: hotprobe
+      name: 'dsh-hotprobe-bundle'
