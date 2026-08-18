@@ -19,14 +19,26 @@ import { Service } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import type { Context } from '@deepseek-ai/cordis';
 import { type Config, type Team, type TeamRole, type TeamRoot } from './types.ts';
+import { type TeamMode, type TeamModeState } from './mode.ts';
+import type { SessionId } from '@deepseek-ai/dsh-session';
 export { TEAM_FILE } from './metadata.ts';
 export { discoverTeams, scanRoot, USER_TEAM_DIR } from './discovery.ts';
 export { InvalidTeamIdError, TeamExistsError, TeamNotWritableError, TeamRoleInvalidError, createTeam, deleteTeam, setTeamEnabled, updateTeam, writableRoot, } from './authoring.ts';
 export { TEAM_ID, UnknownTeamError, UnknownTeamRoleError } from './types.ts';
+export { STANDARD_TOOLS, TEAM_TOOL, applyModeRestrictions, currentTeamMode, modeLocked, } from './mode.ts';
+export type { TeamMode, TeamModeState } from './mode.ts';
 export type { Config, Team, TeamRole, TeamRoot, TeamTrust, TeamRoleMemory } from './types.ts';
 declare module '@deepseek-ai/cordis' {
     interface Context {
         teams: Teams;
+    }
+    interface Events {
+        /**
+         * A session's delegation surface was selected or changed. Carries only the
+         * stable folded identity (session id + mode state), never the live Session
+         * — the same notification shape as `agent-preset/selected`.
+         */
+        'subagent-team/mode-selected'(sessionId: string, state: TeamModeState): void;
     }
 }
 /**
@@ -41,6 +53,12 @@ export declare class Teams extends Service {
     static Config: z<Config>;
     /** The roots discovery actually scans: configured roots, then the harness-home user root. */
     private readonly resolvedRoots;
+    /**
+     * Live tool-visibility disposers applied for each session's mode, keyed by
+     * session id. A re-selection (standard ⇄ team) releases the previous
+     * restriction before applying the next; entries die with their session.
+     */
+    private readonly modeRestrictions;
     constructor(ctx: Context, config: Config);
     /**
      * Every team the configured roots currently supply.
@@ -130,6 +148,34 @@ export declare class Teams extends Service {
      * @throws when the team is unknown or ships with the deployment.
      */
     setEnabled(id: string, enabled: boolean): Promise<void>;
+    /**
+     * The session's current delegation surface, folded from its durable log.
+     * @param sessionId - the session to read.
+     * @returns the folded mode state.
+     * @throws when the session has no live agent (the fold needs its event log).
+     */
+    readMode(sessionId: SessionId): TeamModeState;
+    /**
+     * Select one session's delegation surface.
+     *
+     * Allowed only while the session is blank — no turn has run — because the
+     * tools the model saw were produced under the previous surface and swapping
+     * them would strand logged tool calls; the attempt throws the same
+     * blank-window refusal the agent preset carries. Selecting `team` requires
+     * the named team to exist and be usable (the delegation target must be real
+     * for the surface to be meaningful).
+     *
+     * The durable record is a log-only `subagent-team/mode` event (never in the
+     * model transcript); the tool visibility is derived from it by restricting
+     * the opposite surface's tools on the agent's scope, and the change is
+     * broadcast as `subagent-team/mode-selected`.
+     * @param sessionId - the session to switch.
+     * @param mode - the surface to select.
+     * @param team - the team id to delegate to, required when `mode` is `team`.
+     * @throws when the session has no live agent, has already started, or names
+     * an unknown team.
+     */
+    selectMode(sessionId: SessionId, mode: TeamMode, team?: string): Promise<void>;
 }
 export default Teams;
 //# sourceMappingURL=index.d.ts.map

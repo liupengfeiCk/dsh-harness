@@ -41,6 +41,10 @@ import type { Teams } from './index.ts'
 // health check carried by `Teams.resolveRole`.
 import type {} from '../preset/index.ts'
 import type { HarnessSubagentStartRequest } from '../in-process/request-types.ts'
+// The session-level delegation surface: `team_delegate` is the team surface's
+// tool and must refuse a `standard` session (whose delegation runs on
+// `delegate`/`delegate_fork` instead).
+import { currentTeamMode } from './mode.ts'
 
 export const name = 'team-in-process-tool'
 export const inject = ['tools', 'subagents', 'systemPrompt']
@@ -342,6 +346,14 @@ export function apply(ctx: Context, config: Config): void {
         if (!parent) {
           throw new Error('team tool requires a calling agent (exec.agent was undefined)')
         }
+        // A `standard` session's delegation surface is `delegate`/`delegate_fork`;
+        // `team_delegate` is hidden from it (by the mode restriction) and refused
+        // here as the authoritative gate, so a call that reached the body anyway
+        // surfaces the right remedy. A sessionless caller reads standard and is
+        // refused.
+        if (parent.session === undefined || currentTeamMode(parent.session.events).mode !== 'team') {
+          throw new Error('此会话未处于 Team 模式，请用 delegate')
+        }
         const teams = ctx.get('teams')
         if (teams === undefined) {
           throw new Error(
@@ -444,7 +456,12 @@ export function apply(ctx: Context, config: Config): void {
     name: `tool:${toolName}:roles`,
     order: TEAM_SECTION_ORDER + 0.1,
     text: context => {
+      // The team role catalogue is the team surface's helper list; a standard
+      // session must not see it (its delegation surface is the bare subagent
+      // catalogue instead). A diagnostic assembly with no agent defaults to
+      // standard, so existing prompts are unchanged.
       if (disposeTool === undefined || ctx.tools.get(toolName, context.scope) === undefined) return ''
+      if (context.agent === undefined || currentTeamMode(context.agent.session.events).mode !== 'team') return ''
       return roleCatalogue
     },
   })

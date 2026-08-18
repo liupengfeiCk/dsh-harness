@@ -138,6 +138,36 @@ export const wireOpenLocationValueSchema = z.union([
   z.object({ opened: z.literal(false), path: z.string() }),
 ])
 
+/** The session-level delegation surface a session may select. */
+export const wireTeamModeSchema = z.union([z.literal('standard'), z.literal('team')])
+
+/** teamPreset.modeSelect request payload: the surface plus an optional team. */
+export const wireModeSelectRequestSchema = z.object({
+  sessionId: z.string().min(1),
+  mode: wireTeamModeSchema,
+  team: z.string().min(1).optional(),
+}).refine(
+  payload => payload.mode !== 'team' || payload.team !== undefined,
+  { message: 'selecting the team mode requires a team id' },
+)
+
+/** teamPreset.modeSelect response value: the folded state now active. */
+export const wireModeSelectValueSchema = z.object({
+  mode: wireTeamModeSchema,
+  team: z.string().optional(),
+})
+
+/** teamPreset.modeRead request payload. */
+export const wireModeReadRequestSchema = z.object({
+  sessionId: z.string().min(1),
+})
+
+/** teamPreset.modeRead response value: the session's current folded state. */
+export const wireModeReadValueSchema = z.object({
+  mode: wireTeamModeSchema,
+  team: z.string().optional(),
+})
+
 /** The full management surface: endpoint name → request/value schemas. */
 export const wireEndpoints = {
   list: { request: wireListRequestSchema, value: wireListValueSchema },
@@ -146,6 +176,8 @@ export const wireEndpoints = {
   update: { request: wireUpdateRequestSchema, value: wireUpdateValueSchema },
   remove: { request: wireRemoveRequestSchema, value: wireRemoveValueSchema },
   openLocation: { request: wireOpenLocationRequestSchema, value: wireOpenLocationValueSchema },
+  modeSelect: { request: wireModeSelectRequestSchema, value: wireModeSelectValueSchema },
+  modeRead: { request: wireModeReadRequestSchema, value: wireModeReadValueSchema },
 } as const
 
 /** One endpoint name the wire channel serves. */

@@ -73,7 +73,15 @@ roles:
 - `one-shot`: every call starts a fresh child; the role dissolves after the task.
 - `persistent`: the role keeps a durable continuable child; the descriptor persists `{ team, role }` and a cold resume **re-resolves the team's latest definition** (reference semantics — if the team file was edited, the resumed role uses the new version) to re-inject its subagent tree and prompt persona.
 
-**Composition convention**: in team form the main agent sees ONLY the team's role catalogue (the `role` parameter of the `team_delegate` tool) — never the bare subagent roster. This is a composition-layer convention, not hidden logic: a team-shaped deployment mounts the `team-delegate` row and simply does not mount the `delegate`/`subagent` rows, so the bare subagent catalogue never reaches the model. The `team-delegate` tool row ships in `cordis.patch.yml` disabled by default (`disabled: true`) and is enabled in a preset composition.
+**Composition convention**: in team form the main agent sees ONLY the team's role catalogue (the `role` parameter of the `team_delegate` tool) — never the bare subagent roster. This is enforced by the session **mode** (below): a `team` session's scope restricts the `delegate`/`delegate_fork` tools and shows only the team role catalogue, while a `standard` session hides `team_delegate`. The `team-delegate` tool row ships in `cordis.patch.yml` disabled by default (`disabled: true`) and is enabled in a preset composition.
+
+## Mode (会话模式)
+
+**Mode** is a session-level dimension fully orthogonal to the agent preset. A session runs either:
+- `standard` (default): the main agent delegates through `delegate`/`delegate_fork` and sees the bare subagent catalogue.
+- `team` (with a `teamId`): the main agent delegates through `team_delegate` only and sees that team's role catalogue — `delegate`/`delegate_fork` are hidden and their calls are refused.
+
+The choice is available **before the session starts** and is **locked once a turn has run** (the same blank-window contract the agent preset carries). It is recorded as a durable, log-only `subagent-team/mode` session event (never in the model transcript), selected through the `/team-preset` channel's `modeSelect` / `modeRead` endpoints, and broadcast to host plugins as `subagent-team/mode-selected`. Tool visibility is derived from the fold: a `team` session's scope restricts the standard tools and a `standard` session restricts `team_delegate`, while each delegation tool's execution re-checks the session fold as the authoritative gate.
 
 ## Model Experience
 

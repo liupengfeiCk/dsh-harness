@@ -29,6 +29,11 @@ import {
   UnknownTeamError, UnknownTeamRoleError,
   type Config, type Team, type TeamRole, type TeamRoot,
 } from './types.ts'
+import { applyModeRestrictions, currentTeamMode, modeLocked, type TeamMode, type TeamModeState } from './mode.ts'
+// Type-only: `ctx.agents` for applying a session's mode restriction and
+// appending the durable mode event to the live session.
+import type {} from '@deepseek-ai/dsh-agent'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 
 export { TEAM_FILE } from './metadata.ts'
 export { discoverTeams, scanRoot, USER_TEAM_DIR } from './discovery.ts'
@@ -37,11 +42,24 @@ export {
   createTeam, deleteTeam, setTeamEnabled, updateTeam, writableRoot,
 } from './authoring.ts'
 export { TEAM_ID, UnknownTeamError, UnknownTeamRoleError } from './types.ts'
+export {
+  STANDARD_TOOLS, TEAM_TOOL, applyModeRestrictions, currentTeamMode, modeLocked,
+} from './mode.ts'
+export type { TeamMode, TeamModeState } from './mode.ts'
 export type { Config, Team, TeamRole, TeamRoot, TeamTrust, TeamRoleMemory } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
     teams: Teams
+  }
+
+  interface Events {
+    /**
+     * A session's delegation surface was selected or changed. Carries only the
+     * stable folded identity (session id + mode state), never the live Session
+     * — the same notification shape as `agent-preset/selected`.
+     */
+    'subagent-team/mode-selected'(sessionId: string, state: TeamModeState): void
   }
 }
 
@@ -63,6 +81,13 @@ export class Teams extends Service {
 
   /** The roots discovery actually scans: configured roots, then the harness-home user root. */
   private readonly resolvedRoots: readonly TeamRoot[]
+
+  /**
+   * Live tool-visibility disposers applied for each session's mode, keyed by
+   * session id. A re-selection (standard ⇄ team) releases the previous
+   * restriction before applying the next; entries die with their session.
+   */
+  private readonly modeRestrictions = new Map<string, Array<() => void>>()
 
   constructor(ctx: Context, public config: Config) {
     super(ctx, 'teams')
@@ -231,6 +256,71 @@ export class Teams extends Service {
    */
   async setEnabled(id: string, enabled: boolean): Promise<void> {
     await setTeamEnabled(this.resolvedRoots, await this.resolve(id), enabled)
+  }
+
+  /**
+   * The session's current delegation surface, folded from its durable log.
+   * @param sessionId - the session to read.
+   * @returns the folded mode state.
+   * @throws when the session has no live agent (the fold needs its event log).
+   */
+  readMode(sessionId: SessionId): TeamModeState {
+    const agent = this.ctx.agents?.get(sessionId)
+    if (agent === undefined) {
+      throw new Error(`team-presets: no live agent for session "${sessionId}"; cannot read its delegation mode`)
+    }
+    return currentTeamMode(agent.session.events)
+  }
+
+  /**
+   * Select one session's delegation surface.
+   *
+   * Allowed only while the session is blank — no turn has run — because the
+   * tools the model saw were produced under the previous surface and swapping
+   * them would strand logged tool calls; the attempt throws the same
+   * blank-window refusal the agent preset carries. Selecting `team` requires
+   * the named team to exist and be usable (the delegation target must be real
+   * for the surface to be meaningful).
+   *
+   * The durable record is a log-only `subagent-team/mode` event (never in the
+   * model transcript); the tool visibility is derived from it by restricting
+   * the opposite surface's tools on the agent's scope, and the change is
+   * broadcast as `subagent-team/mode-selected`.
+   * @param sessionId - the session to switch.
+   * @param mode - the surface to select.
+   * @param team - the team id to delegate to, required when `mode` is `team`.
+   * @throws when the session has no live agent, has already started, or names
+   * an unknown team.
+   */
+  async selectMode(sessionId: SessionId, mode: TeamMode, team?: string): Promise<void> {
+    const agent = this.ctx.agents?.get(sessionId)
+    if (agent === undefined) {
+      throw new Error(`team-presets: no live agent for session "${sessionId}"; cannot change its delegation mode`)
+    }
+    if (modeLocked(agent.session.events)) {
+      throw new Error(`team-presets: session "${sessionId}" has already started; its delegation mode is fixed`)
+    }
+    if (mode === 'team') {
+      if (team === undefined) {
+        throw new Error('team-presets: selecting the team mode requires a team id')
+      }
+      await this.resolve(team)
+    }
+    // Release the previous surface's restriction before applying the next.
+    const previous = this.modeRestrictions.get(sessionId)
+    if (previous !== undefined) {
+      for (const dispose of previous) dispose()
+      this.modeRestrictions.delete(sessionId)
+    }
+    // The durable record is the commit point; the log states what the agent
+    // runs, and the restriction follows it.
+    agent.session.append('subagent-team/mode', mode === 'team'
+      ? { mode, team: team as string }
+      : { mode })
+    const state = currentTeamMode(agent.session.events)
+    const disposers = applyModeRestrictions(this.ctx, agent, state)
+    if (disposers.length > 0) this.modeRestrictions.set(sessionId, disposers)
+    this.ctx.emit('subagent-team/mode-selected', sessionId, state)
   }
 }
 

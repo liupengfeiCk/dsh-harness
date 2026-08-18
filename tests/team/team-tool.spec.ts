@@ -17,19 +17,25 @@ import Include from '@deepseek-ai/cordis-plugin-include'
 import { CallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import SubagentPresets from '../../src/preset/index.ts'
 import Teams from '../../src/team/index.ts'
 import * as teamTool from '../../src/team/tool.ts'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { HarnessSubagentStartRequest } from '../../src/in-process/request-types.ts'
 
 const testToolSignal = new AbortController().signal
 
-/** A minimal parent Agent passed through to the provider request. */
+/**
+ * A minimal parent Agent whose session runs the team delegation surface: the
+ * team tool refuses a standard-mode session, so every fixture agent must carry
+ * a recorded `subagent-team/mode` team event.
+ */
 function fakeAgent(id = 'parent-1'): Agent {
-  return { id: SessionId(id) } as unknown as Agent
+  const session = Session.create(SessionId(id))
+  session.append('subagent-team/mode', { mode: 'team', team: 'edit' })
+  return { id: SessionId(id), session } as unknown as Agent
 }
 
 /** Register a capture provider that records every start request. */
@@ -171,10 +177,11 @@ describe('dsh-subagent-bundle/team/tool', () => {
 
   it('lists the bound team\'s roles in the system prompt', async () => {
     const { ctx } = await setup({})
+    const teamAgent = fakeAgent('team-prompt-1')
     const deadline = Date.now() + 2_000
     let prompt = ''
     while (Date.now() < deadline) {
-      prompt = (await ctx.systemPrompt.assemble()).sections.map(s => s.text).join('\n')
+      prompt = (await ctx.systemPrompt.assemble(assembleContextFor(teamAgent))).sections.map(s => s.text).join('\n')
       if (prompt.includes('copywriter')) break
       await new Promise(resolve => setTimeout(resolve, 25))
     }
@@ -208,7 +215,8 @@ describe('dsh-subagent-bundle/team/tool', () => {
     while (Date.now() < deadline) {
       await new Promise(resolve => setTimeout(resolve, 25))
     }
-    const prompt = (await ctx.systemPrompt.assemble()).sections.map(s => s.text).join('\n')
+    const prompt = (await ctx.systemPrompt.assemble(assembleContextFor(fakeAgent('team-disabled-1'))))
+      .sections.map(s => s.text).join('\n')
     expect(prompt).not.toContain('copywriter')
   })
 })

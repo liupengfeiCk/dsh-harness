@@ -32,6 +32,10 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 // never as a hard dep. A deployment without the registry rejects any
 // `template` argument at execution instead.
 import type {} from '../preset/index.ts'
+// The session-level delegation surface: a `team` session must not run the
+// standard `delegate`/`delegate_fork` tools. Imported from the mode module
+// directly (not the team index) to keep this tool free of a registry dep.
+import { currentTeamMode } from '../team/mode.ts'
 
 export const name = 'subagent-in-process-tool'
 export const inject = ['tools', 'subagents', 'systemPrompt']
@@ -455,6 +459,15 @@ export function apply(ctx: Context, config: Config): void {
           throw new Error('subagent tool requires a calling agent (exec.agent was undefined)')
         }
 
+        // A `team` session's delegation surface is `team_delegate`; the standard
+        // `delegate`/`delegate_fork` tools are hidden from it (by the mode
+        // restriction) and refused here as the authoritative gate, so a call
+        // that reached the body anyway surfaces the right remedy. A sessionless
+        // caller (a test harness, a non-agent driver) reads standard.
+        if (parent.session !== undefined && currentTeamMode(parent.session.events).mode === 'team') {
+          throw new Error('此会话处于 Team 模式，请用 team_delegate')
+        }
+
         // A named user-defined subagent is a whole tree mounted onto the child
         // in its creation window; the instance's persona/toolFilter are not
         // merged against it (the tree carries its own persona and tools).
@@ -584,7 +597,12 @@ export function apply(ctx: Context, config: Config): void {
     name: `tool:${toolName}:subagents`,
     order: SUBAGENT_SECTION_ORDER + 0.1,
     text: context => {
+      // The bare subagent catalogue is the standard surface's helper list; a
+      // `team` session must not see it (its delegation surface is the team's
+      // role catalogue instead). A diagnostic assembly with no agent defaults
+      // to standard, so existing prompts are unchanged.
       if (disposeTool === undefined || ctx.tools.get(toolName, context.scope) === undefined) return ''
+      if (context.agent?.session !== undefined && currentTeamMode(context.agent.session.events).mode === 'team') return ''
       return subagentCatalogue
     },
   })

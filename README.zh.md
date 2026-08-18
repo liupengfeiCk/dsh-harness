@@ -74,7 +74,15 @@ roles:
 - `one-shot`（一次性）：每次调用都起一个全新子代理，干完即散。
 - `persistent`（长期）：该角色持续存在，走 `startContinuable` 保持可续对话的 durable 子代理；descriptor 持久化 `{ team, role }`，冷恢复时**重新解析 team 最新定义**（引用语义——team 文件改过就用新版）重挂子代理树与提示词 persona。
 
-**组合约定**：team 形态下主代理只看到该队的角色目录（`team_delegate` 工具的 `role` 参数），**不直接感知裸子代理名单**。这是组合层约定而非隐藏逻辑——team 形态的部署只挂 `team-delegate` 行、不挂 `delegate`/`subagent` 行即可，裸子代理 catalogue 自然不会进入模型视野。`team-delegate` 工具行在 `cordis.patch.yml` 里默认 `disabled: true`，在 preset composition 里启用。
+**组合约定**：team 形态下主代理只看到该队的角色目录（`team_delegate` 工具的 `role` 参数），**不直接感知裸子代理名单**。这是由会话**模式**（见下）保证的——`team` 会话的 scope 会限制 `delegate`/`delegate_fork` 工具、只呈现该队角色目录；`standard` 会话则隐藏 `team_delegate`。`team-delegate` 工具行在 `cordis.patch.yml` 里默认 `disabled: true`，在 preset composition 里启用。
+
+## 模式（会话模式）
+
+**模式**是一个与会话完全正交、独立于 agent preset 的维度。会话要么跑：
+- `standard`（默认）：主代理通过 `delegate`/`delegate_fork` 委派，看到裸子代理目录。
+- `team`（带 `teamId`）：主代理只用 `team_delegate`，看到该队角色目录——`delegate`/`delegate_fork` 被隐藏，调用会被拒绝。
+
+选择在**会话开跑前**可用，**开跑后锁定**（与 agent preset 的 blank-window 契约相同）。它记录为一条持久、log-only 的 `subagent-team/mode` 会话事件（绝不进入模型 transcript），通过 `/team-preset` 通道的 `modeSelect` / `modeRead` 端点选择，并向宿主插件广播 `subagent-team/mode-selected`。工具可见性由 fold 推导：`team` 会话的 scope 限制标准工具、`standard` 会话限制 `team_delegate`；同时每个委派工具执行时重新核对会话 fold 作为权威闸门。
 
 ## 模型体验
 

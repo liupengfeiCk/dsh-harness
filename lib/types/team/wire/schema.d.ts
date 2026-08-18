@@ -179,6 +179,28 @@ export declare const wireOpenLocationValueSchema: z.ZodUnion<readonly [z.ZodObje
     opened: z.ZodLiteral<false>;
     path: z.ZodString;
 }, z.core.$strip>]>;
+/** The session-level delegation surface a session may select. */
+export declare const wireTeamModeSchema: z.ZodUnion<readonly [z.ZodLiteral<"standard">, z.ZodLiteral<"team">]>;
+/** teamPreset.modeSelect request payload: the surface plus an optional team. */
+export declare const wireModeSelectRequestSchema: z.ZodObject<{
+    sessionId: z.ZodString;
+    mode: z.ZodUnion<readonly [z.ZodLiteral<"standard">, z.ZodLiteral<"team">]>;
+    team: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+/** teamPreset.modeSelect response value: the folded state now active. */
+export declare const wireModeSelectValueSchema: z.ZodObject<{
+    mode: z.ZodUnion<readonly [z.ZodLiteral<"standard">, z.ZodLiteral<"team">]>;
+    team: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+/** teamPreset.modeRead request payload. */
+export declare const wireModeReadRequestSchema: z.ZodObject<{
+    sessionId: z.ZodString;
+}, z.core.$strip>;
+/** teamPreset.modeRead response value: the session's current folded state. */
+export declare const wireModeReadValueSchema: z.ZodObject<{
+    mode: z.ZodUnion<readonly [z.ZodLiteral<"standard">, z.ZodLiteral<"team">]>;
+    team: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
 /** The full management surface: endpoint name → request/value schemas. */
 export declare const wireEndpoints: {
     readonly list: {
@@ -280,6 +302,26 @@ export declare const wireEndpoints: {
             opened: z.ZodLiteral<false>;
             path: z.ZodString;
         }, z.core.$strip>]>;
+    };
+    readonly modeSelect: {
+        readonly request: z.ZodObject<{
+            sessionId: z.ZodString;
+            mode: z.ZodUnion<readonly [z.ZodLiteral<"standard">, z.ZodLiteral<"team">]>;
+            team: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>;
+        readonly value: z.ZodObject<{
+            mode: z.ZodUnion<readonly [z.ZodLiteral<"standard">, z.ZodLiteral<"team">]>;
+            team: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>;
+    };
+    readonly modeRead: {
+        readonly request: z.ZodObject<{
+            sessionId: z.ZodString;
+        }, z.core.$strip>;
+        readonly value: z.ZodObject<{
+            mode: z.ZodUnion<readonly [z.ZodLiteral<"standard">, z.ZodLiteral<"team">]>;
+            team: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>;
     };
 };
 /** One endpoint name the wire channel serves. */
