@@ -107,7 +107,7 @@ export class HarnessHot extends Service {
 
   /** The deployment's logger service, when one is composed. */
   private logger(): { info?(message: string): void; warn(message: string): void } | undefined {
-    return (this.ctx as Context & { logger?: { info?(message: string): void; warn(message: string): void } }).logger
+    return this.ctx.get('logger') as { info?(message: string): void; warn(message: string): void } | undefined
   }
 
   /** The profile directory this service derives, or null when unavailable. */
