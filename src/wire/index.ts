@@ -127,7 +127,7 @@ export function flattenErrorMessages(error: unknown): string[] {
   return out
 }
 
-/** Depth-first emit every leaf's message; stop below a sane nesting ceiling. */
+/** Depth-first emit each error's own message; stop below a sane nesting ceiling. */
 function walkError(error: unknown, out: string[], depth: number): void {
   if (depth > 8) return
   if (!(error instanceof Error)) return
@@ -136,10 +136,10 @@ function walkError(error: unknown, out: string[], depth: number): void {
     : error.cause === undefined
       ? []
       : [error.cause]
-  if (children.length === 0) {
-    out.push(error.message)
-    return
-  }
+  // Every Error carries a reason line — a non-aggregate wrapper already names
+  // the failing entry ("failed to apply loader entry X: …"), so we keep each
+  // level's message (children deduplicate nothing) to preserve that context.
+  out.push(error.message)
   for (const child of children) walkError(child, out, depth + 1)
 }
 

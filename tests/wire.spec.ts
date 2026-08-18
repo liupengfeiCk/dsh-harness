@@ -187,14 +187,24 @@ describe('harness-hot wire failure folding', () => {
     expect(result.error.message).toContain('loader entries failed to apply')
     const causes = (result.error.details as { causes?: string[] }).causes
     expect(causes).toEqual([
+      'loader entries failed to apply',
       'service "subagents" has been registered',
       'duplicate route /subagent-preset',
     ])
   })
 
+  it('keeps each level message so a loader wrapper names its entry', async () => {
+    const leaf = new Error('cannot get property "subagents" without inject')
+    const wrapped = new Error('failed to apply loader entry tool-delegate (subagent-in-process-tool): cannot get property "subagents" without inject', { cause: leaf })
+    expect(flattenErrorMessages(wrapped)).toEqual([
+      'failed to apply loader entry tool-delegate (subagent-in-process-tool): cannot get property "subagents" without inject',
+      'cannot get property "subagents" without inject',
+    ])
+  })
+
   it('walks a cause chain for non-aggregate errors', async () => {
     const root = new Error('outer', { cause: new Error('inner cause') })
-    expect(flattenErrorMessages(root)).toEqual(['inner cause'])
+    expect(flattenErrorMessages(root)).toEqual(['outer', 'inner cause'])
     expect(flattenErrorMessages('not-an-error')).toEqual([])
   })
 
