@@ -23,13 +23,13 @@ import type { Context } from '@deepseek-ai/cordis';
  * The shipped factory-subagent root, resolved from this package's own install.
  *
  * A subagent's composition directory ships beside the package source and its
- * compiled `lib/` (sibling directories at the package root), so `../../factory/`
- * resolves to the package's `factory/` directory from BOTH the
- * `src/preset/index.ts` layout (tsx development) and the `lib/types/preset/index.js`
- * layout (built install). The directory is published through this package's
- * `files` list, so the shipped `code-reviewer` subagent rides with the package
- * wherever it is installed — "code ships with the package", no launcher-side
- * root injection required.
+ * compiled `lib/` as a sibling `factory/` directory at the package root. This
+ * is resolved by walking up from the current module to the package root (see
+ * {@link resolvePackageRoot}), so both the `src/preset/index.ts` and
+ * `lib/types/preset/index.js` layouts land on the package's `factory/`. The
+ * directory is published through this package's `files` list, so the shipped
+ * `code-reviewer` subagent rides with the package wherever it is installed —
+ * "code ships with the package", no launcher-side root injection required.
  */
 export declare const FACTORY_SUBAGENT_ROOT: string;
 import { type CatalogTool, type PresetCompositionEdits, type ToolRow } from '../preset-edit/index.ts';
