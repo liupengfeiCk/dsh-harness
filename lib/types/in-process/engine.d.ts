@@ -108,6 +108,28 @@ export declare function harnessChildAgentOptions(parent: Agent, requested: impor
  */
 export declare function setupChildComposition(childCtx: Context, parent: Agent, composition: ChildComposition): Promise<void>;
 /**
+ * Ensure a team-role child's FIRST request renders a warm authority table by
+ * waiting for the `teams` service to be composed before its creation window
+ * applies the team tool.
+ *
+ * A team tool apply builds a per-scope `rosters` closure and fills it
+ * asynchronously (`refreshRoleCatalogue` → `teams.list().then(...)`). If the
+ * `teams` service is not yet composed at apply time, that kick returns early
+ * and only the `internal/service` listener would refill the catalogue — after
+ * the first request has already rendered, so the authority table toggles in and
+ * the 292-byte delta breaks the request prefix cache for a persistent role's
+ * cold resume. Waiting for `teams` to appear makes the fresh apply's own kick
+ * land immediately. The wait is bounded and fail-soft: a deployment without
+ * `teams`, or a service that stays absent, proceeds after the timeout.
+ *
+ * @param ctx - the scope to probe (the manager/parent context, where `teams`
+ *   composes as a sibling row).
+ * @param signal - caller cancellation; an abort returns without waiting.
+ * @param timeoutMs - optional poll window override (tests may shrink it).
+ * @returns the composed `teams` service, or undefined after the timeout.
+ */
+export declare function waitForTeamCatalogue(ctx: Context, signal: AbortSignal, timeoutMs?: number): Promise<unknown>;
+/**
  * Establish and drive one in-process one-shot child. Fulfillment means the agent
  * is already published in the registry and transfers its turn, cancellation,
  * and disposal work through the returned run. Rejection means the agent

@@ -263,6 +263,51 @@ export async function setupChildComposition(
   }
 }
 
+/** Bounded poll window for the `teams` service to be composed. */
+const TEAMS_READY_TIMEOUT_MS = 200
+/** Poll cadence while waiting for the `teams` service. */
+const TEAMS_READY_POLL_MS = 5
+
+/**
+ * Ensure a team-role child's FIRST request renders a warm authority table by
+ * waiting for the `teams` service to be composed before its creation window
+ * applies the team tool.
+ *
+ * A team tool apply builds a per-scope `rosters` closure and fills it
+ * asynchronously (`refreshRoleCatalogue` → `teams.list().then(...)`). If the
+ * `teams` service is not yet composed at apply time, that kick returns early
+ * and only the `internal/service` listener would refill the catalogue — after
+ * the first request has already rendered, so the authority table toggles in and
+ * the 292-byte delta breaks the request prefix cache for a persistent role's
+ * cold resume. Waiting for `teams` to appear makes the fresh apply's own kick
+ * land immediately. The wait is bounded and fail-soft: a deployment without
+ * `teams`, or a service that stays absent, proceeds after the timeout.
+ *
+ * @param ctx - the scope to probe (the manager/parent context, where `teams`
+ *   composes as a sibling row).
+ * @param signal - caller cancellation; an abort returns without waiting.
+ * @param timeoutMs - optional poll window override (tests may shrink it).
+ * @returns the composed `teams` service, or undefined after the timeout.
+ */
+export async function waitForTeamCatalogue(
+  ctx: Context,
+  signal: AbortSignal,
+  timeoutMs = TEAMS_READY_TIMEOUT_MS,
+): Promise<unknown> {
+  const deadline = Date.now() + timeoutMs
+  let teams = ctx.get('teams')
+  while (teams === undefined && Date.now() < deadline) {
+    if (signal.aborted) return undefined
+    await new Promise(resolve => setTimeout(resolve, TEAMS_READY_POLL_MS))
+    teams = ctx.get('teams')
+  }
+  // Warm the roster read once so the child's own kick (the same underlying
+  // discovery) resolves promptly. Fail-soft: a read error must not strand a
+  // child start or cold resume.
+  if (teams !== undefined) await teams.list().catch(() => undefined)
+  return teams
+}
+
 /** Append one one-shot descriptor inside the child's initial turn before its first request. */
 function attachDescriptorAppend(childCtx: Context, descriptor: SubagentDescriptorData): void {
   let appended = false
@@ -317,6 +362,15 @@ export async function startInProcessRun(
       structured = attachStructuredRuntime(childCtx, request.outputSchema)
     }
     attachDescriptorAppend(childCtx, request.descriptor)
+  }
+
+  // A team-role child (level >= 2) mounts the team tool in its setup, whose
+  // first-request authority table needs the `teams` roster warm. Wait for the
+  // service to be composed before `agents.create` so the apply's async
+  // catalogue kick lands before the first request renders — otherwise the table
+  // toggles in and breaks the request prefix cache. Non-team children skip it.
+  if (request.teamDelegation !== undefined) {
+    await waitForTeamCatalogue(parent.ctx, request.signal)
   }
 
   const handle = await parent.ctx.agents.create({

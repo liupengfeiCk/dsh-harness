@@ -70,7 +70,7 @@ import {
   snapshotHarnessSubagentDescriptor,
 } from './descriptor.ts'
 import type { HarnessContinuableSubagentDescriptorData, HarnessSubagentDescriptorData } from './descriptor.ts'
-import { harnessChildAgentOptions, resolveParentEffectiveModel, setupChildComposition } from './engine.ts'
+import { harnessChildAgentOptions, resolveParentEffectiveModel, setupChildComposition, waitForTeamCatalogue } from './engine.ts'
 // Official seam pieces, imported from the official package (never copied) per
 // the harness policy; the official package is restored upstream in task 3, and
 // these pieces are unchanged by that restore.
@@ -998,6 +998,17 @@ export class SubagentContinuationManager {
         + 'do not retry send_message with this id',
         'NOT_RESUMABLE',
       )
+    }
+    // A team-role child's cold resume re-applies the team tool onto a fresh
+    // scope whose roster closure starts empty; if the `teams` service is not
+    // yet composed, the apply's `refreshRoleCatalogue` returns early and only
+    // the `internal/service` listener would refill it — after the first request
+    // has already rendered, so the authority table toggles in and breaks the
+    // request prefix cache. Wait for `teams` (bounded, fail-soft) before
+    // resolving the composition / materializing, so the resumed child's first
+    // request renders the warm roster. Non-team children skip the wait.
+    if (descriptor.team !== undefined) {
+      await waitForTeamCatalogue(this.ctx, options.signal)
     }
     let activation: Activation
     try {
