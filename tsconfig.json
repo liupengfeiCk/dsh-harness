@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo"
+  },
+  "include": [
+    "src/index.ts",
+    "src/types.ts",
+    "src/discovery.ts",
+    "src/metadata.ts",
+    "src/authoring.ts",
+    "src/home-path.ts",
+    "src/merge.ts",
+    "src/selection.ts",
+    "src/wire"
+  ]
+}
