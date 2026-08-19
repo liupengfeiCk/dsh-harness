@@ -8,7 +8,7 @@ export type SubagentSettingsKey =
   | 'enabled' | 'disabled'
   | 'brokenBadge'
   | 'create' | 'creating' | 'createTitle' | 'createIntro'
-  | 'copyOf'
+  | 'copy' | 'copyOf'
   | 'delete' | 'deleteTitle' | 'deleteDescription' | 'deleteConfirm' | 'deleting'
   | 'view' | 'viewTitle' | 'viewIntro'
   | 'edit' | 'editTitle' | 'editIntro' | 'save' | 'saving' | 'cancel' | 'close'
@@ -43,6 +43,7 @@ export const en: Record<SubagentSettingsKey, string> = {
     'The whole subagent is copied on this machine. The identifier becomes its directory name '
     + 'and cannot be changed later; everything else is edited in the subagent\'s own files.',
   copyOf: 'Copied from',
+  copy: 'Copy',
   delete: 'Delete',
   deleteTitle: 'Delete this subagent?',
   deleteDescription:
@@ -107,6 +108,7 @@ export const zh: Record<SubagentSettingsKey, string> = {
   createTitle: '创建子代理',
   createIntro: '整个子代理会在本机复制一份。标识符将成为目录名，事后无法更改；其余内容之后直接在子代理自己的文件里编辑。',
   copyOf: '复制自',
+  copy: '复制',
   delete: '删除',
   deleteTitle: '删除该子代理？',
   deleteDescription: '子代理目录将被删除。已在其上运行的委派子 Agent 不受影响；新委派将无法再选择它。',
