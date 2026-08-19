@@ -106,9 +106,11 @@ export function apply(ctx: ClientContext): void {
   // `conversation.input.model` replaces the official model selector. Each
   // session gets its own controller (the binding is a per-session dimension),
   // created on the slot's session-scoped inject.
+  // No `priority`: the browser-half facade assigns a facade-low priority
+  // automatically (LOWER than every shipped entry), which is what makes this
+  // single cell render OUR chip instead of the shipped model selector.
   ctx.slots.inject('conversation.input.model', () => ctx.slots.register({
     name: 'conversation.input.model',
-    priority: 10,
     locale: 'settings.modelPlan',
     inject: (sessionId: string): ModelPlanChipInjected => {
       const chip = new ModelPlanChipController(plans, sessionId)
