@@ -108,19 +108,13 @@ export declare function harnessChildAgentOptions(parent: Agent, requested: impor
  */
 export declare function setupChildComposition(childCtx: Context, parent: Agent, composition: ChildComposition): Promise<void>;
 /**
- * Ensure a team-role child's FIRST request renders a warm authority table by
- * waiting for the `teams` service to be composed before its creation window
- * applies the team tool.
- *
- * A team tool apply builds a per-scope `rosters` closure and fills it
- * asynchronously (`refreshRoleCatalogue` → `teams.list().then(...)`). If the
- * `teams` service is not yet composed at apply time, that kick returns early
- * and only the `internal/service` listener would refill the catalogue — after
- * the first request has already rendered, so the authority table toggles in and
- * the 292-byte delta breaks the request prefix cache for a persistent role's
- * cold resume. Waiting for `teams` to appear makes the fresh apply's own kick
- * land immediately. The wait is bounded and fail-soft: a deployment without
- * `teams`, or a service that stays absent, proceeds after the timeout.
+ * Wait for the `teams` service to be composed before a team-role child's
+ * creation/resume resolution. If `teams` is absent when the tool applies, its
+ * `refreshRoleCatalogue` kick returns early and the authority table can only be
+ * refilled by the `internal/service` listener — after the first request has
+ * rendered. Bounded and fail-soft: a deployment without `teams`, or a service
+ * that stays absent, proceeds after the timeout. The per-scope roster fill
+ * itself is settled separately by {@link awaitTeamRoster}.
  *
  * @param ctx - the scope to probe (the manager/parent context, where `teams`
  *   composes as a sibling row).
@@ -129,6 +123,25 @@ export declare function setupChildComposition(childCtx: Context, parent: Agent, 
  * @returns the composed `teams` service, or undefined after the timeout.
  */
 export declare function waitForTeamCatalogue(ctx: Context, signal: AbortSignal, timeoutMs?: number): Promise<unknown>;
+/**
+ * Settle a team-role child's fresh roster catalogue before its first request.
+ *
+ * A team tool apply fills its per-scope `rosters` closure asynchronously
+ * (`refreshRoleCatalogue` → `teams.list().then(swap)`), kicked during the
+ * child's creation/resume setup. The child's FIRST request renders the prompt
+ * section synchronously, so it races that fill: if the fill has not landed, the
+ * authority table toggles in between the first and second request and the
+ * ~292-byte delta breaks the request prefix cache for a persistent role's cold
+ * resume. Awaiting one `teams.list()` here — issued AFTER the child's setup
+ * kicked its own read on the same service — deterministically settles the fresh
+ * fill (the apply's read was created first, so its swap microtask runs before
+ * this await's continuation), making the first request render the warm roster.
+ * Fail-soft: no `teams` service, or a read error, proceeds without blocking.
+ *
+ * @param ctx - the scope holding the composed `teams` service (shared registry).
+ * @param signal - caller cancellation; an abort returns without waiting.
+ */
+export declare function awaitTeamRoster(ctx: Context, signal: AbortSignal): Promise<void>;
 /**
  * Establish and drive one in-process one-shot child. Fulfillment means the agent
  * is already published in the registry and transfers its turn, cancellation,

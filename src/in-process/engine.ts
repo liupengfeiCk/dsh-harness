@@ -269,19 +269,13 @@ const TEAMS_READY_TIMEOUT_MS = 200
 const TEAMS_READY_POLL_MS = 5
 
 /**
- * Ensure a team-role child's FIRST request renders a warm authority table by
- * waiting for the `teams` service to be composed before its creation window
- * applies the team tool.
- *
- * A team tool apply builds a per-scope `rosters` closure and fills it
- * asynchronously (`refreshRoleCatalogue` → `teams.list().then(...)`). If the
- * `teams` service is not yet composed at apply time, that kick returns early
- * and only the `internal/service` listener would refill the catalogue — after
- * the first request has already rendered, so the authority table toggles in and
- * the 292-byte delta breaks the request prefix cache for a persistent role's
- * cold resume. Waiting for `teams` to appear makes the fresh apply's own kick
- * land immediately. The wait is bounded and fail-soft: a deployment without
- * `teams`, or a service that stays absent, proceeds after the timeout.
+ * Wait for the `teams` service to be composed before a team-role child's
+ * creation/resume resolution. If `teams` is absent when the tool applies, its
+ * `refreshRoleCatalogue` kick returns early and the authority table can only be
+ * refilled by the `internal/service` listener — after the first request has
+ * rendered. Bounded and fail-soft: a deployment without `teams`, or a service
+ * that stays absent, proceeds after the timeout. The per-scope roster fill
+ * itself is settled separately by {@link awaitTeamRoster}.
  *
  * @param ctx - the scope to probe (the manager/parent context, where `teams`
  *   composes as a sibling row).
@@ -301,11 +295,30 @@ export async function waitForTeamCatalogue(
     await new Promise(resolve => setTimeout(resolve, TEAMS_READY_POLL_MS))
     teams = ctx.get('teams')
   }
-  // Warm the roster read once so the child's own kick (the same underlying
-  // discovery) resolves promptly. Fail-soft: a read error must not strand a
-  // child start or cold resume.
-  if (teams !== undefined) await teams.list().catch(() => undefined)
   return teams
+}
+
+/**
+ * Settle a team-role child's fresh roster catalogue before its first request.
+ *
+ * A team tool apply fills its per-scope `rosters` closure asynchronously
+ * (`refreshRoleCatalogue` → `teams.list().then(swap)`), kicked during the
+ * child's creation/resume setup. The child's FIRST request renders the prompt
+ * section synchronously, so it races that fill: if the fill has not landed, the
+ * authority table toggles in between the first and second request and the
+ * ~292-byte delta breaks the request prefix cache for a persistent role's cold
+ * resume. Awaiting one `teams.list()` here — issued AFTER the child's setup
+ * kicked its own read on the same service — deterministically settles the fresh
+ * fill (the apply's read was created first, so its swap microtask runs before
+ * this await's continuation), making the first request render the warm roster.
+ * Fail-soft: no `teams` service, or a read error, proceeds without blocking.
+ *
+ * @param ctx - the scope holding the composed `teams` service (shared registry).
+ * @param signal - caller cancellation; an abort returns without waiting.
+ */
+export async function awaitTeamRoster(ctx: Context, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return
+  await ctx.get('teams')?.list().catch(() => undefined)
 }
 
 /** Append one one-shot descriptor inside the child's initial turn before its first request. */
@@ -366,9 +379,10 @@ export async function startInProcessRun(
 
   // A team-role child (level >= 2) mounts the team tool in its setup, whose
   // first-request authority table needs the `teams` roster warm. Wait for the
-  // service to be composed before `agents.create` so the apply's async
-  // catalogue kick lands before the first request renders — otherwise the table
-  // toggles in and breaks the request prefix cache. Non-team children skip it.
+  // service to be composed before `agents.create`, then settle the fresh roster
+  // fill after creation, so the first request renders the authority table —
+  // otherwise the table toggles in and breaks the request prefix cache.
+  // Non-team children skip both.
   if (request.teamDelegation !== undefined) {
     await waitForTeamCatalogue(parent.ctx, request.signal)
   }
@@ -381,6 +395,9 @@ export async function startInProcessRun(
     signal: request.signal,
     setup,
   })
+  if (request.teamDelegation !== undefined) {
+    await awaitTeamRoster(parent.ctx, request.signal)
+  }
   return drivePublishedRun(
     handle,
     request.signal,

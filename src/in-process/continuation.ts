@@ -70,7 +70,7 @@ import {
   snapshotHarnessSubagentDescriptor,
 } from './descriptor.ts'
 import type { HarnessContinuableSubagentDescriptorData, HarnessSubagentDescriptorData } from './descriptor.ts'
-import { harnessChildAgentOptions, resolveParentEffectiveModel, setupChildComposition, waitForTeamCatalogue } from './engine.ts'
+import { awaitTeamRoster, harnessChildAgentOptions, resolveParentEffectiveModel, setupChildComposition, waitForTeamCatalogue } from './engine.ts'
 // Official seam pieces, imported from the official package (never copied) per
 // the harness policy; the official package is restored upstream in task 3, and
 // these pieces are unchanged by that restore.
@@ -1186,6 +1186,16 @@ export class SubagentContinuationManager {
         signal: inputs.signal,
         setup,
       })
+
+    // A team-role child's fresh scope fills its roster catalogue asynchronously
+    // during setup (the tool apply's `refreshRoleCatalogue` → `teams.list()`).
+    // Settle that fill before the first request so the authority table renders
+    // warm — otherwise it toggles in between the first and second request and
+    // the ~292-byte delta breaks the request prefix cache across a cold resume.
+    // Non-team children skip this. Fail-soft: absent/errored `teams` proceeds.
+    if (inputs.composition.teamDelegation !== undefined) {
+      await awaitTeamRoster(this.ownerCtx, inputs.signal)
+    }
 
     const activation: Activation = {
       childId,

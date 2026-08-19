@@ -35,7 +35,7 @@ import ApprovalService from '@deepseek-ai/dsh-user-approval'
 import { textResponse } from './mock-adapter.ts'
 import HarnessSubagentRuntime from '../../src/in-process/service.ts'
 import * as spawnPlugin from '../../src/in-process/spawn.ts'
-import { waitForTeamCatalogue } from '../../src/in-process/engine.ts'
+import { awaitTeamRoster, waitForTeamCatalogue } from '../../src/in-process/engine.ts'
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const ROOTS = [{ path: join(FIXTURES, 'presets'), trust: 'system' as const }]
@@ -120,6 +120,36 @@ describe('waitForTeamCatalogue (warm roster ordering)', () => {
       await waitForTeamCatalogue(ctx, new AbortController().signal, 40)
       expect(Date.now() - started).toBeGreaterThanOrEqual(40)
       expect(ctx.get('teams')).toBeUndefined()
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('settles a fresh roster fill via awaitTeamRoster (issues the same underlying read)', async () => {
+    const ctx = new Context()
+    const teamRoot = await mkdtempPromise(join(tmpdir(), 'dsh-warm-roster-team-'))
+    try {
+      await writeTeam(teamRoot, 'edit', 'writer')
+      await ctx.plugin(Teams, { roots: [{ path: teamRoot, trust: 'system' }], includeUserRoot: false })
+      // Simulate a freshly-applied tool: the roster closure is not observable,
+      // but awaiting one `teams.list()` issued after the apply's own kick (the
+      // same underlying discovery) deterministically lets the fill settle, so
+      // the subsequent call sees the freshly-read rows.
+      await awaitTeamRoster(ctx, new AbortController().signal)
+      const rows = await ctx.get('teams')!.list()
+      const edit = rows.find(t => t.id === 'edit')
+      expect(edit).toBeDefined()
+      expect(edit!.roles.map(r => r.id)).toContain('copywriter')
+    } finally {
+      await ctx.fiber.dispose()
+      rmSync(teamRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('awaitTeamRoster fails soft when the teams service is absent', async () => {
+    const ctx = new Context()
+    try {
+      await expect(awaitTeamRoster(ctx, new AbortController().signal)).resolves.toBeUndefined()
     } finally {
       await ctx.fiber.dispose()
     }
