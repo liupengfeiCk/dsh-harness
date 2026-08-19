@@ -16,7 +16,7 @@ import {
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  createBlocker, INHERIT_MODEL_VALUE, modelOptionValue, type CatalogDraft, type EditDraft, type SubagentRow, type SubagentSectionState, type ViewDraft,
+  createBlocker, INHERIT_MODEL_VALUE, type CatalogDraft, type EditDraft, type SubagentRow, type SubagentSectionState, type ViewDraft,
 } from './section-store.ts'
 import type { SubagentSettingsKey } from './locales.ts'
 import css from './SubagentPresetSection.module.css'
@@ -265,20 +265,14 @@ function EditDialog(props: {
           <span className={css.fieldLabel}>{t('model')}</span>
           <select
             className={`${css.input} ${css.select}`}
-            value={edit.metadata.model === undefined
-              ? INHERIT_MODEL_VALUE
-              : modelOptionValue(edit.metadata.model)}
+            value={edit.metadata.model === undefined ? INHERIT_MODEL_VALUE : edit.metadata.model}
             onChange={e => setEditField('model', 'value', e.target.value)}
           >
             <option value={INHERIT_MODEL_VALUE}>{t('inheritModel')}</option>
-            {edit.modelChoices.map(group => (
-              <optgroup key={group.provider} label={group.providerName}>
-                {group.models.map(model => (
-                  <option key={`${group.provider}\u0000${model.id}`} value={modelOptionValue({ provider: group.provider, model: model.id })}>
-                    {model.name}
-                  </option>
-                ))}
-              </optgroup>
+            {edit.planChoices.map(plan => (
+              <option key={plan.id} value={plan.id}>
+                {`${plan.id} — ${plan.provider}/${plan.model}`}
+              </option>
             ))}
           </select>
         </div>

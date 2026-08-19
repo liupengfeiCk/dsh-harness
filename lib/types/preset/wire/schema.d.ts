@@ -23,10 +23,8 @@ export type WireResult<T> = RpcResult<T>;
 export interface WireSubagentMetadata {
     readonly description?: string;
     readonly enabled?: boolean;
-    readonly model?: {
-        provider: string;
-        model: string;
-    };
+    /** Model-plan id the subagent binds; absent means "inherit the parent". */
+    readonly model?: string;
     readonly inheritParent?: boolean;
 }
 /** One subagent row of the roster. */
@@ -54,10 +52,7 @@ export interface WireCatalogTool {
 export declare const wireSubagentMetadataSchema: z.ZodObject<{
     description: z.ZodOptional<z.ZodString>;
     enabled: z.ZodOptional<z.ZodBoolean>;
-    model: z.ZodOptional<z.ZodObject<{
-        provider: z.ZodString;
-        model: z.ZodString;
-    }, z.core.$strip>>;
+    model: z.ZodOptional<z.ZodString>;
     inheritParent: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strip>;
 /** One subagent roster row. */
@@ -67,10 +62,7 @@ export declare const wireSubagentEntrySchema: z.ZodObject<{
     metadata: z.ZodObject<{
         description: z.ZodOptional<z.ZodString>;
         enabled: z.ZodOptional<z.ZodBoolean>;
-        model: z.ZodOptional<z.ZodObject<{
-            provider: z.ZodString;
-            model: z.ZodString;
-        }, z.core.$strip>>;
+        model: z.ZodOptional<z.ZodString>;
         inheritParent: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>;
     broken: z.ZodOptional<z.ZodString>;
@@ -85,10 +77,7 @@ export declare const wireListValueSchema: z.ZodObject<{
         metadata: z.ZodObject<{
             description: z.ZodOptional<z.ZodString>;
             enabled: z.ZodOptional<z.ZodBoolean>;
-            model: z.ZodOptional<z.ZodObject<{
-                provider: z.ZodString;
-                model: z.ZodString;
-            }, z.core.$strip>>;
+            model: z.ZodOptional<z.ZodString>;
             inheritParent: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>;
         broken: z.ZodOptional<z.ZodString>;
@@ -171,10 +160,7 @@ export declare const wireReadEditableValueSchema: z.ZodObject<{
     metadata: z.ZodObject<{
         description: z.ZodOptional<z.ZodString>;
         enabled: z.ZodOptional<z.ZodBoolean>;
-        model: z.ZodOptional<z.ZodObject<{
-            provider: z.ZodString;
-            model: z.ZodString;
-        }, z.core.$strip>>;
+        model: z.ZodOptional<z.ZodString>;
         inheritParent: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>;
 }, z.core.$strip>;
@@ -192,10 +178,7 @@ export declare const wireUpdateRequestSchema: z.ZodObject<{
     metadata: z.ZodOptional<z.ZodObject<{
         description: z.ZodOptional<z.ZodString>;
         enabled: z.ZodOptional<z.ZodBoolean>;
-        model: z.ZodOptional<z.ZodObject<{
-            provider: z.ZodString;
-            model: z.ZodString;
-        }, z.core.$strip>>;
+        model: z.ZodOptional<z.ZodString>;
         inheritParent: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
@@ -214,10 +197,7 @@ export declare const wireEndpoints: {
                 metadata: z.ZodObject<{
                     description: z.ZodOptional<z.ZodString>;
                     enabled: z.ZodOptional<z.ZodBoolean>;
-                    model: z.ZodOptional<z.ZodObject<{
-                        provider: z.ZodString;
-                        model: z.ZodString;
-                    }, z.core.$strip>>;
+                    model: z.ZodOptional<z.ZodString>;
                     inheritParent: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>;
                 broken: z.ZodOptional<z.ZodString>;
@@ -286,10 +266,7 @@ export declare const wireEndpoints: {
             metadata: z.ZodObject<{
                 description: z.ZodOptional<z.ZodString>;
                 enabled: z.ZodOptional<z.ZodBoolean>;
-                model: z.ZodOptional<z.ZodObject<{
-                    provider: z.ZodString;
-                    model: z.ZodString;
-                }, z.core.$strip>>;
+                model: z.ZodOptional<z.ZodString>;
                 inheritParent: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>;
         }, z.core.$strip>;
@@ -308,10 +285,7 @@ export declare const wireEndpoints: {
             metadata: z.ZodOptional<z.ZodObject<{
                 description: z.ZodOptional<z.ZodString>;
                 enabled: z.ZodOptional<z.ZodBoolean>;
-                model: z.ZodOptional<z.ZodObject<{
-                    provider: z.ZodString;
-                    model: z.ZodString;
-                }, z.core.$strip>>;
+                model: z.ZodOptional<z.ZodString>;
                 inheritParent: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
         }, z.core.$strip>;

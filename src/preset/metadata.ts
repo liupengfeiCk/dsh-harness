@@ -39,37 +39,36 @@ function flag(value: unknown): boolean | undefined {
 }
 
 /**
- * A subagent's model override, aligned with the runtime `ModelSelection`
- * shape so a dispatched child can apply it directly. `provider` is the
- * registered provider route and `model` the provider-owned model id.
- * `reasoningEffort` is intentionally not carried yet.
+ * A subagent's model override, now a MODEL-PLAN id (a "模型方案") rather than a
+ * bare `{ provider, model }` pair. The plan is a fixed asset the deployment
+ * owns; the subagent binds it by id, and at delegation the child session is
+ * pointed at that plan so the model-plan merge interceptor routes the child's
+ * requests to the plan's provider/model/params (reference semantics — editing
+ * the plan changes what a bound subagent uses on its NEXT delegation).
+ *
+ * `reasoningEffort` is intentionally not carried here: it lives in the plan's
+ * params bag, not on the subagent.
  */
-export interface SubagentModel {
-  /** Registered provider route (e.g. `deepseek-official`). */
-  readonly provider: string
-  /** Provider-owned model id (e.g. `deepseek-v4`). */
-  readonly model: string
-}
+export type SubagentModel = string
 
 /**
  * Parse a subagent's stored model override.
  *
- * The current format is `{ provider, model }`. Pre-release storage may hold a
- * bare model string (the old format); that is tolerated by DISCARDING it —
- * the field reads as absent (inherit the parent) rather than crashing or
- * surfacing a value that lacks the provider the runtime needs. The discard is
- * a pre-release stance: no migration is written for a format that shipped
- * with no persisted instances in the wild.
+ * The current format is a single plan id string (e.g. `flash2`). Pre-release
+ * storage may hold the OLD `{ provider, model }` object (or an even-older bare
+ * model string without a provider); that is tolerated by DISCARDING it — the
+ * field reads as absent (inherit the parent) rather than crashing or
+ * surfacing a value the runtime can no longer route. The discard is a
+ * pre-release stance: no migration is written for a format that shipped with
+ * no persisted instances in the wild.
  * @param value - the raw `model` value from the metadata file.
- * @returns the parsed override, or undefined when absent or old-format.
+ * @returns the plan id, or undefined when absent or old-format.
  */
 function model(value: unknown): SubagentModel | undefined {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
-  const record = value as Record<string, unknown>
-  const provider = text(record.provider)
-  const id = text(record.model)
-  if (provider === undefined || id === undefined) return undefined
-  return { provider, model: id }
+  // A plan id is a bare string; anything else (the old object form, numbers,
+  // arrays) is pre-release and reads as absent. A blank string is also absent.
+  if (typeof value !== 'string') return undefined
+  return value.trim() === '' ? undefined : value.trim()
 }
 
 /** Display metadata a subagent may publish about itself. */
@@ -79,10 +78,11 @@ export interface SubagentMetadata {
   /** Whether the subagent is enabled for delegation. */
   readonly enabled?: boolean
   /**
-   * Model the dispatched child runs on. Absent leaves the child on the parent's
-   * model, which is the default and the right answer for most helpers — a
-   * heavy review task may want a deeper model than the parent's default, and
-   * the override is where that decision lives.
+   * Model-plan id the dispatched child binds. Absent leaves the child on the
+   * parent's model, which is the default and the right answer for most
+   * helpers — a heavy review task may bind a deeper plan than the parent's
+   * default, and the binding is where that decision lives. The value is a plan
+   * id (a "模型方案"), never a bare `{ provider, model }`.
    */
   readonly model?: SubagentModel
   /**
@@ -153,10 +153,11 @@ export async function readSubagentMetadata(directory: string): Promise<SubagentM
 export function renderSubagentMetadata(metadata: SubagentMetadata): string | undefined {
   const description = text(metadata.description)
   const { enabled } = metadata
-  const override = metadata.model === undefined ? undefined
-    : text(metadata.model.provider) === undefined || text(metadata.model.model) === undefined
-      ? undefined
-      : { provider: metadata.model.provider, model: metadata.model.model }
+  const override = metadata.model === undefined
+    ? undefined
+    : typeof metadata.model === 'string' && metadata.model.trim() !== ''
+      ? metadata.model.trim()
+      : undefined
   // `inheritParent` is rendered only when it is exactly `true`: `false` and
   // absent both mean "no inheritance", and writing the key for either would
   // only dirty a file that reads the same either way.

@@ -22,7 +22,8 @@ export const SUBAGENT_PRESET_CHANNEL = '/subagent-preset'
 export interface WireSubagentMetadata {
   readonly description?: string
   readonly enabled?: boolean
-  readonly model?: { provider: string; model: string }
+  /** Model-plan id the subagent binds; absent means "inherit the parent". */
+  readonly model?: string
   readonly inheritParent?: boolean
 }
 

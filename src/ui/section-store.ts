@@ -9,7 +9,7 @@
  * from the host).
  */
 
-import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
+import type { RpcResult } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SubagentPresetWire } from './wire-client.ts'
 
@@ -22,8 +22,8 @@ export interface SubagentMetadata {
   readonly description?: string
   /** Whether the subagent is enabled for delegation. */
   readonly enabled?: boolean
-  /** Model override the dispatched child runs on; absent inherits the parent's. */
-  readonly model?: SubagentModelDraft
+  /** Model-plan id the dispatched child binds; absent inherits the parent's. */
+  readonly model?: string
 }
 
 /** One subagent row the page renders. */
@@ -83,23 +83,49 @@ export interface CatalogDraft {
 }
 
 /**
- * One provider group of the model catalog, feeding the edit dialog's model
- * picker. Mirrors the wire's `ModelProviderGroup` so the picker can group its
- * options by provider.
+ * One model-plan roster row as the `/model-plan` wire reports it, narrowed to
+ * the fields the plan picker needs. Mirrored from the model-plan wire's own
+ * entry; subagents cannot import the model-plan bundle (it is a separate
+ * install), so this shape is declared here and the Host channel's value is
+ * consumed structurally.
  */
-export interface ModelChoiceGroup {
-  /** Provider route id (used for requests). */
+export interface PlanWireEntry {
+  /** The plan id, which is what the subagent stores. */
+  readonly id: string
+  /** The provider route the plan pins. */
   readonly provider: string
-  /** Provider display name. */
-  readonly providerName: string
-  /** Models in provider-preferred order. */
-  readonly models: readonly { id: string; name: string }[]
+  /** The provider-owned model id the plan pins. */
+  readonly model: string
+  /** Why the plan cannot serve a subagent, when it cannot. */
+  readonly broken?: string
 }
 
-/** A subagent's model override, aligned with the wire's `{ provider, model }`. */
-export interface SubagentModelDraft {
+/**
+ * One model-plan choice feeding the edit dialog's plan picker, mirrored from
+ * the model-plan wire's roster entry. A plan is a fixed asset: an id plus the
+ * provider/model route it pins (shown to disambiguate plans with similar ids).
+ */
+export interface PlanChoice {
+  /** The plan id, which is what the subagent stores. */
+  readonly id: string
+  /** The route the plan pins, shown as picker copy. */
   readonly provider: string
   readonly model: string
+}
+
+/**
+ * Extract the plan roster from the model-plan wire's `list` result. A failure
+ * or a non-conforming result yields an empty list — the edit dialog then offers
+ * only "inherit the parent" and stays usable, exactly as an empty deployment
+ * would. This is a defensive read of the RPC seam: subagents depend on the
+ * model-plan bundle at runtime only through this channel, never by type.
+ * @param result - the `RpcResult` the `/model-plan` list call resolved to.
+ * @returns the plan roster entries, empty on failure.
+ */
+export function plansListEntries(
+  result: RpcResult<{ plans: readonly PlanWireEntry[]; authorable: boolean }>,
+): readonly PlanWireEntry[] {
+  return result.ok ? result.value.plans : []
 }
 
 /** The edit dialog over one locally authored subagent. */
@@ -111,13 +137,13 @@ export interface EditDraft {
   /**
    * The staged display metadata, seeded from the wire's `metadata` object and
    * submitted back as one whole on save. `description` is always a string (an
-   * empty one clears the stored value); `model` is `undefined` when the user
-   * has never picked one or chose "inherit the parent" (also a clear), and a
-   * `{ provider, model }` object otherwise.
+   * empty one clears the stored value); `model` is a plan id string when the
+   * user picked a model-plan, and `undefined` when they have not or chose
+   * "inherit the parent" (also a clear).
    */
   metadata: {
     description: string
-    model?: SubagentModelDraft
+    model?: string
     enabled?: boolean
     /**
      * Whether the delegated child also inherits the main agent's preset before
@@ -127,8 +153,8 @@ export interface EditDraft {
      */
     inheritParent: boolean
   }
-  /** Every available model the deployment knows, grouped by provider. */
-  modelChoices: readonly ModelChoiceGroup[]
+  /** Every model-plan the deployment supplies, for the plan picker. */
+  planChoices: readonly PlanChoice[]
   /** Staged persona text, when the composition carries a persona row. */
   persona?: string
   /** Every tool row in the composition, with its enabled state. */
@@ -203,42 +229,36 @@ export function createBlocker(
 }
 
 /**
- * Map the host's model-catalog groups to the edit dialog's grouped choices,
- * clipping each model to the id/name pair the picker renders. This drops the
- * catalog's per-model reasoning metadata, which the subagent override does not
- * carry yet.
- * @param groups - the `llm.models` provider groups.
- * @returns the grouped choices, provider-preferred order preserved.
+ * Map the model-plan wire's roster entries to the edit dialog's plan choices.
+ * A plan's picker copy shows its id plus the provider/model route it pins, so
+ * a person can tell similarly-named plans apart. The plan id is the stored
+ * value; the route is display-only.
+ * @param plans - the model-plan roster entries.
+ * @returns the plan choices for the picker, roster order preserved.
  */
-function modelChoicesFrom(groups: readonly {
+export function planChoicesFrom(plans: readonly {
   id: string
-  name: string
-  models: readonly { id: string; name: string }[]
-}[]): readonly ModelChoiceGroup[] {
-  return groups.map(group => ({
-    provider: group.id,
-    providerName: group.name,
-    models: group.models.map(model => ({ id: model.id, name: model.name })),
-  }))
-}
-
-/** The optgroup-encoded option value for one provider/model pick. */
-export function modelOptionValue(pick: SubagentModelDraft): string {
-  return `${pick.provider}\u0000${pick.model}`
-}
-
-/** Decode an optgroup-encoded option value back to provider/model. */
-function modelOptionDecode(value: string): SubagentModelDraft | undefined {
-  if (value === '') return undefined
-  const separator = value.indexOf('\u0000')
-  if (separator === -1) return undefined
-  const provider = value.slice(0, separator)
-  const model = value.slice(separator + 1)
-  return provider === '' || model === '' ? undefined : { provider, model }
+  provider: string
+  model: string
+  broken?: string
+}[]): readonly PlanChoice[] {
+  return plans
+    .filter(plan => plan.broken === undefined)
+    .map(plan => ({ id: plan.id, provider: plan.provider, model: plan.model }))
 }
 
 /** The empty option value that restores "inherit the parent's model". */
 export const INHERIT_MODEL_VALUE = ''
+
+/**
+ * The model-plan roster wire the edit dialog reads. This is the only seam
+ * where the subagent surface reaches the model-plan bundle: a single `list`
+ * over the `/model-plan` channel, consumed structurally (subagents do not
+ * import the model-plan bundle's types).
+ */
+export interface PlanListWire {
+  list(payload: Record<string, never>): Promise<RpcResult<{ plans: readonly PlanWireEntry[]; authorable: boolean }>>
+}
 
 /** Reads the roster and drives the create, edit, toggle, delete, and location reveals. */
 export class SubagentSectionController {
@@ -246,7 +266,9 @@ export class SubagentSectionController {
   readonly store: SnapshotStore<SubagentSectionState> = createSnapshotStore(INITIAL)
 
   constructor(
-    private readonly api: Pick<IApiClient, 'llm'> & { subagentPresets: SubagentPresetWire },
+    private readonly api: { subagentPresets: SubagentPresetWire },
+    /** The model-plan wire, for the edit dialog's plan picker. */
+    private readonly plans: PlanListWire,
     /** Called after this page changes the roster, so sibling surfaces re-read. */
     private readonly rosterChanged: () => void = () => {},
   ) {}
@@ -414,22 +436,20 @@ export class SubagentSectionController {
     const row = this.store.getSnapshot().rows.find(candidate => candidate.id === id)
     this.set({ error: null, edit: null })
     try {
-      const [editableResult, modelsResponse] = await Promise.all([
+      const [editableResult, plansResult] = await Promise.all([
         this.api.subagentPresets.readEditable({ subagent: id }),
-        this.api.llm.models({}),
+        this.plans.list({}),
       ])
       if (!editableResult.ok) {
         this.set({ error: editableResult.error.message })
         return
       }
       const value = editableResult.value
-      // The model picker is fed from the live catalog so the options a subagent
-      // may choose never drift from what the deployment actually serves. A
-      // catalog failure leaves the "inherit the parent" entry alone; the edit
-      // dialog stays usable, it just offers no concrete models.
-      const groups = modelsResponse.result.ok
-        ? modelChoicesFrom(modelsResponse.result.value.groups)
-        : []
+      // The plan picker is fed from the model-plan roster so the plans a
+      // subagent may bind never drift from what the deployment actually serves.
+      // A plan-list failure leaves the "inherit the parent" entry alone; the
+      // edit dialog stays usable, it just offers no concrete plans.
+      const plans = planChoicesFrom(plansListEntries(plansResult))
       this.set({
         edit: {
           id,
@@ -443,7 +463,7 @@ export class SubagentSectionController {
           ...value.persona === undefined ? {} : { persona: value.persona.text },
           tools: value.tools.map(toolToDraft),
           catalog: value.catalog.map(catalogToDraft),
-          modelChoices: groups,
+          planChoices: plans,
           installTools: new Set<string>(),
           removeTools: new Set<string>(),
           saving: false,
@@ -494,10 +514,10 @@ export class SubagentSectionController {
     if (scope === 'model') {
       // An empty pick reverts to the parent's default: it stages `undefined`
       // so save clears the stored model rather than leaving it alone. A
-      // concrete pick decodes the optgroup-encoded value back to provider/model.
-      const decoded = modelOptionDecode(String(value))
+      // concrete pick stores the plan id string directly.
+      const planId = typeof value === 'string' ? value.trim() : ''
       this.patchEdit({
-        metadata: { ...edit.metadata, ...decoded === undefined ? {} : { model: decoded } },
+        metadata: { ...edit.metadata, ...planId === '' ? {} : { model: planId } },
         error: null,
       })
       return

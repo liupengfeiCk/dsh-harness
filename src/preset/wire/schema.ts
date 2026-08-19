@@ -26,7 +26,8 @@ export type WireResult<T> = RpcResult<T>
 export interface WireSubagentMetadata {
   readonly description?: string
   readonly enabled?: boolean
-  readonly model?: { provider: string; model: string }
+  /** Model-plan id the subagent binds; absent means "inherit the parent". */
+  readonly model?: string
   readonly inheritParent?: boolean
 }
 
@@ -58,7 +59,7 @@ export interface WireCatalogTool {
 export const wireSubagentMetadataSchema = z.object({
   description: z.string().optional(),
   enabled: z.boolean().optional(),
-  model: z.object({ provider: z.string(), model: z.string() }).optional(),
+  model: z.string().optional(),
   inheritParent: z.boolean().optional(),
 })
 

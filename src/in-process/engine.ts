@@ -25,7 +25,6 @@ import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { foldConsumedWork } from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
-import { installModelSelection, type ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { SessionId, type SessionEvent, type TurnEndReason } from '@deepseek-ai/dsh-session'
 import { createUserMessage, type ContentBlock } from '@deepseek-ai/dsh-llm'
 import {
@@ -225,18 +224,13 @@ export async function setupChildComposition(
     if (mounted?.metadata.inheritParent === true) {
       childCtx.get('agentPresets')?.composeFrom(childCtx, parent.ctx)
     }
-    // A named subagent may carry its own model override. When it does, couple
-    // that fixed provider/model pair to the child's own scope so the child's
-    // requests route to the selected model instead of the parent's. Absent an
-    // override the child inherits the parent's model.
-    const override = mounted?.metadata.model
-    if (override !== undefined) {
-      const selection: ModelSelectionRef = {
-        current: { provider: override.provider, model: override.model },
-        assembled: undefined,
-      }
-      installModelSelection(childCtx, selection)
-    }
+    // A named subagent may bind a model-plan (its metadata `model` is a plan
+    // id). The binding was recorded onto the child session as a log-only
+    // `model-plan/select` event inside {@link mountSubagentOnChild}; the
+    // model-plan merge interceptor (registered on every `agent/request`) reads
+    // it and routes the child's requests to the plan's provider/model/params.
+    // An unbound subagent (no plan id) inherits the parent's model — the
+    // existing inheritance path, untouched.
   }
   // Order 120: after the sandbox:policy (110) and approval:policy (115) sentences.
   childCtx.systemPrompt.context({ name: 'subagent:delegation', order: 120, text: SUBAGENT_DELEGATION_CONTEXT })

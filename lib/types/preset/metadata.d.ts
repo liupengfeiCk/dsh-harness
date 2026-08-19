@@ -21,17 +21,17 @@
 /** The optional metadata file beside a subagent's composition. */
 export declare const METADATA_FILE = "subagent.yml";
 /**
- * A subagent's model override, aligned with the runtime `ModelSelection`
- * shape so a dispatched child can apply it directly. `provider` is the
- * registered provider route and `model` the provider-owned model id.
- * `reasoningEffort` is intentionally not carried yet.
+ * A subagent's model override, now a MODEL-PLAN id (a "模型方案") rather than a
+ * bare `{ provider, model }` pair. The plan is a fixed asset the deployment
+ * owns; the subagent binds it by id, and at delegation the child session is
+ * pointed at that plan so the model-plan merge interceptor routes the child's
+ * requests to the plan's provider/model/params (reference semantics — editing
+ * the plan changes what a bound subagent uses on its NEXT delegation).
+ *
+ * `reasoningEffort` is intentionally not carried here: it lives in the plan's
+ * params bag, not on the subagent.
  */
-export interface SubagentModel {
-    /** Registered provider route (e.g. `deepseek-official`). */
-    readonly provider: string;
-    /** Provider-owned model id (e.g. `deepseek-v4`). */
-    readonly model: string;
-}
+export type SubagentModel = string;
 /** Display metadata a subagent may publish about itself. */
 export interface SubagentMetadata {
     /** One sentence on what this subagent is for. */
@@ -39,10 +39,11 @@ export interface SubagentMetadata {
     /** Whether the subagent is enabled for delegation. */
     readonly enabled?: boolean;
     /**
-     * Model the dispatched child runs on. Absent leaves the child on the parent's
-     * model, which is the default and the right answer for most helpers — a
-     * heavy review task may want a deeper model than the parent's default, and
-     * the override is where that decision lives.
+     * Model-plan id the dispatched child binds. Absent leaves the child on the
+     * parent's model, which is the default and the right answer for most
+     * helpers — a heavy review task may bind a deeper plan than the parent's
+     * default, and the binding is where that decision lives. The value is a plan
+     * id (a "模型方案"), never a bare `{ provider, model }`.
      */
     readonly model?: SubagentModel;
     /**
