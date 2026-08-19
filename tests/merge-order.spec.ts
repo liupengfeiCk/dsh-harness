@@ -20,6 +20,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { agentEvents } from '@deepseek-ai/dsh-agent'
 import { createMergeHandler } from '../src/merge.ts'
 import type { PlanParams } from '../src/types.ts'
 
@@ -105,6 +106,38 @@ describe('agent/request waterfall ordering: merge vs official model-selection', 
       agentCtx.on('agent/request', handler, { prepend: true })
       const result = await fireRequest(agentCtx)
       expect(result.provider).toBe('deepseek-official')
+      expect(result.model).toBe('deepseek-v4-flash')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('with prepend, dispatched through the real agentEvents scope carrier, the plan provider wins', async () => {
+    const ctx = new Context()
+    // Simulate the agent's scoped context as a child of the loop context.
+    const agentCtx = ctx.extend()
+    const agent = {
+      id: 'agent-1',
+      ctx: agentCtx,
+      session: { events: [] },
+      // A permissive filter so both listeners (official selection + merge) pass.
+      [Context.filter]: () => true,
+    } as unknown as { id: string; ctx: Context; session: { events: unknown[] } }
+    try {
+      // Official model-selection registered during setup (BEFORE the merge hook).
+      agentCtx.on('agent/request', async (_payload: unknown, next: () => Promise<any>) => {
+        const resolved = await next()
+        return { ...resolved, provider: 'deepseek-official', model: 'deepseek-v4-flash' }
+      })
+      // Merge registered with prepend in the agent/created hook.
+      agentCtx.on('agent/request', buildMergeHandler(), { prepend: true })
+      const dispatcher = agentEvents(ctx, agent)
+      const result = await dispatcher.waterfall(
+        'agent/request',
+        { turn: 1, step: 0, signal: new AbortController().signal },
+        () => Promise.resolve({ provider: 'seed-provider', model: 'seed-model' }),
+      )
+      expect(result.provider).toBe('tencent')
       expect(result.model).toBe('deepseek-v4-flash')
     } finally {
       await ctx.fiber.dispose()
