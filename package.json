@@ -27,9 +27,6 @@
   },
   "files": [
     "lib/index.js",
-    "lib/wire/index.js",
-    "lib/merge.js",
-    "lib/selection.js",
     "lib/types/**/*.js",
     "lib/types/**/*.d.ts",
     "cordis.patch.yml"

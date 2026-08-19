@@ -8,11 +8,12 @@ import { buildFace, clientLibraryConfig } from '../../client/tsdown.client.ts'
 export default (({ env }) => {
   const face = buildFace(env?.DSH_BUILD_FACE)
   if (face === 'client') return [{ entry: '' }]
-  return [clientLibraryConfig('dsh-harness-model-plan-bundle', [
-    'lib/types/index.js',
-    'lib/types/types.js',
-    'lib/types/merge.js',
-    'lib/types/selection.js',
-    'lib/types/wire/index.js',
-  ])]
+  // One host entry, like dsh-harness-hot-bundle: the Loader imports the
+  // package's main export (the `modelPlans` service + merge + wire rows), so
+  // a single self-contained entry avoids an unstable hashed shared chunk (a
+  // hashed chunk would sit outside the published `files` allowlist and break
+  // the installed profile at runtime). Subpath exports (`./wire`, `./merge`,
+  // `./selection`) resolve the tsc-emitted `lib/types/*.js` directly, exactly
+  // as the subagent and hot bundles do.
+  return [clientLibraryConfig('dsh-harness-model-plan-bundle', ['lib/types/index.js'])]
 })
