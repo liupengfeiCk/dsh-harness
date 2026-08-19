@@ -209,7 +209,15 @@
 }
 
 .empty {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   font-size: 12px;
   color: var(--dsw-alias-text-tertiary);
   padding: 4px 8px;
+}
+
+.emptyHint {
+  font-size: 11px;
+  color: var(--dsw-alias-text-tertiary);
 }

@@ -1,6 +1,6 @@
 {
   "name": "dsh-harness-model-plan-bundle",
-  "description": "The Harness-owned model-plan bundle: a user-defined registry of model plans (固定资产) that bind a session to a provider/model plus a bag of params, with a durable per-session account ledger, a merge interceptor that layers session overrides over plan params over model defaults, and a /model-plan wire for the management surface. Pure host package — the bundle's substance is `cordis.patch.yml` (declared by `dsh.bundle.patch`) plus the `modelPlans` service, its merge interceptor, and the `/model-plan` channel.",
+  "description": "The Harness-owned model-plan bundle: a user-defined registry of model plans (固定资产) that bind a session to a provider/model plus a bag of params, with a durable per-session account ledger, a merge interceptor that layers session overrides over plan params over model defaults, and a /model-plan wire for the management surface. Host + client package — the node half is `cordis.patch.yml` (declared by `dsh.bundle.patch`) plus the `modelPlans` service, its merge interceptor, and the `/model-plan` channel; the browser half is the settings section and the composer model-seat selector (`dsh.client`).",
   "version": "0.1.0",
   "type": "module",
   "main": "lib/index.js",

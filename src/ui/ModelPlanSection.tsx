@@ -357,15 +357,17 @@ export function ModelPlanSection(props: ModelPlanSectionProps): ReactNode {
 
   if (state.status === 'loading') return <div>{t('loading')}</div>
   if (state.status === 'error') return <div style={{ color: 'var(--dsw-alias-state-error-primary)' }}>{t('error')}</div>
-  if (state.status === 'unavailable') return <div>{t('unavailable')}</div>
-  if (state.status !== 'ready') return null
+  // An empty roster is a valid deployment (status 'unavailable'): it still
+  // renders the full page — title, empty-state copy, the create button, and
+  // the create dialog — so the user can author the first plan.
+  if (state.status !== 'ready' && state.status !== 'unavailable') return null
 
   const dialog = state.dialog
 
   return (
     <div className={css.section}>
       <h2 className={css.title}>{t('nav')}</h2>
-      <p className={css.intro}>{t('sectionIntro')}</p>
+      <p className={css.intro}>{state.status === 'unavailable' ? t('unavailable') : t('sectionIntro')}</p>
       <ul className={css.cards}>
         {state.rows.map(row => (
           <PlanCard

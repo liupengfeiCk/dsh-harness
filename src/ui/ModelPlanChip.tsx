@@ -146,7 +146,12 @@ export function ModelPlanChip({ locked, useModelPlanChip, t, load, select }: Mod
           {state.status === 'error' && <div className={css.error}>{t('error')}</div>}
           <div className={css.plans}>
             {state.options.length === 0
-              ? <div className={css.empty}>{t('noPlans')}</div>
+              ? (
+                <div className={css.empty}>
+                  <div>{t('noPlans')}</div>
+                  <div className={css.emptyHint}>{t('noPlansHint')}</div>
+                </div>
+              )
               : state.options.map(option => {
                 const selected = option.id === state.planId
                 const broken = option.broken !== undefined

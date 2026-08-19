@@ -18,7 +18,7 @@ export type ModelPlanKey =
   | 'setDefault' | 'defaultLabel'
   | 'delete' | 'deleteTitle' | 'deleteDescription' | 'deleteConfirm' | 'deleting'
   | 'idRequired' | 'modelRequired'
-  | 'noPlans' | 'paramSummary' | 'paramCount'
+  | 'noPlans' | 'noPlansHint' | 'paramSummary' | 'paramCount'
   | 'customKeyNote'
   | 'seatPrefix' | 'seatEmpty' | 'seatHint' | 'seatLocked' | 'seatSelect' | 'seatSelectAria'
   | 'seatOverrides' | 'seatOverrideHint' | 'seatClearOverrides' | 'seatSelectRejected'
@@ -83,6 +83,7 @@ export const en: Record<ModelPlanKey, string> = {
   idRequired: 'Give the plan an id.',
   modelRequired: 'Pick a model.',
   noPlans: 'No plans yet — create one to bind a session to a fixed model.',
+  noPlansHint: 'Create one in Settings → Model plans.',
   paramSummary: 'params',
   paramCount: 'params',
   customKeyNote:
@@ -158,6 +159,7 @@ export const zh: Record<ModelPlanKey, string> = {
   idRequired: '请填写方案 id。',
   modelRequired: '请选择一个型号。',
   noPlans: '还没有方案——创建一个，即可把会话绑定到固定型号。',
+  noPlansHint: '请到「设置 → 模型方案」里创建。',
   paramSummary: '个参数',
   paramCount: '个参数',
   customKeyNote:
