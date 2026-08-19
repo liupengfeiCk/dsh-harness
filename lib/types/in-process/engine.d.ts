@@ -39,6 +39,17 @@ export interface ChildComposition {
     readonly toolFilter?: import('@deepseek-ai/dsh-tools').ToolRestriction | undefined;
     /** User-defined subagent id whose plugin tree mounts onto the child's own scope. */
     readonly subagent?: string | undefined;
+    /**
+     * Issuance-gate grant (rule 2): when present, the child is a team role at
+     * level >= 2 and the `team_delegate` tool is mounted onto the child's own
+     * scope so it can delegate down. Level-1 children carry no grant, so they
+     * never get the delegation tool.
+     */
+    readonly teamDelegation?: {
+        team: string;
+        provider: string;
+        toolName: string;
+    } | undefined;
 }
 /**
  * Compose one child inside its creation window, honouring the inheritance

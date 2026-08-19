@@ -291,7 +291,12 @@ interface MaterializeInputs {
     delegatedPolicies: DelegatedPolicyOverrides
   }
   agentOptions: AgentOptions
-  composition: { persona?: string | undefined; toolFilter?: ToolRestriction | undefined; subagent?: string | undefined }
+  composition: {
+    persona?: string | undefined
+    toolFilter?: ToolRestriction | undefined
+    subagent?: string | undefined
+    teamDelegation?: { team: string; provider: string; toolName: string } | undefined
+  }
   signal: AbortSignal
 }
 
@@ -499,7 +504,12 @@ export class SubagentContinuationManager {
         parent,
         create: { seed, meta: childSessionMeta(parent, childDepth, lineageSeedLength), delegatedPolicies },
         agentOptions: resolveChildAgentOptions(parent, request.agentOptions, childDepth),
-        composition: { persona: request.persona, toolFilter: request.toolFilter, subagent: request.subagent },
+        composition: {
+          persona: request.persona,
+          toolFilter: request.toolFilter,
+          subagent: request.subagent,
+          teamDelegation: request.teamDelegation,
+        },
         signal: spec.signal,
       })
       return this.submitMaterialized(
@@ -1006,7 +1016,7 @@ export class SubagentContinuationManager {
    */
   private async resolveResumeComposition(
     descriptor: HarnessContinuableSubagentDescriptorData,
-  ): Promise<{ persona?: string | undefined; toolFilter?: ToolRestriction | undefined; subagent?: string | undefined }> {
+  ): Promise<{ persona?: string | undefined; toolFilter?: ToolRestriction | undefined; subagent?: string | undefined; teamDelegation?: { team: string; provider: string; toolName: string } | undefined }> {
     const base = {
       persona: descriptor.persona,
       toolFilter: descriptor.toolFilter,
@@ -1019,11 +1029,19 @@ export class SubagentContinuationManager {
     if (teams === undefined) return base
     try {
       const role = await teams.resolveRoleDefinition(descriptor.team, descriptor.role)
+      // Issuance gate on the cold path (rule 2): a level >= 2 role re-grants the
+      // `team_delegate` tool on resume; a level-1 role (now or after an edit)
+      // never does. The grant is re-derived from the CURRENT role definition, so
+      // a role edited across a resume gets the right tool either way.
+      const teamDelegation = role.level >= 2
+        ? { team: descriptor.team, provider: descriptor.provider, toolName: 'team_delegate' }
+        : undefined
       return {
         ...base.toolFilter !== undefined ? { toolFilter: base.toolFilter } : {},
         // The team's latest definition wins when it carries a subagent.
         ...role.subagent !== '' ? { subagent: role.subagent } : base.subagent !== undefined ? { subagent: base.subagent } : {},
         ...role.prompt !== undefined ? { persona: role.prompt } : base.persona !== undefined ? { persona: base.persona } : {},
+        ...teamDelegation !== undefined ? { teamDelegation } : {},
       }
     } catch {
       return base

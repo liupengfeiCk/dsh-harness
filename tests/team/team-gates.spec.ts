@@ -152,20 +152,29 @@ async function assembleFor(ctx: Context, agent: Agent): Promise<string> {
 }
 
 describe('team hierarchy gates', () => {
-  it('issues the delegation tool to a level>=2 role child (no deny filter)', async () => {
+  it('grants the delegation tool to a level>=2 role child (teamDelegation mount)', async () => {
     const { ctx, seen } = await setup()
-    // boss -> lead (level 2): lead must GET the tool (no deny filter).
+    // boss -> lead (level 2): lead must be granted team_delegate. The grant
+    // signal is the `teamDelegation` field on the request, which rides the seam
+    // to the child composition (where the team tool is mounted). The runtime
+    // consumes the toolFilter to scope the child, so the grant itself is what
+    // we assert here.
     const result = await callTeam(ctx, { role: 'lead', description: 'lead up', prompt: 'coordinate' })
     expect(result.isError).toBe(false)
-    expect(seen()?.toolFilter).toBeUndefined()
+    expect(seen()?.teamDelegation).toEqual({ team: 'edit', provider: 'capture', toolName: 'team_delegate' })
+    expect(seen()?.role).toBe('lead')
+    expect(seen()?.team).toBe('edit')
   })
 
-  it('withholds the delegation tool from a level-1 role child (deny filter)', async () => {
+  it('withholds the delegation tool from a level-1 role child (no grant)', async () => {
     const { ctx, seen } = await setup()
-    // boss -> scout (level 1): scout must NOT get team_delegate.
+    // boss -> scout (level 1): scout gets NO team_delegate grant — it can only
+    // be delegated to. (The runtime also scopes its delegation tools off.)
     const result = await callTeam(ctx, { role: 'scout', description: 'scout', prompt: 'go look' })
     expect(result.isError).toBe(false)
-    expect(seen()?.toolFilter).toEqual({ deny: ['team_delegate'] })
+    expect(seen()?.teamDelegation).toBeUndefined()
+    expect(seen()?.role).toBe('scout')
+    expect(seen()?.team).toBe('edit')
   })
 
   it('lets a level>=2 role delegate to a strictly-lower-level role', async () => {
@@ -222,26 +231,29 @@ describe('team hierarchy gates', () => {
     expect(text(result)).toContain('Team 模式')
   })
 
-  it('persists the level-1 deny filter through the durable descriptor (cold-resume path)', async () => {
+  it('persists the issuance grant/deny through the durable descriptor (cold-resume path)', async () => {
     // The issuance filter must survive a cold-resume re-composition: it is
-    // persisted in the harness descriptor's toolFilter, and re-applied when the
-    // child is reassembled. Assert the descriptor round-trip carries it.
+    // persisted in the harness descriptor's toolFilter, and the grant is
+    // re-derived from the CURRENT role level. Assert the descriptor round-trip
+    // carries both.
     const { snapshotHarnessSubagentDescriptor } = await import('../../src/in-process/descriptor.ts')
-    const descriptor = snapshotHarnessSubagentDescriptor({
+    const scoutDescriptor = snapshotHarnessSubagentDescriptor({
       mode: 'continuable',
       provider: 'capture',
       label: 'x',
       team: 'edit',
       role: 'scout',
-      toolFilter: { deny: ['team_delegate'] },
+      toolFilter: { deny: ['delegate', 'delegate_fork', 'team_delegate'] },
     })
-    expect(descriptor.toolFilter).toEqual({ deny: ['team_delegate'] })
-    expect(descriptor.role).toBe('scout')
-    // And a level>=2 role persists NO deny filter.
+    expect(scoutDescriptor.toolFilter).toEqual({ deny: ['delegate', 'delegate_fork', 'team_delegate'] })
+    expect(scoutDescriptor.role).toBe('scout')
+    // A level>=2 role persists the standard-tool denial (its only delegation
+    // surface is team_delegate, re-granted on resume from its level).
     const leadDescriptor = snapshotHarnessSubagentDescriptor({
       mode: 'continuable', provider: 'capture', label: 'x', team: 'edit', role: 'lead',
+      toolFilter: { deny: ['delegate', 'delegate_fork'] },
     })
-    expect(leadDescriptor.toolFilter).toBeUndefined()
+    expect(leadDescriptor.toolFilter).toEqual({ deny: ['delegate', 'delegate_fork'] })
   })
 })
 

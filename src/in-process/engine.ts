@@ -44,6 +44,10 @@ import type {
   SubagentStopReason,
 } from '@deepseek-ai/dsh-subagent'
 import type { HarnessResolvedSubagentStartRequest } from './request-types.ts'
+// The team tool is mounted onto level >= 2 team-role children so they can
+// delegate down (issuance gate, rule 2). The tool module does not import this
+// engine module, so this edge does not create a cycle.
+import * as teamTool from '../team/tool.ts'
 // Type-only: make `ctx.get('agentPresets')` / `ctx.get('subagentPresets')` resolve
 // to their registries when composed — a child inherits its parent's composition
 // and may mount a named subagent's plugin tree opportunistically (the documented
@@ -110,6 +114,13 @@ export interface ChildComposition {
   readonly toolFilter?: import('@deepseek-ai/dsh-tools').ToolRestriction | undefined
   /** User-defined subagent id whose plugin tree mounts onto the child's own scope. */
   readonly subagent?: string | undefined
+  /**
+   * Issuance-gate grant (rule 2): when present, the child is a team role at
+   * level >= 2 and the `team_delegate` tool is mounted onto the child's own
+   * scope so it can delegate down. Level-1 children carry no grant, so they
+   * never get the delegation tool.
+   */
+  readonly teamDelegation?: { team: string; provider: string; toolName: string } | undefined
 }
 
 /**
@@ -175,6 +186,23 @@ export async function setupChildComposition(
     childCtx.systemPrompt.section({ name: 'deployment:persona', order: 0, text: composition.persona })
   }
   if (composition.toolFilter !== undefined) childCtx.tools.restrict(composition.toolFilter)
+  // Issuance gate (rule 2): a team-role child at level >= 2 gets the
+  // `team_delegate` tool mounted onto its OWN scope — the team tool is a host
+  // tool that does not propagate to subagent children on its own, so it must be
+  // explicitly granted here. A level-1 child carries no grant and therefore
+  // never receives the delegation tool. Mounting the full plugin also renders
+  // the reader-aware authority table (rule 4) and the execution gate (rule 3)
+  // inside the child.
+  if (composition.teamDelegation !== undefined) {
+    childCtx.plugin(teamTool, {
+      team: composition.teamDelegation.team,
+      provider: composition.teamDelegation.provider,
+      toolName: composition.teamDelegation.toolName,
+      // The hierarchy's own level ordering is the recursion guard; do not stack
+      // a second hard cap that could clamp a legitimate chain.
+      maxDepth: 'provider-managed',
+    })
+  }
 }
 
 /** Append one one-shot descriptor inside the child's initial turn before its first request. */
@@ -225,6 +253,7 @@ export async function startInProcessRun(
       persona: request.persona,
       toolFilter: request.toolFilter,
       subagent: request.subagent,
+      teamDelegation: request.teamDelegation,
     })
     if (request.outputSchema !== undefined) {
       structured = attachStructuredRuntime(childCtx, request.outputSchema)

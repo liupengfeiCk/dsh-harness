@@ -30,6 +30,13 @@ export interface HarnessSubagentStartRequest extends SubagentStartRequest {
   readonly team?: string
   /** Role id within the team (persistent-role identity). */
   readonly role?: string
+  /**
+   * Issuance-gate grant (rule 2): present only when the composed child is a
+   * team role at level >= 2, telling the child composition to mount the
+   * `team_delegate` tool onto the child's own scope. Level-1 roles never carry
+   * this field, so they never get the delegation tool.
+   */
+  readonly teamDelegation?: { team: string; provider: string; toolName: string } | undefined
 }
 
 /** The provider-facing one-shot request after the harness service resolves the descriptor. */
@@ -40,4 +47,6 @@ export interface HarnessResolvedSubagentStartRequest extends ResolvedSubagentSta
   readonly team?: string
   /** Role id within the team (persistent-role identity). */
   readonly role?: string
+  /** Issuance-gate grant for a level >= 2 team-role child (rule 2). */
+  readonly teamDelegation?: { team: string; provider: string; toolName: string } | undefined
 }

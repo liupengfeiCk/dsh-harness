@@ -47,7 +47,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 // The session-level delegation surface: `team_delegate` is the team surface's
 // tool and must refuse a `standard` session (whose delegation runs on
 // `delegate`/`delegate_fork` instead).
-import { currentTeamMode } from './mode.ts'
+import { currentTeamMode, STANDARD_TOOLS } from './mode.ts'
 
 export const name = 'team-in-process-tool'
 export const inject = ['tools', 'subagents', 'systemPrompt']
@@ -467,13 +467,23 @@ export function apply(ctx: Context, config: Config): void {
         }
 
         const maxDepth = typeof config.maxDepth === 'number' ? config.maxDepth : undefined
-        // Issuance gate (rule 2): compose the delegation tool INTO the child by
-        // level. Level 1 roles cannot delegate at all — deny `team_delegate` on
-        // the child's scope so it is simply not offered. Level >= 2 roles get it
-        // automatically (no deny filter; they inherit the host tool). The filter
-        // is persisted in the child's descriptor, so a cold-resume re-composition
-        // re-applies the same grant/deny (rule 2 cold path).
-        const toolFilter = role.level < 2 ? { deny: [toolName] } : undefined
+        // Issuance gate (rule 2). The team tool is a HOST tool that does not
+        // propagate to subagent children on its own, so it is explicitly granted
+        // per level:
+        //   - a level >= 2 role child is granted `team_delegate` (mounted onto
+        //     its own scope via the teamDelegation composition field) and denied
+        //     the STANDARD delegation tools, so its only delegation surface is
+        //     the team one (same convention as the boss in team mode);
+        //   - a level-1 role child is denied both `team_delegate` and the
+        //     standard delegation tools — it can only be delegated to, never
+        //     delegate.
+        // The filter is persisted in the child's descriptor (rule 2 cold path)
+        // and the grant is re-derived on resume from the role's CURRENT level.
+        const denySet = [...STANDARD_TOOLS, ...(role.level < 2 ? [toolName] : [])]
+        const toolFilter = { deny: denySet }
+        const teamDelegation = role.level >= 2
+          ? { team: teamId, provider: config.provider, toolName }
+          : undefined
         // The request composes the child from BOTH the role's subagent (a
         // subagent id mounted onto the child) and its prompt (a persona
         // injected as the child's shadowing persona). The team/role identity
@@ -487,7 +497,8 @@ export function apply(ctx: Context, config: Config): void {
           ...role.subagent !== '' ? { subagent: role.subagent } : {},
           ...role.prompt !== undefined ? { persona: role.prompt } : {},
           ...{ team: teamId, role: role.id },
-          ...toolFilter !== undefined ? { toolFilter } : {},
+          ...toolFilter,
+          ...teamDelegation !== undefined ? { teamDelegation } : {},
           ...maxDepth !== undefined ? { maxDepth } : {},
         }
 
