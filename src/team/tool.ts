@@ -24,6 +24,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { getTraceable } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
@@ -236,31 +237,46 @@ export function apply(ctx: Context, config: Config): void {
   const backgroundEnabled = config.enableRunInBackground !== false
   const toolName = config.toolName ?? 'team_delegate'
   let disposeTool: (() => void) | undefined
-  // Synchronous model-facing catalogue of the bound team's roles, refreshed by
+  // Synchronous model-facing catalogues, keyed by team id, refreshed by
   // {@link refreshRoleCatalogue} (see the `tool:<name>:roles` section). Lists
   // only non-broken roles; the bare subagent roster is never shown.
-  let roleCatalogue = ''
-  /** Re-read the team's roles into the synchronous prompt-section cache. */
+  const roleCatalogues = new Map<string, string>()
+  /** Re-read the team roles into the synchronous prompt-section cache. */
   const refreshRoleCatalogue = (): void => {
-    const teams = ctx.get('teams')
+    // The `teams` service and the `tools` registry may sit behind a cordis
+    // shadow on a hot-mounted Include fiber (the shadow chains through
+    // `ctx.extend` in the harness-hot wire and would otherwise make a bare
+    // `ctx.get('teams')` or `ctx.tools.get(...)` miss). `getTraceable(ctx, ctx)`
+    // strips the shadow back to the original fiber so a hot re-mount reads the
+    // same service map a boot mount would — mirrors `HarnessHot.hostCtx()`.
+    const traceableCtx = getTraceable(ctx, ctx) as Context
+    const teams = traceableCtx.get('teams')
     if (teams === undefined) {
-      roleCatalogue = ''
+      roleCatalogues.clear()
       return
     }
     teams.list().then((rows) => {
-      const team = rows.find(row => row.id === config.team)
-      // A missing, broken, or disabled team contributes no role catalogue — the
-      // model must not be offered roles it cannot actually delegate to.
-      if (team === undefined || team.broken !== undefined || team.metadata.enabled === false) {
-        roleCatalogue = ''
-        return
+      // The catalogue is keyed by team id, NOT by the tool's static
+      // `config.team`. A deployment binds a session to its team through the
+      // durable `subagent-team/mode` event (team id), while `config.team` is
+      // only the tool row's static default (often left at the sample value);
+      // filtering the roster by `config.team` would miss the session's actual
+      // team and drop the catalogue to empty. The prompt section resolves the
+      // per-session team id from the mode fold, so every composed team can be
+      // listed here.
+      roleCatalogues.clear()
+      for (const team of rows) {
+        // A missing, broken, or disabled team contributes no role catalogue —
+        // the model must not be offered roles it cannot actually delegate to.
+        if (team.broken !== undefined || team.metadata.enabled === false) continue
+        const displayName = team.metadata.name ?? team.id
+        const lines = team.roles
+          .filter(role => role.broken === undefined)
+          .map(role => `- ${role.id}: ${role.description ?? role.prompt ?? role.id}`)
+        roleCatalogues.set(team.id, lines.length === 0
+          ? ''
+          : `You are on team "${displayName}" (id: ${team.id}). Its roles (pass one as the \`role\` argument to ${toolName} to compose that child from the role's subagent and prompt):\n${lines.join('\n')}`)
       }
-      const lines = team.roles
-        .filter(role => role.broken === undefined)
-        .map(role => `- ${role.id}: ${role.description ?? role.prompt ?? role.id}`)
-      roleCatalogue = lines.length === 0
-        ? ''
-        : `Team "${team.id}" roles (pass one as the \`role\` argument to ${toolName} to compose that child from the role's subagent and prompt):\n${lines.join('\n')}`
     }).catch(() => {
       // A registry read failure leaves the last catalogue; never a broken prompt.
     })
@@ -351,19 +367,28 @@ export function apply(ctx: Context, config: Config): void {
         // here as the authoritative gate, so a call that reached the body anyway
         // surfaces the right remedy. A sessionless caller reads standard and is
         // refused.
-        if (parent.session === undefined || currentTeamMode(parent.session.events).mode !== 'team') {
+        const state = parent.session === undefined ? undefined : currentTeamMode(parent.session.events)
+        if (state === undefined || state.mode !== 'team' || state.team === undefined) {
           throw new Error('此会话未处于 Team 模式，请用 delegate')
         }
-        const teams = ctx.get('teams')
+        // The team id comes from the session's OWN folded mode, NOT the tool
+        // row's static `config.team` default. A deployment binds a session to a
+        // team through the `subagent-team/mode` event (e.g. "demo"), while the
+        // tool row default ("my-team") never matches a real roster — resolving
+        // by `config.team` here would reject every delegation with "team X not
+        // found". The prompt-section catalogue is keyed the same way, so what
+        // the model sees and what `team_delegate` executes stay in lockstep.
+        const teamId = state.team
+        const teams = (getTraceable(ctx, ctx) as Context).get('teams')
         if (teams === undefined) {
           throw new Error(
-            `team-tool: team "${config.team}" requested but no team registry is loaded `
+            `team-tool: team "${teamId}" requested but no team registry is loaded `
             + '(load dsh-harness-subagent-bundle/team in the host composition)',
           )
         }
         // Resolve the role; failing loud surfaces a bad pick (unknown team/role,
         // or a role whose subagent is missing/broken/disabled) at the call.
-        const role = await resolveRole(teams, config.team, args.role)
+        const role = await resolveRole(teams, teamId, args.role)
         refreshRoleCatalogue()
 
         const maxDepth = typeof config.maxDepth === 'number' ? config.maxDepth : undefined
@@ -379,7 +404,7 @@ export function apply(ctx: Context, config: Config): void {
           ...config.agentOptions !== undefined ? { agentOptions: config.agentOptions } : {},
           ...role.subagent !== '' ? { subagent: role.subagent } : {},
           ...role.prompt !== undefined ? { persona: role.prompt } : {},
-          ...{ team: config.team, role: role.id },
+          ...{ team: teamId, role: role.id },
           ...maxDepth !== undefined ? { maxDepth } : {},
         }
 
@@ -460,10 +485,37 @@ export function apply(ctx: Context, config: Config): void {
       // session must not see it (its delegation surface is the bare subagent
       // catalogue instead). A diagnostic assembly with no agent defaults to
       // standard, so existing prompts are unchanged.
-      if (disposeTool === undefined || ctx.tools.get(toolName, context.scope) === undefined) return ''
-      if (context.agent === undefined || currentTeamMode(context.agent.session.events).mode !== 'team') return ''
-      return roleCatalogue
+      // The `disposeTool` flag is the live registration check (set when the
+      // tool is registered against its provider fiber; cleared on provider
+      // removal). We do NOT route through `ctx.tools.get(toolName, scope)`:
+      // the tools registry in a hot-mounted Include fiber does not reach the
+      // host-plane `context.scope`, so the cross-tree lookup silently misses
+      // and the section would collapse to '' even when the tool is in fact
+      // visible to the agent. The team-mode check below is the authoritative
+      // gate (mode restrictions keep `team_delegate` and remove `delegate`/
+      // `delegate_fork` for team sessions).
+      if (disposeTool === undefined) return ''
+      if (context.agent === undefined) return ''
+      // Resolve the catalogue by the session's OWN folded team id. The mode
+      // event carries the team a deployment actually bound to this session
+      // (e.g. "demo"), which may differ from the tool row's static
+      // `config.team` default — keying by the fold keeps the two in step.
+      const state = currentTeamMode(context.agent.session.events)
+      if (state.mode !== 'team' || state.team === undefined) return ''
+      return roleCatalogues.get(state.team) ?? ''
     },
   })
+  // Kick the catalogue once now (the common ordering has the team registry
+  // already composed), then again whenever the `teams` service (re)appears. The
+  // second listener closes the loader-race the one-shot kick cannot cover: the
+  // tool row may apply before the `teams` row constructs its service, and the
+  // section text is assembled synchronously, so without a service-change hook
+  // the catalogue would stay empty forever (the model would never see the team
+  // or its roles). `{ global: true }` mirrors the package's preset invariant
+  // companion so a team service provided from a sibling fiber still notifies us.
   refreshRoleCatalogue()
+  ctx.on('internal/service', function (serviceName) {
+    if (serviceName !== 'teams') return
+    refreshRoleCatalogue()
+  }, { global: true })
 }

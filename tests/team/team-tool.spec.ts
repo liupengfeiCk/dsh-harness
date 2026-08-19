@@ -219,4 +219,42 @@ describe('dsh-subagent-bundle/team/tool', () => {
       .sections.map(s => s.text).join('\n')
     expect(prompt).not.toContain('copywriter')
   })
+
+  it('refreshes the role catalogue when the team registry activates AFTER the tool', async () => {
+    // Real deployments race the loader rows: `team/tool` must not require the
+    // `teams` service to be present at apply time. Mount the tool BEFORE the
+    // registry so `ctx.get('teams')` is undefined at apply — the catalogue must
+    // still settle once the registry provides later.
+    const subagentRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-subagent4-'))
+    const teamRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-root4-'))
+    await writeSubagent(subagentRoot, 'writer')
+    await writeTeam(teamRoot, 'edit', roleYaml('copywriter', 'writer', '    prompt: You are a copywriter.\n'))
+    const ctx = new Context()
+    ctx.baseUrl = pathToFileURL(subagentRoot).href + '/'
+    await ctx.plugin(Loader)
+    ctx.loader.builtins.include = Include
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(SubagentRuntime)
+    registerCapture(ctx, 'capture')
+    await ctx.plugin(SubagentPresets, { roots: [{ path: subagentRoot, trust: 'system' }], includeUserRoot: false })
+    // Tool first: at apply, `ctx.get('teams')` is undefined.
+    await ctx.plugin(teamTool, { team: 'edit', provider: 'capture' })
+    const teamAgent = fakeAgent('team-late-1')
+    const before = (await ctx.systemPrompt.assemble(assembleContextFor(teamAgent)))
+      .sections.map(s => s.text).join('\n')
+    expect(before).not.toContain('copywriter')
+    // Now the registry provides; the catalogue must settle without a delegate call.
+    await ctx.plugin(Teams, { roots: [{ path: teamRoot, trust: 'system' }], includeUserRoot: false })
+    const deadline = Date.now() + 2_000
+    let after = before
+    while (Date.now() < deadline) {
+      after = (await ctx.systemPrompt.assemble(assembleContextFor(teamAgent)))
+        .sections.map(s => s.text).join('\n')
+      if (after.includes('copywriter')) break
+      await new Promise(resolve => setTimeout(resolve, 25))
+    }
+    expect(after).toContain('copywriter')
+    expect(after).toContain('copywriter role')
+  })
 })
