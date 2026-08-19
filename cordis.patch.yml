@@ -21,3 +21,11 @@
     # registry's public interface. Rides alongside the `modelPlans` service.
     - id: model-plan-wire
       name: 'dsh-harness-model-plan-bundle/wire'
+
+    # The model-plan row in Settings plus the composer model-seat selector: a
+    # web-only client surface. Both ship in the single browser client bundle
+    # (the `./client` entry, declared via `dsh.client`), registered as a
+    # settings section and the `conversation.input.model` seat; this row is the
+    # cordis-layer seat that activates the client bundle in the boot graph.
+    - id: ui-model-plan
+      name: 'dsh-harness-model-plan-bundle'
