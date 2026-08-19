@@ -182,8 +182,11 @@ function ParamRow(props: {
               value={param.value}
               onChange={e => onValue(index, e.target.value)}
             >
+              {/* Each option's value is the JSON-serialized form of the effort
+                  (e.g. `"off"`), so the picked value is a legal JSON scalar the
+                  bag can store and the wire can re-read exactly. */}
               {reasoningEffortOptions.map(effort => (
-                <option key={effort} value={effort}>
+                <option key={effort} value={JSON.stringify(effort)}>
                   {effort === '' ? t('reasoningProviderDefault') : effort}
                 </option>
               ))}
