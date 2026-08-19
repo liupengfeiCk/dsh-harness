@@ -62,7 +62,6 @@ import {
   appendDelegatedPolicyOverrides,
   captureDelegatedPolicyOverrides,
   childSessionMeta,
-  resolveChildAgentOptions,
   resolveChildDepth,
 } from '@deepseek-ai/dsh-subagent'
 import type { DelegatedPolicyOverrides } from '@deepseek-ai/dsh-subagent'
@@ -71,7 +70,7 @@ import {
   snapshotHarnessSubagentDescriptor,
 } from './descriptor.ts'
 import type { HarnessContinuableSubagentDescriptorData, HarnessSubagentDescriptorData } from './descriptor.ts'
-import { setupChildComposition } from './engine.ts'
+import { harnessChildAgentOptions, resolveParentEffectiveModel, setupChildComposition } from './engine.ts'
 // Official seam pieces, imported from the official package (never copied) per
 // the harness policy; the official package is restored upstream in task 3, and
 // these pieces are unchanged by that restore.
@@ -484,8 +483,12 @@ export class SubagentContinuationManager {
     const childDepth = resolveChildDepth(parent, request.maxDepth)
     // Snapshot before any await: invalid descriptor JSON rejects the call
     // before a child exists, and the detached value is what reaches the log.
-    const agentProvider = request.agentOptions?.provider ?? parent.options.provider
-    const agentModel = request.agentOptions?.model ?? parent.options.model
+    // The inherited route is the parent's EFFECTIVE model (its last request
+    // header), not its preset default — a cold resume rebuilds agentOptions
+    // from these fields, so recording the live route keeps resume consistent.
+    const parentEffective = resolveParentEffectiveModel(parent)
+    const agentProvider = request.agentOptions?.provider ?? parentEffective.provider
+    const agentModel = request.agentOptions?.model ?? parentEffective.model
     const descriptor = snapshotHarnessSubagentDescriptor({
       mode: 'continuable',
       provider: spec.provider,
@@ -518,7 +521,7 @@ export class SubagentContinuationManager {
         provider: spec.provider,
         parent,
         create: { seed, meta: childSessionMeta(parent, childDepth, lineageSeedLength), delegatedPolicies },
-        agentOptions: resolveChildAgentOptions(parent, request.agentOptions, childDepth),
+        agentOptions: harnessChildAgentOptions(parent, request.agentOptions, childDepth),
         composition: {
           persona: request.persona,
           toolFilter: request.toolFilter,

@@ -257,4 +257,60 @@ describe('dsh-subagent-bundle/team/tool', () => {
     expect(after).toContain('copywriter')
     expect(after).toContain('copywriter role')
   })
+
+  it('keeps the role catalogue stable when the team registry transiently drops', async () => {
+    // The catalogue must be MONOTONIC once settled: a transient registry
+    // absence (loader race, hot re-mount) must not blank the prompt section and
+    // toggle the 292-byte authority table in/out across requests, which would
+    // break the LLM prefix cache. Previously `teams === undefined` cleared the
+    // roster synchronously, so a request assembled in that window lost the
+    // section; now the last-known-good catalogue is preserved until a genuine
+    // re-read replaces it.
+    const subagentRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-subagent5-'))
+    const teamRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-root5-'))
+    await writeSubagent(subagentRoot, 'writer')
+    await writeTeam(teamRoot, 'edit', roleYaml('copywriter', 'writer', '    prompt: You are a copywriter.\n'))
+    const ctx = new Context()
+    ctx.baseUrl = pathToFileURL(subagentRoot).href + '/'
+    await ctx.plugin(Loader)
+    ctx.loader.builtins.include = Include
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(SubagentRuntime)
+    registerCapture(ctx, 'capture')
+    await ctx.plugin(SubagentPresets, { roots: [{ path: subagentRoot, trust: 'system' }], includeUserRoot: false })
+    // Capture the teams handle so we can dispose it mid-session to simulate a
+    // transient service absence.
+    const teamsHandle = await ctx.plugin(Teams, { roots: [{ path: teamRoot, trust: 'system' }], includeUserRoot: false })
+    await ctx.plugin(teamTool, { team: 'edit', provider: 'capture' })
+    const teamAgent = fakeAgent('team-stable-1')
+    // Let the catalogue settle first.
+    const deadline = Date.now() + 2_000
+    let settled = ''
+    while (Date.now() < deadline) {
+      settled = (await ctx.systemPrompt.assemble(assembleContextFor(teamAgent)))
+        .sections.map(s => s.text).join('\n')
+      if (settled.includes('copywriter')) break
+      await new Promise(resolve => setTimeout(resolve, 25))
+    }
+    expect(settled).toContain('copywriter')
+    // Drop the registry: the refresh triggered on dispose sees `teams ===
+    // undefined` and must keep the last-good catalogue, not blank it.
+    await teamsHandle.dispose()
+    const dropped = (await ctx.systemPrompt.assemble(assembleContextFor(teamAgent)))
+      .sections.map(s => s.text).join('\n')
+    expect(dropped).toContain('copywriter')
+    expect(dropped).toContain('copywriter role')
+    // Re-provide the registry; the catalogue refreshes from a genuine re-read.
+    await ctx.plugin(Teams, { roots: [{ path: teamRoot, trust: 'system' }], includeUserRoot: false })
+    const deadline2 = Date.now() + 2_000
+    let restored = dropped
+    while (Date.now() < deadline2) {
+      restored = (await ctx.systemPrompt.assemble(assembleContextFor(teamAgent)))
+        .sections.map(s => s.text).join('\n')
+      if (restored.includes('copywriter')) break
+      await new Promise(resolve => setTimeout(resolve, 25))
+    }
+    expect(restored).toContain('copywriter')
+  })
 })

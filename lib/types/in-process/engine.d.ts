@@ -52,6 +52,42 @@ export interface ChildComposition {
     } | undefined;
 }
 /**
+ * The parent agent's EFFECTIVE provider/model — what its requests actually
+ * route through — for a delegated child to inherit by default.
+ *
+ * The official `resolveChildAgentOptions` (and the continuation descriptor)
+ * inherit from `parent.options`, the preset's composed DEFAULT. But the main
+ * agent's live requests are routed by the installed model selection
+ * (`installModelSelection`), which overrides `agent/request` config to the
+ * user's picked provider/model; `parent.options` may still name a different
+ * preset default. Reading the session's last request header — the very source
+ * the official apiproxy `selectionFor` folds for its "current" selection —
+ * makes a delegated child inherit the SAME route the parent actually runs, so
+ * subagents and the main agent share one cache-friendly gateway. Falls back to
+ * `parent.options` when the parent has not yet issued a request.
+ *
+ * @param parent - the delegating parent whose live route to mirror.
+ * @returns the effective `{ provider, model }`, either field absent when unknown.
+ */
+export declare function resolveParentEffectiveModel(parent: Agent): {
+    provider?: string;
+    model?: string;
+};
+/**
+ * Resolve a delegated child's agent options from the parent's EFFECTIVE model
+ * rather than its preset default. Overlays the effective `{ provider, model }`
+ * under the requested options and delegates the rest (maxTokens, subagentDepth)
+ * to the official `resolveChildAgentOptions`, so an explicit delegation
+ * `agentOptions` still wins and the subagent's own model override (installed
+ * later by {@link setupChildComposition}) keeps precedence at request time.
+ *
+ * @param parent - the delegating parent.
+ * @param requested - explicit delegation options, if any.
+ * @param childDepth - the child's recursion depth.
+ * @returns the child's agent options with the effective model inherited.
+ */
+export declare function harnessChildAgentOptions(parent: Agent, requested: import('@deepseek-ai/dsh-agent').AgentOptions | undefined, childDepth: number): import('@deepseek-ai/dsh-agent').AgentOptions;
+/**
  * Compose one child inside its creation window, honouring the inheritance
  * switch, a named subagent's model override, and the instance persona/tool
  * filter. This is the harness-owned replacement for the official
