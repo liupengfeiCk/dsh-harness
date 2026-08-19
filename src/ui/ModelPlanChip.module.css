@@ -1,0 +1,215 @@
+.root {
+  position: relative;
+  display: inline-flex;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 220px;
+  padding: 4px 8px;
+  border: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, 0.3));
+  border-radius: 6px;
+  background: var(--dsw-alias-surface-primary);
+  color: var(--dsw-alias-text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip:hover:not(:disabled) {
+  background: var(--dsw-alias-surface-hover, rgba(128, 128, 128, 0.08));
+}
+
+.chip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--dsw-alias-text-secondary);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 50;
+  min-width: 260px;
+  max-width: 340px;
+  background: var(--dsw-alias-surface-primary);
+  border: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, 0.25));
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.plans {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.option:hover:not(:disabled) {
+  background: var(--dsw-alias-surface-hover, rgba(128, 128, 128, 0.1));
+}
+
+.option:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.selected {
+  background: var(--dsw-alias-surface-hover, rgba(128, 128, 128, 0.14));
+}
+
+.optionBroken {
+  opacity: 0.6;
+}
+
+.optionMain {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.optionName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionDefault {
+  font-size: 11px;
+  color: var(--dsw-alias-state-warning-primary, #b45309);
+  background: var(--dsw-alias-state-warning-soft, rgba(180, 83, 9, 0.12));
+  padding: 0 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.optionBrokenTag {
+  font-size: 11px;
+  color: var(--dsw-alias-state-error-primary);
+  background: var(--dsw-alias-state-error-soft, rgba(220, 38, 38, 0.12));
+  padding: 0 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.optionModel {
+  font-size: 11px;
+  color: var(--dsw-alias-text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.override {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, 0.2));
+}
+
+.overrideTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-text-secondary);
+}
+
+.overrideHint {
+  font-size: 11px;
+  color: var(--dsw-alias-text-tertiary);
+}
+
+.overrideRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.overrideKey {
+  font-size: 12px;
+  color: var(--dsw-alias-text-secondary);
+  flex-shrink: 0;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, 0.3));
+  border-radius: 6px;
+  background: var(--dsw-alias-surface-primary);
+  color: var(--dsw-alias-text-primary);
+  font-size: 12px;
+}
+
+.applyButton {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--dsw-alias-state-primary, rgba(59, 130, 246, 0.9));
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.applyButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.clearButton {
+  align-self: flex-start;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.rejected {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.error {
+  font-size: 12px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.empty {
+  font-size: 12px;
+  color: var(--dsw-alias-text-tertiary);
+  padding: 4px 8px;
+}
