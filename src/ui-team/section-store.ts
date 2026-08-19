@@ -58,6 +58,11 @@ export interface RoleDraft {
   prompt: string
   /** The bound subagent: a user-defined subagent id. */
   subagent: string
+  /**
+   * The role's position in the team hierarchy: a positive integer, default 1.
+   * Level 1 can only be delegated to; level >= 2 may delegate to lower levels.
+   */
+  level: number
   /** Memory policy: one-shot or persistent. */
   memory: WireRoleMemory
 }
@@ -118,6 +123,12 @@ export interface DetailDraft {
   title: string
   /** Display metadata (name/description/enabled). */
   metadata: TeamMetadata
+  /**
+   * A config-hygiene advisory read from the team detail (e.g. one-shot role at
+   * level >= 2), shown on the dialog so the user sees why a delegation may not
+   * recur. Absent when the team is clean.
+   */
+  warning?: string
   /** The editable role roster. */
   roles: readonly RoleDraft[]
   /** Whether the save is in flight. */
@@ -171,9 +182,9 @@ const INITIAL: TeamSectionState = {
   revealedPaths: {},
 }
 
-/** A fresh empty role row. */
+/** A fresh empty role row (default level 1). */
 function emptyRole(): RoleDraft {
-  return { id: '', description: '', prompt: '', subagent: '', memory: 'one-shot' }
+  return { id: '', description: '', prompt: '', subagent: '', level: 1, memory: 'one-shot' }
 }
 
 /** The failure message of a rejected wire call. */
@@ -408,11 +419,13 @@ export class TeamSectionController {
           id,
           title: team.metadata.name ?? row?.id ?? id,
           metadata: team.metadata,
+          ...team.warning === undefined ? {} : { warning: team.warning },
           roles: team.roles.map(role => ({
             id: role.id,
             description: role.description ?? '',
             prompt: role.prompt ?? '',
             subagent: role.subagent,
+            level: role.level,
             memory: role.memory,
           })),
           saving: false,
@@ -490,7 +503,7 @@ export class TeamSectionController {
   }
 
   /** Stage one field on the open role edit draft, marking it dirty. */
-  setRoleEditField(field: 'id' | 'description' | 'prompt' | 'subagent' | 'memory', value: string): void {
+  setRoleEditField(field: 'id' | 'description' | 'prompt' | 'subagent' | 'level' | 'memory', value: string): void {
     const { detail } = this.store.getSnapshot()
     if (detail === null || detail.roleEdit === null) return
     this.patchDetail({
@@ -611,12 +624,18 @@ export class TeamSectionController {
   }
 }
 
-/** Patch one staged role field (id/description/prompt/subagent/memory). */
+/** Patch one staged role field (id/description/prompt/subagent/level/memory). */
 function patchRole(role: RoleDraft, field: string, value: string): RoleDraft {
   if (field === 'id') return { ...role, id: value }
   if (field === 'description') return { ...role, description: value }
   if (field === 'prompt') return { ...role, prompt: value }
   if (field === 'subagent') return { ...role, subagent: value }
+  if (field === 'level') {
+    // Level is a positive integer; the UI clamps non-integers and <1 to 1 so
+    // the draft always stays schema-valid.
+    const parsed = Number.parseInt(value, 10)
+    return { ...role, level: Number.isInteger(parsed) && parsed >= 1 ? parsed : 1 }
+  }
   if (field === 'memory') return { ...role, memory: value === 'persistent' ? 'persistent' : 'one-shot' }
   return role
 }
@@ -628,6 +647,7 @@ function roleToWire(role: RoleDraft): WireRole {
     ...role.description === '' ? {} : { description: role.description },
     ...role.prompt === '' ? {} : { prompt: role.prompt },
     subagent: role.subagent,
+    level: role.level,
     memory: role.memory,
   }
 }

@@ -89,6 +89,9 @@ export class Teams extends Service {
    */
   private readonly modeRestrictions = new Map<string, Array<() => void>>()
 
+  /** Teams whose config-hygiene warning has already been logged, per id. */
+  private readonly warnedHygiene = new Set<string>()
+
   constructor(ctx: Context, public config: Config) {
     super(ctx, 'teams')
     this.resolvedRoots = config.includeUserRoot
@@ -111,7 +114,19 @@ export class Teams extends Service {
    * @returns the teams, first-root-wins per id.
    */
   async list(): Promise<Team[]> {
-    return await discoverTeams(this.resolvedRoots)
+    const teams = await discoverTeams(this.resolvedRoots)
+    // Config-hygiene advisory (rule 7): a one-shot role at level >= 2 cannot be
+    // delegated to again after one task. Logged once per team, not on every
+    // discovery, so it is verifiable without spamming.
+    for (const team of teams) {
+      if (this.warnedHygiene.has(team.id)) continue
+      const warning = this.hygieneWarning(team)
+      if (warning !== undefined) {
+        this.warnedHygiene.add(team.id)
+        this.ctx.logger.warn(warning)
+      }
+    }
+    return teams
   }
 
   /**
@@ -199,6 +214,26 @@ export class Teams extends Service {
       )
     }
     return role
+  }
+
+  /**
+   * A config-hygiene advisory for one team, or undefined when it is clean.
+   *
+   * Rule 7: a role that is BOTH `one-shot` AND at level >= 2 dissolves after a
+   * single completed task, so it can never be delegated to again — defeating
+   * the point of a delegating role. This is a WARNING, not a refusal: the role
+   * stays usable for a single hop. The advisory is surfaced on the team-detail
+   * wire (so the UI can read it) and logged when the team is discovered.
+   * @param team - the resolved team to inspect.
+   * @returns a human-readable advisory, or undefined when the team is clean.
+   */
+  hygieneWarning(team: Team): string | undefined {
+    if (team.broken !== undefined) return undefined
+    const offenders = team.roles.filter(role => role.broken === undefined && role.memory === 'one-shot' && role.level >= 2)
+    if (offenders.length === 0) return undefined
+    return `team "${team.id}" has one-shot role(s) at level >= 2: [${offenders.map(role => role.id).join(', ')}]. `
+      + 'Such roles dissolve after one completed task, so they cannot be delegated to again — '
+      + 'consider persistent memory so the hierarchy stays usable.'
   }
 
   /**

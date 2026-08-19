@@ -68,7 +68,7 @@ export interface TeamSectionInjected {
   /** Add a blank role to the team detail and open it in the edit dialog. */
   addRoleInDetail: () => void
   /** Stage one field of the role currently being edited. */
-  setRoleEditField: (field: 'id' | 'description' | 'prompt' | 'subagent' | 'memory', value: string) => void
+  setRoleEditField: (field: 'id' | 'description' | 'prompt' | 'subagent' | 'level' | 'memory', value: string) => void
   /** Save the staged role back into the team detail's roster. */
   saveRoleEdit: () => Promise<void>
   /** Cancel the open role edit, rolling back the staged draft. */
@@ -131,6 +131,10 @@ function RoleListRow(props: {
             <span className={css.roleListMemoryValue}>
               {role.memory === 'persistent' ? t('memoryPersistent') : t('memoryOneShot')}
             </span>
+          </span>
+          <span className={css.roleListLevel}>
+            <span className={css.roleListLabel}>{t('roleLevelLabelShort')}</span>
+            <span className={css.roleListLevelValue}>{role.level}</span>
           </span>
         </span>
       </button>
@@ -365,6 +369,18 @@ function CreateRoleRow(props: {
             <option value="persistent">{t('memoryPersistent')}</option>
           </select>
         </div>
+        <div className={css.field}>
+          <span className={css.fieldLabel}>{t('roleLevelLabel')}</span>
+          <input
+            className={css.input}
+            type="number"
+            min={1}
+            step={1}
+            value={role.level}
+            placeholder={t('roleLevelPlaceholder')}
+            onChange={e => onField(index, 'level', e.target.value)}
+          />
+        </div>
       </div>
       <div className={css.field}>
         <span className={css.fieldLabel}>{t('rolePromptLabel')}</span>
@@ -442,6 +458,9 @@ function DetailDialog(props: {
             onChange={e => setDetailDescription(e.target.value)}
           />
         </div>
+        {detail.warning !== undefined
+          ? <p className={css.hygieneWarning}>{t('hygieneWarningLabel')} {detail.warning}</p>
+          : null}
         <section className={css.editorBlock}>
           <h4 className={css.blockTitle}>{t('rolesLabel')}</h4>
           {detail.roles.length === 0
@@ -483,7 +502,7 @@ function RoleEditDialog(props: {
   edit: RoleEditDraft
   subagents: readonly string[]
   t: (key: TeamSettingsKey) => string
-  setField: (field: 'id' | 'description' | 'prompt' | 'subagent' | 'memory', value: string) => void
+  setField: (field: 'id' | 'description' | 'prompt' | 'subagent' | 'level' | 'memory', value: string) => void
   saving: boolean
   confirm: () => void
   cancel: () => void
@@ -559,6 +578,19 @@ function RoleEditDialog(props: {
             <option value="one-shot">{t('memoryOneShot')}</option>
             <option value="persistent">{t('memoryPersistent')}</option>
           </select>
+        </div>
+        <div className={css.field}>
+          <span className={css.fieldLabel}>{t('roleLevelLabel')}</span>
+          <input
+            className={css.input}
+            type="number"
+            min={1}
+            step={1}
+            value={draft.level}
+            placeholder={t('roleLevelPlaceholder')}
+            onChange={e => setField('level', e.target.value)}
+          />
+          <span className={css.fieldHint}>{t('roleLevelHint')}</span>
         </div>
         <div className={css.field}>
           <span className={css.fieldLabel}>{t('rolePromptLabel')}</span>

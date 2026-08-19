@@ -108,6 +108,9 @@ export function renderTeam(
     const row: Record<string, unknown> = { id: role.id, subagent: role.subagent }
     if (role.description !== undefined) row.description = role.description
     if (role.prompt !== undefined) row.prompt = role.prompt
+    // The default level (1) is omitted so existing files stay minimal; an
+    // explicit level above 1 is emitted so the hierarchy survives a rewrite.
+    if (role.level !== undefined && role.level > 1) row.level = role.level
     row.memory = role.memory
     return row
   })
@@ -154,6 +157,9 @@ export async function createTeam(
     if (role.subagent === '') {
       throw new TeamRoleInvalidError(id, role.id, 'a role must bind a "subagent" (a subagent id)')
     }
+    if (typeof role.level === 'number' && role.level < 1) {
+      throw new TeamRoleInvalidError(id, role.id, 'a role "level" must be 1 or higher')
+    }
   }
   const dir = join(writableRoot(roots), id)
   const file = join(dir, 'team.yml')
@@ -199,6 +205,9 @@ export async function updateTeam(
   for (const role of roles) {
     if (role.subagent === '') {
       throw new TeamRoleInvalidError(team.id, role.id, 'a role must bind a "subagent" (a subagent id)')
+    }
+    if (typeof role.level === 'number' && role.level < 1) {
+      throw new TeamRoleInvalidError(team.id, role.id, 'a role "level" must be 1 or higher')
     }
   }
   await writeFileAtomic(team.path, renderTeam(metadata, roles), { mode: 0o600, dirMode: 0o700 })

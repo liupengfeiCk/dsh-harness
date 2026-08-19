@@ -17,7 +17,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import yaml from 'js-yaml'
-import type { Team, TeamRole, TeamRoleMemory, TeamTrust } from './types.ts'
+import { ROLE_LEVEL_DEFAULT, type Team, type TeamRole, type TeamRoleMemory, type TeamTrust } from './types.ts'
 
 /** The file that makes a directory a team. */
 export const TEAM_FILE = 'team.yml'
@@ -37,6 +37,21 @@ function flag(value: unknown): boolean | undefined {
 /** Parse a role's memory policy, defaulting to `one-shot`. */
 function memory(value: unknown): TeamRoleMemory {
   return value === 'persistent' ? 'persistent' : 'one-shot'
+}
+
+/**
+ * Parse a role's hierarchy level, defaulting to {@link ROLE_LEVEL_DEFAULT}.
+ * @param value - the raw `level` field.
+ * @returns `{ level }` on a valid positive integer, or
+ *   `{ broken }` when the field is present but unusable (the role stays listed
+ *   as broken — a team's other roles remain usable).
+ */
+function roleLevel(value: unknown): { level?: number; broken?: string } {
+  if (value === undefined) return { level: ROLE_LEVEL_DEFAULT }
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    return { broken: 'the role "level" must be a positive integer (1 or higher)' }
+  }
+  return { level: value }
 }
 
 /** Display metadata a team may publish about itself. */
@@ -111,6 +126,7 @@ export function parseTeam(id: string, trust: TeamTrust, path: string, content: s
     const subagent = text(role.subagent)
     const description = text(role.description)
     const prompt = text(role.prompt)
+    const parsedLevel = roleLevel(role.level)
     roles.push({
       id: roleId,
       ...description !== undefined ? { description } : {},
@@ -118,7 +134,13 @@ export function parseTeam(id: string, trust: TeamTrust, path: string, content: s
       ...subagent === undefined
         ? { subagent: '', broken: 'the role binds no "subagent" (a subagent id is required)' }
         : { subagent },
+      // An absent level defaults to 1; an invalid level breaks the role while
+      // the team's other roles stay usable.
+      level: parsedLevel.level ?? ROLE_LEVEL_DEFAULT,
       memory: memory(role.memory),
+      ...parsedLevel.broken !== undefined
+        ? { broken: parsedLevel.broken }
+        : {},
     })
   }
   return { id, trust, path, metadata, roles }

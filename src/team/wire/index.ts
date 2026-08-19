@@ -29,7 +29,7 @@ import {
   InvalidTeamIdError, TeamExistsError, TeamNotWritableError, TeamRoleInvalidError,
   type Teams, type TeamRole,
 } from '../index.ts'
-import { UnknownTeamError } from '../types.ts'
+import { ROLE_LEVEL_DEFAULT, UnknownTeamError } from '../types.ts'
 import { canOpenDirectory, openDirectory } from '../../preset/wire/opener.ts'
 import { wireEndpoints, type WireEndpointName } from './schema.ts'
 
@@ -151,6 +151,7 @@ async function list(
       metadata: team.metadata,
       roles: team.roles.map(role => ({
         id: role.id,
+        level: role.level,
         ...role.broken === undefined ? {} : { broken: role.broken },
       })),
       ...team.broken === undefined ? {} : { broken: team.broken },
@@ -181,9 +182,13 @@ async function read(
           ...role.description === undefined ? {} : { description: role.description },
           ...role.prompt === undefined ? {} : { prompt: role.prompt },
           subagent: role.subagent,
+          level: role.level,
           memory: role.memory,
         })),
         ...team.broken === undefined ? {} : { broken: team.broken },
+        // The config-hygiene advisory surfaces on the team detail so the UI
+        // can read it, not just the host log.
+        ...teams.hygieneWarning(team) === undefined ? {} : { warning: teams.hygieneWarning(team) },
       },
     })
   } catch (error) {
@@ -330,6 +335,10 @@ function stagedRole(role: StagedRole): TeamRole {
     ...role.description === undefined ? {} : { description: role.description },
     ...role.prompt === undefined ? {} : { prompt: role.prompt },
     subagent: role.subagent,
+    // A staged role without an explicit level falls back to the default; the
+    // registry refuses levels below 1 (redundant with the schema but kept so
+    // the guard survives even a non-schema caller).
+    level: role.level === undefined ? ROLE_LEVEL_DEFAULT : role.level,
     memory: role.memory,
   }
 }

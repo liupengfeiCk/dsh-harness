@@ -31,6 +31,18 @@ export const TEAM_ID = /^[a-z0-9][a-z0-9-]*$/
  */
 export type TeamRoleMemory = 'one-shot' | 'persistent'
 
+/**
+ * The minimum authority a role carries in the team hierarchy. Level 1 is the
+ * default and the only level that can NEVER delegate — it can only be delegated
+ * to. A role at level >= 2 automatically receives the delegation tool and may
+ * delegate to strictly-lower-level roles on the same team. The main agent (the
+ * boss) is treated as the top level and is unrestricted. Strictly decreasing
+ * levels along a delegation chain is what prevents cycles (the tool's maxDepth
+ * stays as a second line of defence). This is a PROGRAM property: the gates
+ * live in code, behaviour lives in the prompt.
+ */
+export const ROLE_LEVEL_DEFAULT = 1
+
 /** One role on a team roster. */
 export interface TeamRole {
   /** Stable role id within the team. */
@@ -41,6 +53,13 @@ export interface TeamRole {
   readonly prompt?: string
   /** The subagent id this role is bound to: the capability surface. */
   readonly subagent: string
+  /**
+   * The role's position in the team hierarchy (a positive integer, default 1).
+   * Level 1 can only be delegated to; level >= 2 may delegate to lower levels.
+   * Fully orthogonal to {@link TeamRoleMemory}: a level-2 role may be one-shot
+   * (a warning is raised, but it is not refused).
+   */
+  readonly level: number
   /** Memory policy: one-shot or persistent. */
   readonly memory: TeamRoleMemory
   /**
