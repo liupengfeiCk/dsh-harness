@@ -19,7 +19,7 @@ export { KNOWN_KEYS, createMergeHandler, mergePlanConfig } from './merge.ts';
 export type { MergedCallConfig, ModelPlanMergeDeps } from './merge.ts';
 export { currentPlanSelection, planLocked, NO_PLAN_SELECTION } from './selection.ts';
 export type { PlanSelectionState } from './selection.ts';
-export { PLAN_ID, UnknownPlanError } from './types.ts';
+export { PLAN_ID, PlanBrokenError, PlanLockedError, UnknownPlanError } from './types.ts';
 export type { Config, ModelPlan, PlanParams, PlanRoot, PlanTrust } from './types.ts';
 declare module '@deepseek-ai/cordis' {
     interface Context {
@@ -81,6 +81,22 @@ export declare class ModelPlans extends Service {
      * @returns the plan's current route and params, or undefined when unusable.
      */
     private resolveForMerge;
+    /**
+     * Resolve the deployment's DEFAULT plan for the merge interceptor — the plan
+     * an unbound session falls back to, so "可设默认方案" is live rather than a
+     * dead marker. Re-discovered on every call so editing a plan's file (or
+     * moving the default marker) changes what an unbound session uses on its
+     * NEXT request (reference semantics). A broken default resolves to
+     * `undefined`: with no usable default an unbound session runs the official
+     * route (zero intervention).
+     *
+     * A user default wins over a system default; within a trust the discovered
+     * roster is the source of truth (the authoring surface clears other user
+     * defaults when one is set, so a user trust holds at most one default).
+     * @returns the default plan's current route and params, or undefined when
+     *   no plan is marked default or the default is unusable.
+     */
+    private resolveDefaultPlan;
     /**
      * Create a locally authored plan.
      * @param id - the new plan's id (its directory name).

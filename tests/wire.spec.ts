@@ -7,6 +7,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { MODEL_PLAN_CHANNEL, dispatchModelPlan } from '../src/wire/index.ts'
+import { PlanLockedError } from '../src/index.ts'
 
 /** A canned abort signal for wire calls. */
 function signal(): AbortSignal {
@@ -112,12 +113,23 @@ describe('model-plan wire', () => {
     if (!result.ok) expect(result.error.code).toBe('bad-request')
   })
 
-  it('maps a selection-lock failure onto model-plan-locked', async () => {
-    const select = vi.fn(async () => { throw new Error('session "s1" has already started; its plan binding is fixed') })
+  it('maps a selection-lock failure onto model-plan-locked (typed)', async () => {
+    const select = vi.fn(async () => { throw new PlanLockedError('s1') })
     const plans = { select } as unknown as Parameters<typeof dispatchModelPlan>[0]
     const result = await dispatchModelPlan(plans, 'select', { sessionId: 's1', planId: 'flash' }, signal())
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('model-plan-locked')
+  })
+
+  it('does not treat a plain error mentioning "already started" as a lock', async () => {
+    // The lock code is pinned by `instanceof PlanLockedError`, never by matching
+    // a message string — a provider/registry error that merely mentions the
+    // words must map to internal, not model-plan-locked.
+    const select = vi.fn(async () => { throw new Error('something else "already started" unrelated') })
+    const plans = { select } as unknown as Parameters<typeof dispatchModelPlan>[0]
+    const result = await dispatchModelPlan(plans, 'select', { sessionId: 's1', planId: 'flash' }, signal())
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('internal')
   })
 
   it('answers model-plan-not-found when no registry is composed', async () => {

@@ -10,6 +10,12 @@
  *                                        defaults (the official route already
  *                                        produced these via `next()`)
  *
+ * A session with NO explicit binding (never selected a plan) falls back to the
+ * deployment's DEFAULT plan, so "可设默认方案" is live: editing the default
+ * plan changes what every unbound session uses on its next request (reference
+ * semantics). Only when a session binds no plan AND no default exists does the
+ * interceptor run zero-intervention on the official route.
+ *
  * The merge then seals two channels:
  * - known keys (`temperature`, `reasoningEffort`, `maxTokens`, `stop`) land on
  *   native `LlmCallConfig` fields — they flow into the session ledger, the
@@ -78,6 +84,16 @@ export interface ModelPlanMergeDeps {
     };
     /** Resolve the CURRENT file-backed contents of a plan (reference semantics). */
     readonly resolvePlan: (id: string) => Promise<{
+        readonly provider: string;
+        readonly model: string;
+        readonly params: PlanParams;
+    } | undefined>;
+    /**
+     * Resolve the deployment's DEFAULT plan, re-discovered on every call
+     * (reference semantics). A session with no explicit binding falls back to
+     * it, so "可设默认方案" is live. Optional for a deployment without a default.
+     */
+    readonly resolveDefaultPlan: () => Promise<{
         readonly provider: string;
         readonly model: string;
         readonly params: PlanParams;

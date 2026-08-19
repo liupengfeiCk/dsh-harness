@@ -24,7 +24,7 @@ import { discoverPlans, USER_PLAN_DIR } from './discovery.ts'
 import { createMergeHandler } from './merge.ts'
 import { currentPlanSelection, planLocked, type PlanSelectionState } from './selection.ts'
 import {
-  UnknownPlanError,
+  PlanLockedError, UnknownPlanError,
   type Config, type ModelPlan, type PlanParams, type PlanRoot,
 } from './types.ts'
 
@@ -37,7 +37,7 @@ export { KNOWN_KEYS, createMergeHandler, mergePlanConfig } from './merge.ts'
 export type { MergedCallConfig, ModelPlanMergeDeps } from './merge.ts'
 export { currentPlanSelection, planLocked, NO_PLAN_SELECTION } from './selection.ts'
 export type { PlanSelectionState } from './selection.ts'
-export { PLAN_ID, UnknownPlanError } from './types.ts'
+export { PLAN_ID, PlanBrokenError, PlanLockedError, UnknownPlanError } from './types.ts'
 export type { Config, ModelPlan, PlanParams, PlanRoot, PlanTrust } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -94,6 +94,7 @@ export class ModelPlans extends Service {
       agent.ctx.on('agent/request', createMergeHandler({
         selectionOf: (events) => currentPlanSelection(events as readonly SessionEvent[]),
         resolvePlan: (id) => this.resolveForMerge(id),
+        resolveDefaultPlan: () => this.resolveDefaultPlan(),
         logger: this.ctx.logger,
       }))
     })
@@ -150,6 +151,33 @@ export class ModelPlans extends Service {
     const plan = await this.resolve(id).catch(() => undefined)
     if (plan === undefined || plan.broken !== undefined) return undefined
     return { provider: plan.provider, model: plan.model, params: plan.params }
+  }
+
+  /**
+   * Resolve the deployment's DEFAULT plan for the merge interceptor — the plan
+   * an unbound session falls back to, so "可设默认方案" is live rather than a
+   * dead marker. Re-discovered on every call so editing a plan's file (or
+   * moving the default marker) changes what an unbound session uses on its
+   * NEXT request (reference semantics). A broken default resolves to
+   * `undefined`: with no usable default an unbound session runs the official
+   * route (zero intervention).
+   *
+   * A user default wins over a system default; within a trust the discovered
+   * roster is the source of truth (the authoring surface clears other user
+   * defaults when one is set, so a user trust holds at most one default).
+   * @returns the default plan's current route and params, or undefined when
+   *   no plan is marked default or the default is unusable.
+   */
+  private async resolveDefaultPlan(): Promise<{
+    readonly provider: string
+    readonly model: string
+    readonly params: PlanParams
+  } | undefined> {
+    const roster = await this.list().catch(() => [])
+    const defaultPlan = roster.find(plan => plan.isDefault && plan.trust === 'user')
+      ?? roster.find(plan => plan.isDefault)
+    if (defaultPlan === undefined || defaultPlan.broken !== undefined) return undefined
+    return { provider: defaultPlan.provider, model: defaultPlan.model, params: defaultPlan.params }
   }
 
   /**
@@ -238,7 +266,7 @@ export class ModelPlans extends Service {
       throw new Error(`model-plans: no live session "${sessionId}"; cannot bind a plan to it`)
     }
     if (planLocked(session.events)) {
-      throw new Error(`model-plans: session "${sessionId}" has already started; its plan binding is fixed`)
+      throw new PlanLockedError(sessionId)
     }
     const plan = await this.resolve(planId)
     if (plan.broken !== undefined) {

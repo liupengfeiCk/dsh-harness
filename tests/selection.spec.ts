@@ -5,12 +5,12 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
-import ModelPlans, { currentPlanSelection, planLocked } from '../src/index.ts'
+import ModelPlans, { currentPlanSelection, planLocked, PlanLockedError } from '../src/index.ts'
 
 /** Mount the plan registry over one writable temp root. */
 async function makeCtx(root: string): Promise<Context> {
@@ -127,7 +127,7 @@ describe('ModelPlans.select', () => {
     }
   })
 
-  it('refuses a binding after a turn has started', async () => {
+  it('refuses a binding after a turn has started with a typed lock error', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-modelplan-sel-'))
     const ctx = await makeCtx(root)
     try {
@@ -135,7 +135,9 @@ describe('ModelPlans.select', () => {
       const session = Session.create(SessionId('s3'))
       session.append('turn/start', {})
       injectSessions(ctx, session)
-      await expect(ctx.modelPlans.select('s3' as never, 'flash')).rejects.toThrow('already started')
+      const failure = ctx.modelPlans.select('s3' as never, 'flash')
+      await expect(failure).rejects.toBeInstanceOf(PlanLockedError)
+      await expect(failure).rejects.toThrow('already started')
     } finally {
       await ctx.fiber.dispose()
     }
@@ -150,6 +152,80 @@ describe('ModelPlans.select', () => {
       injectSessions(ctx, session)
       await expect(ctx.modelPlans.select('s4' as never, 'nope')).rejects.toThrow('not found')
       await expect(ctx.modelPlans.select('s4' as never, 'good')).resolves.toEqual({ planId: 'good', overrides: {} })
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+})
+
+describe('ModelPlans default-plan resolution', () => {
+  /** The private merge default resolver, reached via the service instance. */
+  async function defaultFor(ctx: Context) {
+    const resolve = (ctx.modelPlans as unknown as { resolveDefaultPlan(): Promise<unknown> }).resolveDefaultPlan
+    return resolve.call(ctx.modelPlans)
+  }
+
+  it('resolves the deployment default (reference semantics) for an unbound session', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-modelplan-sel-'))
+    const ctx = await makeCtx(root)
+    try {
+      await ctx.modelPlans.create('flash', { provider: 'pi-ai', model: 'deepseek-v3', params: { temperature: 0.2 } })
+      await ctx.modelPlans.setDefault('flash')
+      const resolved = await defaultFor(ctx)
+      expect(resolved).toEqual({ provider: 'pi-ai', model: 'deepseek-v3', params: { temperature: 0.2 } })
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('prefers a user default over a system default', async () => {
+    // Authoring only writes the user root (create/setDefault refuse a shipped
+    // plan), so the system default is authored as a deployment file here.
+    const system = await mkdtemp(join(tmpdir(), 'dsh-modelplan-sel-'))
+    const user = await mkdtemp(join(tmpdir(), 'dsh-modelplan-sel-'))
+    await mkdir(join(system, 'sys-plan'), { recursive: true })
+    await writeFile(
+      join(system, 'sys-plan', 'plan.yml'),
+      'provider: venus\nmodel: m\ndefault: true\n',
+      'utf8',
+    )
+    const ctx = new Context()
+    await ctx.plugin(ModelPlans, {
+      roots: [{ path: system, trust: 'system' }, { path: user, trust: 'user' }],
+      includeUserRoot: false,
+    })
+    try {
+      await ctx.modelPlans.create('usr-plan', { provider: 'pi-ai', model: 'm', default: true })
+      const resolved = await defaultFor(ctx)
+      expect(resolved).toEqual({ provider: 'pi-ai', model: 'm', params: {} })
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('yields undefined when no plan is marked default', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-modelplan-sel-'))
+    const ctx = await makeCtx(root)
+    try {
+      await ctx.modelPlans.create('flash', { provider: 'p', model: 'm' })
+      expect(await defaultFor(ctx)).toBeUndefined()
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('yields undefined when the only default is broken', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-modelplan-sel-'))
+    const ctx = await makeCtx(root)
+    try {
+      // A directory that occupies the id but whose plan.yml is malformed: the
+      // roster row carries `broken`, so the default resolver must refuse it.
+      await rm(root, { recursive: true, force: true })
+      await mkdir(join(root, 'flash'), { recursive: true })
+      await writeFile(join(root, 'flash', 'plan.yml'), 'provider: : not-a-mapping\n', 'utf8')
+      const roster = await ctx.modelPlans.list()
+      expect(roster[0]?.broken).toBeDefined()
+      expect(await defaultFor(ctx)).toBeUndefined()
     } finally {
       await ctx.fiber.dispose()
     }

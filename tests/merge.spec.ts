@@ -92,20 +92,74 @@ describe('createMergeHandler', () => {
     return {
       selectionOf: vi.fn(() => ({ overrides: {} })),
       resolvePlan: vi.fn(async () => ({ provider: 'venus', model: 'm', params: {} })),
+      resolveDefaultPlan: vi.fn(async () => undefined),
       logger: { warn },
       ...overrides,
     }
   }
 
-  it('passes through untouched when the session binds no plan (zero intervention)', async () => {
+  it('passes through untouched when the session binds no plan and no default exists (zero intervention)', async () => {
     const resolvePlan = vi.fn()
-    const handler = createMergeHandler(deps({ selectionOf: vi.fn(() => ({ overrides: {} })), resolvePlan }))
+    const resolveDefaultPlan = vi.fn(async () => undefined)
+    const handler = createMergeHandler(deps({
+      selectionOf: vi.fn(() => ({ overrides: {} })),
+      resolvePlan,
+      resolveDefaultPlan,
+    }))
     const next = vi.fn(async () => base())
     const result = await handler({ agent: { session: { events: [] } } }, next)
     expect(result).toEqual(base())
     expect(next).toHaveBeenCalledExactlyOnceWith()
     expect(resolvePlan).not.toHaveBeenCalled()
+    expect(resolveDefaultPlan).toHaveBeenCalledExactlyOnceWith()
     expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the default plan when the session binds no plan', async () => {
+    const handler = createMergeHandler(deps({
+      selectionOf: vi.fn(() => ({ overrides: {} })),
+      resolveDefaultPlan: vi.fn(async () => ({ provider: 'venus', model: 'default-model', params: { temperature: 0.4 } })),
+    }))
+    const result = await handler({ agent: { session: { events: [] } } }, async () => base())
+    expect(result.provider).toBe('venus')
+    expect(result.model).toBe('default-model')
+    expect(result.temperature).toBe(0.4)
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('runs zero intervention when the default plan is unusable', async () => {
+    const handler = createMergeHandler(deps({
+      selectionOf: vi.fn(() => ({ overrides: {} })),
+      resolveDefaultPlan: vi.fn(async () => undefined),
+    }))
+    const result = await handler({ agent: { session: { events: [] } } }, async () => base())
+    expect(result).toEqual(base())
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('re-resolves the default plan on every request (reference semantics)', async () => {
+    const resolveDefaultPlan = vi.fn(async () => ({ provider: 'venus', model: 'm', params: {} }))
+    const handler = createMergeHandler(deps({
+      selectionOf: vi.fn(() => ({ overrides: {} })),
+      resolveDefaultPlan,
+    }))
+    await handler({ agent: { session: { events: [] } } }, async () => base())
+    await handler({ agent: { session: { events: [] } } }, async () => base())
+    expect(resolveDefaultPlan).toHaveBeenCalledTimes(2)
+  })
+
+  it('prefers an explicit binding over the default plan', async () => {
+    const resolvePlan = vi.fn(async () => ({ provider: 'venus', model: 'bound', params: { temperature: 0.2 } }))
+    const resolveDefaultPlan = vi.fn(async () => ({ provider: 'venus', model: 'default', params: {} }))
+    const handler = createMergeHandler(deps({
+      selectionOf: vi.fn(() => ({ planId: 'flash', overrides: {} })),
+      resolvePlan,
+      resolveDefaultPlan,
+    }))
+    const result = await handler({ agent: { session: { events: [] } } }, async () => base())
+    expect(result.model).toBe('bound')
+    expect(result.temperature).toBe(0.2)
+    expect(resolveDefaultPlan).not.toHaveBeenCalled()
   })
 
   it('merges the bound plan over the official route on a request', async () => {

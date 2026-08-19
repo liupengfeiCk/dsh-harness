@@ -26,7 +26,7 @@ import {
   InvalidPlanIdError, PlanExistsError, PlanNotWritableError, PlanRouteInvalidError,
   type ModelPlans,
 } from '../index.ts'
-import { UnknownPlanError, type PlanParams } from '../types.ts'
+import { PlanLockedError, UnknownPlanError, type PlanParams } from '../types.ts'
 import { wireEndpoints, type WireEndpointName } from './schema.ts'
 
 /** Absolute logical channel owning the model-plan management endpoints. */
@@ -365,15 +365,16 @@ function selectionFailure(sessionId: string, error: unknown): WireError {
       details: { plan: error.planId, available: [...error.available] },
     }
   }
-  const message = error instanceof Error ? error.message : String(error)
   // A started session cannot change its plan binding — the same blank-window
-  // lock the team mode and the agent preset carry.
-  if (message.includes('already started')) {
+  // lock the team mode and the agent preset carry. Typed, so the code is pinned
+  // by `instanceof`, never by matching a message string.
+  if (error instanceof PlanLockedError) {
     return {
       code: 'model-plan-locked',
-      message,
+      message: error.message,
       details: { sessionId },
     }
   }
+  const message = error instanceof Error ? error.message : String(error)
   return { code: 'internal', message: `session "${sessionId}": ${message}`, details: { sessionId } }
 }

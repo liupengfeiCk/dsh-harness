@@ -10,6 +10,12 @@
  *                                        defaults (the official route already
  *                                        produced these via `next()`)
  *
+ * A session with NO explicit binding (never selected a plan) falls back to the
+ * deployment's DEFAULT plan, so "可设默认方案" is live: editing the default
+ * plan changes what every unbound session uses on its next request (reference
+ * semantics). Only when a session binds no plan AND no default exists does the
+ * interceptor run zero-intervention on the official route.
+ *
  * The merge then seals two channels:
  * - known keys (`temperature`, `reasoningEffort`, `maxTokens`, `stop`) land on
  *   native `LlmCallConfig` fields — they flow into the session ledger, the
@@ -108,6 +114,16 @@ export interface ModelPlanMergeDeps {
     readonly model: string
     readonly params: PlanParams
   } | undefined>
+  /**
+   * Resolve the deployment's DEFAULT plan, re-discovered on every call
+   * (reference semantics). A session with no explicit binding falls back to
+   * it, so "可设默认方案" is live. Optional for a deployment without a default.
+   */
+  readonly resolveDefaultPlan: () => Promise<{
+    readonly provider: string
+    readonly model: string
+    readonly params: PlanParams
+  } | undefined>
   /** Logger: a non-known key never silently drops. */
   readonly logger: { warn(message: string, ...args: unknown[]): void }
 }
@@ -124,19 +140,32 @@ export function createMergeHandler(
 ): (payload: { readonly agent: MergeAgent }, next: () => Promise<LlmCallConfig>) => Promise<LlmCallConfig> {
   return async (payload, next): Promise<LlmCallConfig> => {
     const selection = deps.selectionOf(payload.agent.session.events)
-    if (selection.planId === undefined) return next()
-    const plan = await deps.resolvePlan(selection.planId)
+    // The plan that governs this request: the session's explicit binding when
+    // it has one, else the deployment default (reference semantics — both are
+    // re-resolved on every call). With neither, run zero-intervention.
+    let plan: { readonly provider: string; readonly model: string; readonly params: PlanParams } | undefined
+    let planId: string | undefined
+    const overrides = selection.overrides
+    if (selection.planId !== undefined) {
+      plan = await deps.resolvePlan(selection.planId)
+      planId = selection.planId
+    } else {
+      plan = await deps.resolveDefaultPlan()
+    }
     if (plan === undefined) {
-      // The bound plan's file no longer resolves (deleted or moved): the
-      // reference semantics mean this request cannot honor it. Fall back to
-      // the official config, loudly.
-      deps.logger.warn(`model-plans: bound plan "${selection.planId}" no longer resolves; running the official route`)
+      // A bound plan that no longer resolves (deleted/moved), or no usable
+      // default: the reference semantics mean this request cannot honor one.
+      // Fall back to the official config, loudly for an explicit binding (a
+      // default disappearing is a silent zero-intervention fallback).
+      if (planId !== undefined) {
+        deps.logger.warn(`model-plans: bound plan "${planId}" no longer resolves; running the official route`)
+      }
       return next()
     }
-    const { config, warnedExtra } = mergePlanConfig(await next(), plan, selection.overrides)
+    const { config, warnedExtra } = mergePlanConfig(await next(), plan, overrides)
     if (warnedExtra.length > 0) {
       deps.logger.warn(
-        `model-plans: plan "${selection.planId}" carries non-native params (${warnedExtra.join(', ')}) `
+        `model-plans: plan "${planId ?? 'default'}" carries non-native params (${warnedExtra.join(', ')}) `
         + 'that land on LlmCallConfig.extra — the active provider adapter may not forward them (pi-ai does not)',
       )
     }

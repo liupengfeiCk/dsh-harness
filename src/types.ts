@@ -117,3 +117,20 @@ export class PlanBrokenError extends Error {
     super(`model-plans: plan "${planId}" cannot be used: ${reason}`)
   }
 }
+
+/**
+ * A session whose conversation has already started refuses a plan-binding
+ * change: the request the model already saw was produced under the previous
+ * route, and swapping mid-flight would strand the logged call. A typed error so
+ * the wire maps it to `model-plan-locked` by `instanceof`, never by string
+ * matching — the same blank-window lock the subagent team mode and the agent
+ * preset carry.
+ */
+export class PlanLockedError extends Error {
+  constructor(
+    /** The session whose binding is fixed. */
+    readonly sessionId: string,
+  ) {
+    super(`model-plans: session "${sessionId}" has already started; its plan binding is fixed`)
+  }
+}
