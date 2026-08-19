@@ -56,9 +56,9 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** The trigger's current label: the bound plan's name, else the default, else a prompt. */
 function triggerLabel(state: ModelPlanChipState, t: (key: ModelPlanKey) => string): string {
   const bound = state.options.find(option => option.id === state.planId)
-  if (bound !== undefined) return `${t('seatPrefix')}${bound.name}`
+  if (bound !== undefined) return `${t('seatPrefix')}${bound.id}`
   const fallback = state.options.find(option => option.isDefault)
-  return `${t('seatPrefix')}${fallback?.name ?? t('seatEmpty')}`
+  return `${t('seatPrefix')}${fallback?.id ?? t('seatEmpty')}`
 }
 
 /**
@@ -171,7 +171,7 @@ export function ModelPlanChip({ locked, useModelPlanChip, t, load, select }: Mod
                     onClick={() => { void select(option.id) }}
                   >
                     <span className={css.optionMain}>
-                      <span className={css.optionName}>{option.name}</span>
+                      <span className={css.optionName}>{option.id}</span>
                       {option.isDefault && <span className={css.optionDefault}>{t('seatDefaultPlan')}</span>}
                       {broken && <span className={css.optionBrokenTag}>{t('brokenPlan')}</span>}
                     </span>

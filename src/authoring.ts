@@ -87,7 +87,6 @@ export function writableRoot(roots: readonly PlanRoot[]): string {
 
 /** The fields an authoring call may set on a plan. */
 export interface PlanEdits {
-  readonly name?: string
   readonly provider?: string
   readonly model?: string
   readonly params?: PlanParams
@@ -116,7 +115,6 @@ function assertRoute(planId: string, provider: string | undefined, model: string
  * @returns the `plan.yml` contents.
  */
 export function renderPlan(plan: {
-  readonly name?: string
   readonly provider: string
   readonly model: string
   readonly params: PlanParams
@@ -126,7 +124,6 @@ export function renderPlan(plan: {
     provider: plan.provider,
     model: plan.model,
   }
-  if (plan.name !== undefined) document.name = plan.name
   if (Object.keys(plan.params).length > 0) document.params = plan.params
   if (plan.isDefault) document.default = true
   return yaml.dump(document, { lineWidth: -1, noRefs: true })
@@ -171,7 +168,6 @@ export async function createPlan(
   try {
     await mkdir(dir, { recursive: true })
     await writeFileAtomic(file, renderPlan({
-      ...edits.name === undefined ? {} : { name: edits.name },
       provider,
       model,
       params: edits.params ?? {},
@@ -213,7 +209,6 @@ export async function updatePlan(
   const model = edits.model ?? plan.model
   assertRoute(plan.id, provider, model)
   await writeFileAtomic(plan.path, renderPlan({
-    ...edits.name !== undefined ? { name: edits.name } : plan.name !== undefined ? { name: plan.name } : {},
     provider,
     model,
     params: edits.params ?? plan.params,
@@ -283,7 +278,6 @@ export async function setPlanDefault(
     const sibling = await readPlan(child.name, 'user', join(rootDir, child.name))
     if (sibling.broken === undefined && sibling.isDefault) {
       await writeFileAtomic(sibling.path, renderPlan({
-        ...sibling.name === undefined ? {} : { name: sibling.name },
         provider: sibling.provider,
         model: sibling.model,
         params: sibling.params,
@@ -293,7 +287,6 @@ export async function setPlanDefault(
   }
   const current = await readPlan(plan.id, 'user', dirname(plan.path))
   await writeFileAtomic(plan.path, renderPlan({
-    ...current.name === undefined ? {} : { name: current.name },
     provider: current.broken === undefined ? current.provider : plan.provider,
     model: current.broken === undefined ? current.model : plan.model,
     params: current.broken === undefined ? current.params : plan.params,

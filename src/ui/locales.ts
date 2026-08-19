@@ -6,7 +6,6 @@ export type ModelPlanKey =
   | 'loading' | 'error' | 'unavailable'
   | 'create' | 'creating' | 'createTitle' | 'createIntro'
   | 'editTitle' | 'editIntro' | 'save' | 'saving' | 'cancel' | 'close'
-  | 'nameLabel' | 'namePlaceholder'
   | 'idLabel' | 'idPlaceholder'
   | 'modelLabel' | 'modelPlaceholder'
   | 'paramsLabel' | 'paramsHint' | 'addParam' | 'paramKeyLabel' | 'paramKeyPlaceholder'
@@ -51,8 +50,6 @@ export const en: Record<ModelPlanKey, string> = {
   saving: 'Saving…',
   cancel: 'Cancel',
   close: 'Close',
-  nameLabel: 'Name',
-  namePlaceholder: 'Display name (defaults to the id)',
   idLabel: 'Identifier',
   idPlaceholder: 'Sessions bind to this plan by this identifier',
   modelLabel: 'Model',
@@ -132,8 +129,6 @@ export const zh: Record<ModelPlanKey, string> = {
   saving: '正在保存…',
   cancel: '取消',
   close: '关闭',
-  nameLabel: '名称',
-  namePlaceholder: '显示名称（缺省用 id）',
   idLabel: '标识符',
   idPlaceholder: '会话按此标识符绑定该方案',
   modelLabel: '型号',

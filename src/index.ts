@@ -189,7 +189,6 @@ export class ModelPlans extends Service {
   async create(
     id: string,
     edits: {
-      readonly name?: string
       readonly provider: string
       readonly model: string
       readonly params?: PlanParams
@@ -208,7 +207,6 @@ export class ModelPlans extends Service {
   async update(
     id: string,
     edits: {
-      readonly name?: string
       readonly provider?: string
       readonly model?: string
       readonly params?: PlanParams

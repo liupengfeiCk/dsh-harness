@@ -41,8 +41,6 @@ export interface PlanDraft {
   creating: boolean
   /** The plan id (the file name; required on create, read-only on edit). */
   id: string
-  /** Display name (optional; defaults to the id). */
-  name: string
   /** Selected provider route id. */
   provider: string
   /** Selected provider-owned model id. */
@@ -58,7 +56,6 @@ export interface PlanDraft {
 /** One plan roster row the section renders. */
 export interface PlanRow {
   id: string
-  name: string
   provider: string
   model: string
   /** Number of params in the bag (the row's summary). */
@@ -103,9 +100,9 @@ function seedParams(): ParamDraft[] {
   return KNOWN_KEYS.map(key => ({ key, value: '' }))
 }
 
-/** A fresh create draft: id + name + the pre-seeded params bag. */
+/** A fresh create draft: id + the pre-seeded params bag. */
 function emptyCreateDraft(): PlanDraft {
-  return { creating: true, id: '', name: '', provider: '', model: '', params: seedParams(), saving: false, error: null }
+  return { creating: true, id: '', provider: '', model: '', params: seedParams(), saving: false, error: null }
 }
 
 /** The failure message of a rejected wire call. */
@@ -234,7 +231,6 @@ export class ModelPlanSectionController {
         dialog: {
           creating: false,
           id: plan.id,
-          name: plan.name ?? '',
           provider: plan.provider,
           model: plan.model,
           params: paramsToDraft(plan.params),
@@ -255,11 +251,6 @@ export class ModelPlanSectionController {
   /** Set the draft's id (create only). */
   setDialogId(id: string): void {
     this.patchDialog({ id, error: null })
-  }
-
-  /** Set the draft's display name. */
-  setDialogName(name: string): void {
-    this.patchDialog({ name, error: null })
   }
 
   /** Set the draft's provider route (clears the model under a different provider). */
@@ -330,14 +321,12 @@ export class ModelPlanSectionController {
       const result = draft.creating
         ? await this.plans.create({
           id: draft.id,
-          ...draft.name === '' ? {} : { name: draft.name },
           provider: draft.provider,
           model: draft.model,
           params,
         })
         : await this.plans.update({
           id: draft.id,
-          ...draft.name === '' ? {} : { name: draft.name },
           provider: draft.provider,
           model: draft.model,
           params,
@@ -409,7 +398,6 @@ export class ModelPlanSectionController {
 function planToRow(plan: WirePlanEntry): PlanRow {
   return {
     id: plan.id,
-    name: plan.name ?? plan.id,
     provider: plan.provider,
     model: plan.model,
     paramCount: Object.keys(plan.params).length,

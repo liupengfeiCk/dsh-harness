@@ -179,12 +179,11 @@ describe('dsh-harness-model-plan registry', () => {
     const ctx = await makeCtx(root)
     try {
       await ctx.modelPlans.create('flash', { provider: 'p1', model: 'm1', params: { temperature: 0.2 } })
-      await ctx.modelPlans.update('flash', { provider: 'p2', params: { topP: 0.9 }, name: 'Renamed' })
+      await ctx.modelPlans.update('flash', { provider: 'p2', params: { topP: 0.9 } })
       const plan = (await ctx.modelPlans.resolve('flash'))!
       expect(plan.provider).toBe('p2')
       expect(plan.model).toBe('m1') // untouched
       expect(plan.params).toEqual({ topP: 0.9 })
-      expect(plan.name).toBe('Renamed')
     } finally {
       await ctx.fiber.dispose()
     }

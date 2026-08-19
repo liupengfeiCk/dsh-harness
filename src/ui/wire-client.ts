@@ -26,7 +26,6 @@ export type WireParams = Record<string, unknown>
 /** One plan roster row. */
 export interface WirePlanEntry {
   readonly id: string
-  readonly name?: string
   readonly provider: string
   readonly model: string
   readonly params: WireParams
@@ -51,7 +50,6 @@ export interface ModelPlanWire {
   readSelection(payload: { sessionId: string }, signal?: AbortSignal): Promise<RpcResult<WireSelectionState>>
   create(payload: {
     id: string
-    name?: string
     provider: string
     model: string
     params?: WireParams
@@ -59,7 +57,6 @@ export interface ModelPlanWire {
   }, signal?: AbortSignal): Promise<RpcResult<{ id: string }>>
   update(payload: {
     id: string
-    name?: string
     provider?: string
     model?: string
     params?: WireParams

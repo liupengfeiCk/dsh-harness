@@ -64,7 +64,8 @@ export function parsePlan(id: string, trust: PlanTrust, path: string, content: s
   }
   const record = parsed as Record<string, unknown>
 
-  const name = text(record.name)
+  // A legacy `name` field left by an older plan.yml is ignored: a plan's
+  // identity is its id, and the display reads the id.
   const provider = text(record.provider)
   const model = text(record.model)
   const isDefault = flag(record.default) ?? false
@@ -78,7 +79,6 @@ export function parsePlan(id: string, trust: PlanTrust, path: string, content: s
   }
   return {
     id,
-    ...name === undefined ? {} : { name },
     provider,
     model,
     params: paramsParsed?.params ?? {},

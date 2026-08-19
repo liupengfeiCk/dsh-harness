@@ -15,10 +15,8 @@ import type { ModelPlanWire, WireParams, WirePlanEntry } from './wire-client.ts'
 
 /** One plan offered in the chip menu. */
 export interface ChipOption {
-  /** Plan id. */
+  /** Plan id (its only identity). */
   id: string
-  /** Display name. */
-  name: string
   /** Provider route / model id, for the menu's model summary. */
   provider: string
   model: string
@@ -66,7 +64,6 @@ function messageOf(error: unknown): string {
 function planToOption(plan: WirePlanEntry): ChipOption {
   return {
     id: plan.id,
-    name: plan.name ?? plan.id,
     provider: plan.provider,
     model: plan.model,
     paramCount: Object.keys(plan.params).length,

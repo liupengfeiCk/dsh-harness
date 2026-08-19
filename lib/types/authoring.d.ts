@@ -56,7 +56,6 @@ export declare class PlanRouteInvalidError extends Error {
 export declare function writableRoot(roots: readonly PlanRoot[]): string;
 /** The fields an authoring call may set on a plan. */
 export interface PlanEdits {
-    readonly name?: string;
     readonly provider?: string;
     readonly model?: string;
     readonly params?: PlanParams;
@@ -72,7 +71,6 @@ export interface PlanEdits {
  * @returns the `plan.yml` contents.
  */
 export declare function renderPlan(plan: {
-    readonly name?: string;
     readonly provider: string;
     readonly model: string;
     readonly params: PlanParams;

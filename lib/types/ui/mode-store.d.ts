@@ -13,10 +13,8 @@ import { type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client';
 import type { ModelPlanWire, WireParams } from './wire-client.ts';
 /** One plan offered in the chip menu. */
 export interface ChipOption {
-    /** Plan id. */
+    /** Plan id (its only identity). */
     id: string;
-    /** Display name. */
-    name: string;
     /** Provider route / model id, for the menu's model summary. */
     provider: string;
     model: string;

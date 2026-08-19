@@ -70,7 +70,7 @@ describe('the params-bag JSON validation', () => {
 
 describe('the create/edit blocker', () => {
   const base = (overrides: Partial<PlanDraft> = {}): PlanDraft => ({
-    creating: true, id: 'flash', name: '', provider: 'pi-ai', model: 'deepseek-v3',
+    creating: true, id: 'flash', provider: 'pi-ai', model: 'deepseek-v3',
     params: [{ key: 'temperature', value: '0.7' }], saving: false, error: null, ...overrides,
   })
 

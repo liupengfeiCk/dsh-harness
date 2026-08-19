@@ -28,7 +28,6 @@ export declare const wireTrustSchema: z.ZodUnion<readonly [z.ZodLiteral<"system"
 /** One plan roster row. */
 export declare const wirePlanEntrySchema: z.ZodObject<{
     id: z.ZodString;
-    name: z.ZodOptional<z.ZodString>;
     provider: z.ZodString;
     model: z.ZodString;
     params: z.ZodRecord<z.ZodString, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>>;
@@ -42,7 +41,6 @@ export declare const wireListRequestSchema: z.ZodObject<{}, z.core.$strip>;
 export declare const wireListValueSchema: z.ZodObject<{
     plans: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
-        name: z.ZodOptional<z.ZodString>;
         provider: z.ZodString;
         model: z.ZodString;
         params: z.ZodRecord<z.ZodString, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>>;
@@ -60,7 +58,6 @@ export declare const wireReadRequestSchema: z.ZodObject<{
 export declare const wireReadValueSchema: z.ZodObject<{
     plan: z.ZodObject<{
         id: z.ZodString;
-        name: z.ZodOptional<z.ZodString>;
         provider: z.ZodString;
         model: z.ZodString;
         params: z.ZodRecord<z.ZodString, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>>;
@@ -72,7 +69,6 @@ export declare const wireReadValueSchema: z.ZodObject<{
 /** modelPlan.create request payload: a new id plus its initial fields. */
 export declare const wireCreateRequestSchema: z.ZodObject<{
     id: z.ZodString;
-    name: z.ZodOptional<z.ZodString>;
     provider: z.ZodString;
     model: z.ZodString;
     params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>>>;
@@ -85,7 +81,6 @@ export declare const wireCreateValueSchema: z.ZodObject<{
 /** modelPlan.update request payload: any subset of the plan's fields. */
 export declare const wireUpdateRequestSchema: z.ZodObject<{
     id: z.ZodString;
-    name: z.ZodOptional<z.ZodString>;
     provider: z.ZodOptional<z.ZodString>;
     model: z.ZodOptional<z.ZodString>;
     params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>>>;
@@ -128,7 +123,6 @@ export declare const wireEndpoints: {
         readonly value: z.ZodObject<{
             plans: z.ZodArray<z.ZodObject<{
                 id: z.ZodString;
-                name: z.ZodOptional<z.ZodString>;
                 provider: z.ZodString;
                 model: z.ZodString;
                 params: z.ZodRecord<z.ZodString, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>>;
@@ -146,7 +140,6 @@ export declare const wireEndpoints: {
         readonly value: z.ZodObject<{
             plan: z.ZodObject<{
                 id: z.ZodString;
-                name: z.ZodOptional<z.ZodString>;
                 provider: z.ZodString;
                 model: z.ZodString;
                 params: z.ZodRecord<z.ZodString, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>>;
@@ -159,7 +152,6 @@ export declare const wireEndpoints: {
     readonly create: {
         readonly request: z.ZodObject<{
             id: z.ZodString;
-            name: z.ZodOptional<z.ZodString>;
             provider: z.ZodString;
             model: z.ZodString;
             params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>>>;
@@ -172,7 +164,6 @@ export declare const wireEndpoints: {
     readonly update: {
         readonly request: z.ZodObject<{
             id: z.ZodString;
-            name: z.ZodOptional<z.ZodString>;
             provider: z.ZodOptional<z.ZodString>;
             model: z.ZodOptional<z.ZodString>;
             params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>>>;

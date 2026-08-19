@@ -51,10 +51,8 @@ export type PlanParams = Record<string, JsonValue>
 
 /** One model plan ("模型方案"), a fixed asset. */
 export interface ModelPlan {
-  /** Stable identifier; the plan directory's name. */
+  /** Stable identifier; the plan directory's name, and its only identity. */
   readonly id: string
-  /** Display name; defaults to the id when absent. */
-  readonly name?: string
   /** Registered provider route the plan pins. */
   readonly provider: string
   /** Provider-owned model id the plan pins. */

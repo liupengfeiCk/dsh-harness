@@ -104,7 +104,6 @@ export declare class ModelPlans extends Service {
      * @returns the absolute path of the new plan directory.
      */
     create(id: string, edits: {
-        readonly name?: string;
         readonly provider: string;
         readonly model: string;
         readonly params?: PlanParams;
@@ -117,7 +116,6 @@ export declare class ModelPlans extends Service {
      * @throws when the plan ships with the deployment, is unknown, or the route is unusable.
      */
     update(id: string, edits: {
-        readonly name?: string;
         readonly provider?: string;
         readonly model?: string;
         readonly params?: PlanParams;

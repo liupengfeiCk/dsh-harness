@@ -76,7 +76,6 @@ export function apply(ctx: ClientContext): void {
     beginEdit: (id) => section.beginEdit(id),
     closeDialog: () => { section.closeDialog() },
     setDialogId: (id) => { section.setDialogId(id) },
-    setDialogName: (name) => { section.setDialogName(name) },
     setDialogProvider: (provider) => { section.setDialogProvider(provider) },
     setDialogModel: (model) => { section.setDialogModel(model) },
     setParamKey: (index, key) => { section.setParamKey(index, key) },

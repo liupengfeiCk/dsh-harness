@@ -34,8 +34,6 @@ export interface PlanDraft {
     creating: boolean;
     /** The plan id (the file name; required on create, read-only on edit). */
     id: string;
-    /** Display name (optional; defaults to the id). */
-    name: string;
     /** Selected provider route id. */
     provider: string;
     /** Selected provider-owned model id. */
@@ -50,7 +48,6 @@ export interface PlanDraft {
 /** One plan roster row the section renders. */
 export interface PlanRow {
     id: string;
-    name: string;
     provider: string;
     model: string;
     /** Number of params in the bag (the row's summary). */
@@ -113,8 +110,6 @@ export declare class ModelPlanSectionController {
     closeDialog(): void;
     /** Set the draft's id (create only). */
     setDialogId(id: string): void;
-    /** Set the draft's display name. */
-    setDialogName(name: string): void;
     /** Set the draft's provider route (clears the model under a different provider). */
     setDialogProvider(provider: string): void;
     /** Set the draft's model id. */

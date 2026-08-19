@@ -43,7 +43,6 @@ export const wireTrustSchema = z.union([z.literal('system'), z.literal('user')])
 /** One plan roster row. */
 export const wirePlanEntrySchema = z.object({
   id: z.string().min(1),
-  name: z.string().optional(),
   provider: z.string(),
   model: z.string(),
   params: wireParamsSchema,
@@ -74,7 +73,6 @@ export const wireReadValueSchema = z.object({
 /** modelPlan.create request payload: a new id plus its initial fields. */
 export const wireCreateRequestSchema = z.object({
   id: z.string().min(1),
-  name: z.string().optional(),
   provider: z.string(),
   model: z.string(),
   params: wireParamsSchema.optional(),
@@ -89,7 +87,6 @@ export const wireCreateValueSchema = z.object({
 /** modelPlan.update request payload: any subset of the plan's fields. */
 export const wireUpdateRequestSchema = z.object({
   id: z.string().min(1),
-  name: z.string().optional(),
   provider: z.string().optional(),
   model: z.string().optional(),
   params: wireParamsSchema.optional(),

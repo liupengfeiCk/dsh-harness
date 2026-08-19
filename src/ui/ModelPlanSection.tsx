@@ -1,7 +1,7 @@
 /**
  * Model-plan settings section ("模型方案"): the independent plan roster as
- * cards, with a create/edit dialog over a staged draft (name, provider-grouped
- * model pick, and a params bag) and delete with confirmation.
+ * cards, with a create/edit dialog over a staged draft (provider-grouped model
+ * pick, and a params bag) and delete with confirmation.
  *
  * The model pick reads the session-independent host catalog (`llm.models`):
  * provider-grouped, with each exact route's reasoning metadata. `reasoningEffort`
@@ -49,8 +49,6 @@ export interface ModelPlanSectionInjected {
   closeDialog: () => void
   /** Name the draft (create id). */
   setDialogId: (id: string) => void
-  /** Set the draft's display name. */
-  setDialogName: (name: string) => void
   /** Pick the draft's provider route. */
   setDialogProvider: (provider: string) => void
   /** Pick the draft's model id. */
@@ -113,7 +111,7 @@ function PlanCard(props: {
   return (
     <li className={`${css.card} ${broken ? css.cardBroken : ''}`}>
       <div className={css.cardHead}>
-        <span className={css.cardName}>{row.name}</span>
+        <span className={css.cardName}>{row.id}</span>
         {row.isDefault
           ? (
             <Tooltip label={t('defaultLabel')} side="top">
@@ -215,7 +213,7 @@ function ParamRow(props: {
   )
 }
 
-/** The create/edit dialog: name, provider-grouped model pick, and the params bag editor. */
+/** The create/edit dialog: identifier, provider-grouped model pick, and the params bag editor. */
 function PlanDialog(props: {
   draft: PlanDraft
   creating: boolean
@@ -223,7 +221,6 @@ function PlanDialog(props: {
   rows: readonly PlanRow[]
   t: (key: ModelPlanKey) => string
   setDialogId: (id: string) => void
-  setDialogName: (name: string) => void
   setDialogProvider: (provider: string) => void
   setDialogModel: (model: string) => void
   setParamKey: (index: number, key: string) => void
@@ -234,7 +231,7 @@ function PlanDialog(props: {
   confirm: () => void
   cancel: () => void
 }): ReactNode {
-  const { draft, creating, catalog, rows, t, setDialogId, setDialogName, setDialogProvider, setDialogModel,
+  const { draft, creating, catalog, rows, t, setDialogId, setDialogProvider, setDialogModel,
     setParamKey, setParamValue, setReasoningEffort, addParam, removeParam, confirm, cancel } = props
   const blocker = planBlocker(draft, creating, rows)
   const message = draft.error ?? (blocker === undefined ? null : t(blocker))
@@ -274,15 +271,6 @@ function PlanDialog(props: {
             />
           </div>
         ) : null}
-        <div className={css.field}>
-          <span className={css.fieldLabel}>{t('nameLabel')}</span>
-          <input
-            className={css.input}
-            value={draft.name}
-            placeholder={t('namePlaceholder')}
-            onChange={e => setDialogName(e.target.value)}
-          />
-        </div>
         <div className={css.field}>
           <span className={css.fieldLabel}>{t('modelLabel')}</span>
           {catalogFailed
@@ -402,7 +390,6 @@ export function ModelPlanSection(props: ModelPlanSectionProps): ReactNode {
           rows={state.rows}
           t={t}
           setDialogId={props.setDialogId}
-          setDialogName={props.setDialogName}
           setDialogProvider={props.setDialogProvider}
           setDialogModel={props.setDialogModel}
           setParamKey={props.setParamKey}

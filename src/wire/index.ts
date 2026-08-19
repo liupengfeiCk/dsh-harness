@@ -155,7 +155,6 @@ async function create(
   if (plans === undefined) return fail(noPlans(request.id))
   try {
     await plans.create(request.id, {
-      ...request.name === undefined ? {} : { name: request.name },
       provider: request.provider,
       model: request.model,
       ...request.params === undefined ? {} : { params: toParams(request.params) },
@@ -174,7 +173,6 @@ async function update(
   if (plans === undefined) return fail(noPlans(request.id))
   try {
     await plans.update(request.id, {
-      ...request.name === undefined ? {} : { name: request.name },
       ...request.provider === undefined ? {} : { provider: request.provider },
       ...request.model === undefined ? {} : { model: request.model },
       ...request.params === undefined ? {} : { params: toParams(request.params) },
@@ -248,7 +246,6 @@ function toParams(bag: Record<string | number | symbol, unknown>): PlanParams {
 /** One plan's roster/detail entry on the wire. */
 function planEntry(plan: {
   readonly id: string
-  readonly name?: string
   readonly provider: string
   readonly model: string
   readonly params: unknown
@@ -258,7 +255,6 @@ function planEntry(plan: {
 }): Record<string, unknown> {
   return {
     id: plan.id,
-    ...plan.name === undefined ? {} : { name: plan.name },
     provider: plan.provider,
     model: plan.model,
     params: plan.params,

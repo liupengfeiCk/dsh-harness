@@ -1,7 +1,7 @@
 /**
  * Model-plan settings section ("模型方案"): the independent plan roster as
- * cards, with a create/edit dialog over a staged draft (name, provider-grouped
- * model pick, and a params bag) and delete with confirmation.
+ * cards, with a create/edit dialog over a staged draft (provider-grouped model
+ * pick, and a params bag) and delete with confirmation.
  *
  * The model pick reads the session-independent host catalog (`llm.models`):
  * provider-grouped, with each exact route's reasoning metadata. `reasoningEffort`
@@ -39,8 +39,6 @@ export interface ModelPlanSectionInjected {
     closeDialog: () => void;
     /** Name the draft (create id). */
     setDialogId: (id: string) => void;
-    /** Set the draft's display name. */
-    setDialogName: (name: string) => void;
     /** Pick the draft's provider route. */
     setDialogProvider: (provider: string) => void;
     /** Pick the draft's model id. */
