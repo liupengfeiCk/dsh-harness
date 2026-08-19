@@ -19,17 +19,24 @@ import type { RpcResult } from '@deepseek-ai/dsh-host-apiproxy/api';
 export type WireResult<T> = RpcResult<T>;
 /** A role's memory policy on the wire, mirroring `TeamRoleMemory`. */
 export declare const wireRoleMemorySchema: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
+/**
+ * A role's hierarchy level on the wire: a positive integer, default 1. Level 1
+ * can only be delegated to; level >= 2 may delegate to lower levels.
+ */
+export declare const wireRoleLevelSchema: z.ZodNumber;
 /** One role of a team, as carried on read (full) and update/create (staged). */
 export declare const wireRoleSchema: z.ZodObject<{
     id: z.ZodString;
     description: z.ZodOptional<z.ZodString>;
     prompt: z.ZodOptional<z.ZodString>;
     subagent: z.ZodString;
+    level: z.ZodNumber;
     memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
 }, z.core.$strip>;
 /** A role summary on the roster: enough to render the row and its count. */
 export declare const wireRoleSummarySchema: z.ZodObject<{
     id: z.ZodString;
+    level: z.ZodNumber;
     broken: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 /** Display metadata a team may publish (name/description/enabled). */
@@ -49,6 +56,7 @@ export declare const wireTeamEntrySchema: z.ZodObject<{
     }, z.core.$strip>;
     roles: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
+        level: z.ZodNumber;
         broken: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>>;
     broken: z.ZodOptional<z.ZodString>;
@@ -67,9 +75,11 @@ export declare const wireTeamDetailSchema: z.ZodObject<{
         description: z.ZodOptional<z.ZodString>;
         prompt: z.ZodOptional<z.ZodString>;
         subagent: z.ZodString;
+        level: z.ZodNumber;
         memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
     }, z.core.$strip>>;
     broken: z.ZodOptional<z.ZodString>;
+    warning: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 /** teamPreset.list request payload (no fields). */
 export declare const wireListRequestSchema: z.ZodObject<{}, z.core.$strip>;
@@ -85,6 +95,7 @@ export declare const wireListValueSchema: z.ZodObject<{
         }, z.core.$strip>;
         roles: z.ZodArray<z.ZodObject<{
             id: z.ZodString;
+            level: z.ZodNumber;
             broken: z.ZodOptional<z.ZodString>;
         }, z.core.$strip>>;
         broken: z.ZodOptional<z.ZodString>;
@@ -112,9 +123,11 @@ export declare const wireReadValueSchema: z.ZodObject<{
             description: z.ZodOptional<z.ZodString>;
             prompt: z.ZodOptional<z.ZodString>;
             subagent: z.ZodString;
+            level: z.ZodNumber;
             memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
         }, z.core.$strip>>;
         broken: z.ZodOptional<z.ZodString>;
+        warning: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>;
 }, z.core.$strip>;
 /** One staged role for create/update, with an optional subagent pick. */
@@ -123,6 +136,7 @@ export declare const wireStagedRoleSchema: z.ZodObject<{
     description: z.ZodOptional<z.ZodString>;
     prompt: z.ZodOptional<z.ZodString>;
     subagent: z.ZodString;
+    level: z.ZodOptional<z.ZodNumber>;
     memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
 }, z.core.$strip>;
 /** teamPreset.create request payload: a new id plus its initial roster. */
@@ -135,6 +149,7 @@ export declare const wireCreateRequestSchema: z.ZodObject<{
         description: z.ZodOptional<z.ZodString>;
         prompt: z.ZodOptional<z.ZodString>;
         subagent: z.ZodString;
+        level: z.ZodOptional<z.ZodNumber>;
         memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
@@ -155,6 +170,7 @@ export declare const wireUpdateRequestSchema: z.ZodObject<{
         description: z.ZodOptional<z.ZodString>;
         prompt: z.ZodOptional<z.ZodString>;
         subagent: z.ZodString;
+        level: z.ZodOptional<z.ZodNumber>;
         memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
     }, z.core.$strip>>>;
 }, z.core.$strip>;
@@ -216,6 +232,7 @@ export declare const wireEndpoints: {
                 }, z.core.$strip>;
                 roles: z.ZodArray<z.ZodObject<{
                     id: z.ZodString;
+                    level: z.ZodNumber;
                     broken: z.ZodOptional<z.ZodString>;
                 }, z.core.$strip>>;
                 broken: z.ZodOptional<z.ZodString>;
@@ -243,9 +260,11 @@ export declare const wireEndpoints: {
                     description: z.ZodOptional<z.ZodString>;
                     prompt: z.ZodOptional<z.ZodString>;
                     subagent: z.ZodString;
+                    level: z.ZodNumber;
                     memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
                 }, z.core.$strip>>;
                 broken: z.ZodOptional<z.ZodString>;
+                warning: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
         }, z.core.$strip>;
     };
@@ -259,6 +278,7 @@ export declare const wireEndpoints: {
                 description: z.ZodOptional<z.ZodString>;
                 prompt: z.ZodOptional<z.ZodString>;
                 subagent: z.ZodString;
+                level: z.ZodOptional<z.ZodNumber>;
                 memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
             }, z.core.$strip>>;
         }, z.core.$strip>;
@@ -279,6 +299,7 @@ export declare const wireEndpoints: {
                 description: z.ZodOptional<z.ZodString>;
                 prompt: z.ZodOptional<z.ZodString>;
                 subagent: z.ZodString;
+                level: z.ZodOptional<z.ZodNumber>;
                 memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
             }, z.core.$strip>>>;
         }, z.core.$strip>;

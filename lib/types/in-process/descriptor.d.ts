@@ -46,8 +46,22 @@ export interface HarnessContinuableSubagentDescriptorData extends ContinuableSub
     /** Role id within the team, for cold-resume re-resolution of the subagent/prompt. */
     readonly role?: string;
 }
+/**
+ * The harness one-shot descriptor: the official fields plus the optional
+ * `team`/`role` identity used by the team hierarchy to fold a child caller's
+ * level on the delegation execution gate. A one-shot team-role child that never
+ * gets to delegate carries no identity anyway; a one-shot role at level >= 2
+ * (rule 7 warns but does not refuse) needs it so the gate can authorise its one
+ * hop.
+ */
+export interface HarnessOneShotSubagentDescriptorData extends OneShotSubagentDescriptorData {
+    /** Team id whose roster the delegation came from (role identity for the gate). */
+    readonly team?: string;
+    /** Role id within the team (role identity for the gate). */
+    readonly role?: string;
+}
 /** The harness supported durable subagent identity. */
-export type HarnessSubagentDescriptorData = OneShotSubagentDescriptorData | HarnessContinuableSubagentDescriptorData;
+export type HarnessSubagentDescriptorData = HarnessOneShotSubagentDescriptorData | HarnessContinuableSubagentDescriptorData;
 /**
  * The harness continuable descriptor input: the official input plus the
  * optional user-defined `subagent` id and the optional `team`/`role` identity.
@@ -81,6 +95,23 @@ export interface HarnessContinuableSubagentDescriptorInput {
  * @throws when a field is not losslessly JSON-serializable.
  */
 export declare function snapshotHarnessSubagentDescriptor(input: HarnessContinuableSubagentDescriptorInput): HarnessContinuableSubagentDescriptorData;
+/** Input for {@link snapshotHarnessOneShotSubagentDescriptor}. */
+export interface HarnessOneShotSubagentDescriptorInput {
+    mode: 'one-shot';
+    provider: string;
+    /** Optional: the official one-shot descriptor's label (may be undefined). */
+    label?: string;
+    /** Team id whose roster the delegation came from (role identity for the gate). */
+    team?: string;
+    /** Role id within the team (role identity for the gate). */
+    role?: string;
+}
+/**
+ * Snapshot a one-shot harness descriptor, optionally carrying the `team`/`role`
+ * identity so a one-shot team-role child is foldable by the delegation execution
+ * gate. A plain one-shot child (no team context) is unchanged.
+ */
+export declare function snapshotHarnessOneShotSubagentDescriptor(input: HarnessOneShotSubagentDescriptorInput): HarnessOneShotSubagentDescriptorData;
 /**
  * Fold a persisted child log to its supported harness descriptor. The first
  * `subagent/descriptor` event is authoritative.

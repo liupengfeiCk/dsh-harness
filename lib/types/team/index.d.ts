@@ -59,6 +59,8 @@ export declare class Teams extends Service {
      * restriction before applying the next; entries die with their session.
      */
     private readonly modeRestrictions;
+    /** Teams whose config-hygiene warning has already been logged, per id. */
+    private readonly warnedHygiene;
     constructor(ctx: Context, config: Config);
     /**
      * Every team the configured roots currently supply.
@@ -100,6 +102,18 @@ export declare class Teams extends Service {
      *   bound subagent is not a usable subagent.
      */
     resolveRole(teamId: string, roleId: string): Promise<TeamRole>;
+    /**
+     * A config-hygiene advisory for one team, or undefined when it is clean.
+     *
+     * Rule 7: a role that is BOTH `one-shot` AND at level >= 2 dissolves after a
+     * single completed task, so it can never be delegated to again — defeating
+     * the point of a delegating role. This is a WARNING, not a refusal: the role
+     * stays usable for a single hop. The advisory is surfaced on the team-detail
+     * wire (so the UI can read it) and logged when the team is discovered.
+     * @param team - the resolved team to inspect.
+     * @returns a human-readable advisory, or undefined when the team is clean.
+     */
+    hygieneWarning(team: Team): string | undefined;
     /**
      * The roots this roster scans, which is not `config.roots`: it is every
      * configured root in order, then the harness-home user root unless

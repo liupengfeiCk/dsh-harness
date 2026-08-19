@@ -59,7 +59,7 @@ export interface TeamSectionInjected {
     /** Add a blank role to the team detail and open it in the edit dialog. */
     addRoleInDetail: () => void;
     /** Stage one field of the role currently being edited. */
-    setRoleEditField: (field: 'id' | 'description' | 'prompt' | 'subagent' | 'memory', value: string) => void;
+    setRoleEditField: (field: 'id' | 'description' | 'prompt' | 'subagent' | 'level' | 'memory', value: string) => void;
     /** Save the staged role back into the team detail's roster. */
     saveRoleEdit: () => Promise<void>;
     /** Cancel the open role edit, rolling back the staged draft. */

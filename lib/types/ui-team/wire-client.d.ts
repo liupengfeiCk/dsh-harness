@@ -22,6 +22,8 @@ export interface WireTeamMetadata {
 /** A role summary on the roster. */
 export interface WireRoleSummary {
     readonly id: string;
+    /** The role's hierarchy level (positive integer, default 1). */
+    readonly level: number;
     readonly broken?: string;
 }
 /** One team roster row. */
@@ -40,6 +42,8 @@ export interface WireRole {
     readonly description?: string;
     readonly prompt?: string;
     readonly subagent: string;
+    /** The role's hierarchy level (positive integer, default 1). */
+    readonly level: number;
     readonly memory: WireRoleMemory;
 }
 /** One fully-read team. */
@@ -49,6 +53,8 @@ export interface WireTeamDetail {
     readonly metadata: WireTeamMetadata;
     readonly roles: readonly WireRole[];
     readonly broken?: string;
+    /** A config-hygiene advisory (e.g. one-shot role at level >= 2). */
+    readonly warning?: string;
 }
 /** The session-level delegation surface a session may select. */
 export type WireTeamMode = 'standard' | 'team';

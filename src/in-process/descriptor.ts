@@ -267,7 +267,8 @@ export function snapshotHarnessSubagentDescriptor(
 export interface HarnessOneShotSubagentDescriptorInput {
   mode: 'one-shot'
   provider: string
-  label: string
+  /** Optional: the official one-shot descriptor's label (may be undefined). */
+  label?: string
   /** Team id whose roster the delegation came from (role identity for the gate). */
   team?: string
   /** Role id within the team (role identity for the gate). */
@@ -286,7 +287,7 @@ export function snapshotHarnessOneShotSubagentDescriptor(
     version: HARNESS_SUBAGENT_DESCRIPTOR_VERSION,
     mode: input.mode,
     provider: input.provider,
-    label: input.label,
+    ...input.label !== undefined ? { label: input.label } : {},
     ...input.team !== undefined ? { team: input.team } : {},
     ...input.role !== undefined ? { role: input.role } : {},
   }

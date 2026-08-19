@@ -13,7 +13,7 @@
  * broken while the rest of the roster stays usable.
  * @module dsh-harness-subagent-bundle/team/metadata
  */
-import type { Team, TeamTrust } from './types.ts';
+import { type Team, type TeamTrust } from './types.ts';
 /** The file that makes a directory a team. */
 export declare const TEAM_FILE = "team.yml";
 /** Display metadata a team may publish about itself. */

@@ -362,9 +362,9 @@ export class HarnessSubagentRuntime extends Service {
           descriptor: snapshotHarnessOneShotSubagentDescriptor({
             mode: 'one-shot',
             provider: name,
-            label: descriptor.label,
-            team: harnessRequest.team,
-            role: harnessRequest.role,
+            ...descriptor.label !== undefined ? { label: descriptor.label } : {},
+            ...harnessRequest.team !== undefined ? { team: harnessRequest.team } : {},
+            ...harnessRequest.role !== undefined ? { role: harnessRequest.role } : {},
           }),
         }
       : { ...harnessRequest, descriptor }
