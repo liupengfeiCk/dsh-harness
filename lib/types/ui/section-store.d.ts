@@ -83,8 +83,12 @@ export interface ModelPlanSectionState {
  * Any text `JSON.parse` accepts is a legal JSON value; the empty string is not.
  */
 export declare function isJsonValue(text: string): boolean;
-/** The first block preventing this draft from saving, as a locale key, or undefined. */
-export declare function planBlocker(draft: PlanDraft, creating: boolean): 'idRequired' | 'modelRequired' | 'keyRequired' | 'valueInvalid' | undefined;
+/**
+ * The first block preventing this draft from saving, as a locale key, or undefined.
+ * When creating, the id is checked for emptiness, then legality, then a clash
+ * against the roster (a duplicate id is refused before the host does).
+ */
+export declare function planBlocker(draft: PlanDraft, creating: boolean, rows: readonly PlanRow[]): 'idRequired' | 'idInvalid' | 'idTaken' | 'modelRequired' | 'keyRequired' | 'valueInvalid' | undefined;
 /**
  * Read the roster and drive the create/edit dialog, set-default, and delete.
  */

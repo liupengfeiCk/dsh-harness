@@ -7,6 +7,7 @@ export type ModelPlanKey =
   | 'create' | 'creating' | 'createTitle' | 'createIntro'
   | 'editTitle' | 'editIntro' | 'save' | 'saving' | 'cancel' | 'close'
   | 'nameLabel' | 'namePlaceholder'
+  | 'idLabel' | 'idPlaceholder'
   | 'modelLabel' | 'modelPlaceholder'
   | 'paramsLabel' | 'paramsHint' | 'addParam' | 'paramKeyLabel' | 'paramKeyPlaceholder'
   | 'paramValueLabel' | 'paramValuePlaceholder' | 'removeParam'
@@ -14,10 +15,11 @@ export type ModelPlanKey =
   | 'reasoningProviderDefault'
   | 'paramsEmpty'
   | 'keyRequired' | 'valueInvalid'
+  | 'idRequired' | 'idInvalid' | 'idTaken'
   | 'providerDefaultBadge' | 'brokenBadge'
   | 'setDefault' | 'defaultLabel'
   | 'delete' | 'deleteTitle' | 'deleteDescription' | 'deleteConfirm' | 'deleting'
-  | 'idRequired' | 'modelRequired'
+  | 'modelRequired'
   | 'noPlans' | 'noPlansHint' | 'paramSummary' | 'paramCount'
   | 'customKeyNote'
   | 'seatPrefix' | 'seatEmpty' | 'seatHint' | 'seatLocked' | 'seatSelect' | 'seatSelectAria'
@@ -51,6 +53,8 @@ export const en: Record<ModelPlanKey, string> = {
   close: 'Close',
   nameLabel: 'Name',
   namePlaceholder: 'Display name (defaults to the id)',
+  idLabel: 'Identifier',
+  idPlaceholder: 'Sessions bind to this plan by this identifier',
   modelLabel: 'Model',
   modelPlaceholder: 'Pick a model from the provider-grouped pool',
   paramsLabel: 'Params',
@@ -81,6 +85,8 @@ export const en: Record<ModelPlanKey, string> = {
   deleteConfirm: 'Delete',
   deleting: 'Deleting…',
   idRequired: 'Give the plan an id.',
+  idInvalid: 'Use a lowercase letter or digit followed by letters, digits, or dashes.',
+  idTaken: 'A model plan with this identifier already exists.',
   modelRequired: 'Pick a model.',
   noPlans: 'No plans yet — create one to bind a session to a fixed model.',
   noPlansHint: 'Create one in Settings → Model plans.',
@@ -128,6 +134,8 @@ export const zh: Record<ModelPlanKey, string> = {
   close: '关闭',
   nameLabel: '名称',
   namePlaceholder: '显示名称（缺省用 id）',
+  idLabel: '标识符',
+  idPlaceholder: '会话按此标识符绑定该方案',
   modelLabel: '型号',
   modelPlaceholder: '从按 provider 分组的型号池里选',
   paramsLabel: '参数',
@@ -157,6 +165,8 @@ export const zh: Record<ModelPlanKey, string> = {
   deleteConfirm: '删除',
   deleting: '正在删除…',
   idRequired: '请填写方案 id。',
+  idInvalid: '以小写字母或数字开头，后面只能是小写字母、数字或短横线。',
+  idTaken: '该标识符已被占用。',
   modelRequired: '请选择一个型号。',
   noPlans: '还没有方案——创建一个，即可把会话绑定到固定型号。',
   noPlansHint: '请到「设置 → 模型方案」里创建。',

@@ -75,23 +75,31 @@ describe('the create/edit blocker', () => {
   })
 
   it('requires an id on create', () => {
-    expect(planBlocker(base({ id: '' }), true)).toBe('idRequired')
+    expect(planBlocker(base({ id: '' }), true, [])).toBe('idRequired')
+  })
+
+  it('refuses an id that clashes with an existing plan on create', () => {
+    expect(planBlocker(base(), true, [planRow({ id: 'flash' })])).toBe('idTaken')
+  })
+
+  it('does not refuse a clashing id when editing (the id is its own)', () => {
+    expect(planBlocker(base({ creating: false }), false, [planRow({ id: 'flash' })])).toBeUndefined()
   })
 
   it('requires a model pick', () => {
-    expect(planBlocker(base({ model: '' }), true)).toBe('modelRequired')
+    expect(planBlocker(base({ model: '' }), true, [])).toBe('modelRequired')
   })
 
   it('requires every param key to be non-empty', () => {
-    expect(planBlocker(base({ params: [{ key: '', value: '1' }] }), true)).toBe('keyRequired')
+    expect(planBlocker(base({ params: [{ key: '', value: '1' }] }), true, [])).toBe('keyRequired')
   })
 
   it('requires every param value to be a legal JSON value', () => {
-    expect(planBlocker(base({ params: [{ key: 'temperature', value: 'oops' }] }), true)).toBe('valueInvalid')
+    expect(planBlocker(base({ params: [{ key: 'temperature', value: 'oops' }] }), true, [])).toBe('valueInvalid')
   })
 
-  it('passes a fully-staged create', () => {
-    expect(planBlocker(base(), true)).toBeUndefined()
+  it('passes a fully-staged create against an empty roster', () => {
+    expect(planBlocker(base(), true, [])).toBeUndefined()
   })
 })
 

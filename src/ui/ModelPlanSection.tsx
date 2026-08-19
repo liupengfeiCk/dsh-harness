@@ -220,6 +220,7 @@ function PlanDialog(props: {
   draft: PlanDraft
   creating: boolean
   catalog: ModelCatalogState
+  rows: readonly PlanRow[]
   t: (key: ModelPlanKey) => string
   setDialogId: (id: string) => void
   setDialogName: (name: string) => void
@@ -233,9 +234,9 @@ function PlanDialog(props: {
   confirm: () => void
   cancel: () => void
 }): ReactNode {
-  const { draft, creating, catalog, t, setDialogId, setDialogName, setDialogProvider, setDialogModel,
+  const { draft, creating, catalog, rows, t, setDialogId, setDialogName, setDialogProvider, setDialogModel,
     setParamKey, setParamValue, setReasoningEffort, addParam, removeParam, confirm, cancel } = props
-  const blocker = planBlocker(draft, creating)
+  const blocker = planBlocker(draft, creating, rows)
   const message = draft.error ?? (blocker === undefined ? null : t(blocker))
   const group = catalog.groups.find(g => g.id === draft.provider)
   const model = group?.models.find(m => m.id === draft.model)
@@ -264,11 +265,11 @@ function PlanDialog(props: {
       <div className={css.dialogFields}>
         {creating ? (
           <div className={css.field}>
-            <span className={css.fieldLabel}>Id</span>
+            <span className={css.fieldLabel}>{t('idLabel')}</span>
             <input
               className={css.input}
               value={draft.id}
-              placeholder="e.g. flash"
+              placeholder={t('idPlaceholder')}
               onChange={e => setDialogId(e.target.value)}
             />
           </div>
@@ -398,6 +399,7 @@ export function ModelPlanSection(props: ModelPlanSectionProps): ReactNode {
           draft={dialog}
           creating={dialog.creating}
           catalog={catalog}
+          rows={state.rows}
           t={t}
           setDialogId={props.setDialogId}
           setDialogName={props.setDialogName}

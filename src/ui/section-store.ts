@@ -127,13 +127,21 @@ export function isJsonValue(text: string): boolean {
   }
 }
 
-/** The first block preventing this draft from saving, as a locale key, or undefined. */
+/**
+ * The first block preventing this draft from saving, as a locale key, or undefined.
+ * When creating, the id is checked for emptiness, then legality, then a clash
+ * against the roster (a duplicate id is refused before the host does).
+ */
 export function planBlocker(
   draft: PlanDraft,
   creating: boolean,
-): 'idRequired' | 'modelRequired' | 'keyRequired' | 'valueInvalid' | undefined {
-  if (creating && draft.id === '') return 'idRequired'
-  if (creating && !PLAN_ID.test(draft.id)) return 'idRequired'
+  rows: readonly PlanRow[],
+): 'idRequired' | 'idInvalid' | 'idTaken' | 'modelRequired' | 'keyRequired' | 'valueInvalid' | undefined {
+  if (creating) {
+    if (draft.id === '') return 'idRequired'
+    if (!PLAN_ID.test(draft.id)) return 'idInvalid'
+    if (rows.some(row => row.id === draft.id)) return 'idTaken'
+  }
   if (draft.provider === '' || draft.model === '') return 'modelRequired'
   for (const param of draft.params) {
     if (param.key.trim() === '') return 'keyRequired'
@@ -315,7 +323,7 @@ export class ModelPlanSectionController {
   async confirmSave(): Promise<void> {
     const draft = this.store.getSnapshot().dialog
     if (draft === null || draft.saving) return
-    if (planBlocker(draft, draft.creating) !== undefined) return
+    if (planBlocker(draft, draft.creating, this.store.getSnapshot().rows) !== undefined) return
     this.patchDialog({ saving: true, error: null })
     const params = paramsToWire(draft.params)
     try {
