@@ -21,6 +21,9 @@
  *     `subagent` id survives a cold resume (the official `foldSubagentDescriptor`
  *     would reject it as an unknown field);
  *   - `ContinuationHost` is exported so `./service.ts` can build the host.
+ *   - settlement after a wake-up report is skipped entirely (see
+ *     `deliverReport`'s `reportedWaking`), so a persistent role that reports
+ *     then settles notifies the parent exactly once.
  * When the official continuation manager changes upstream, re-sync this file.
  *
  * A continuable child has one durable Session and at most one process-local
@@ -270,6 +273,18 @@ interface Activation {
    * not exist, so its teardown owes the parent no settlement account.
    */
   announced: boolean
+  /**
+   * Whether this epoch already woke the parent with an explicit report
+   * (`delivery: 'wakeup'`). A wake-up report is the child's self-chosen final
+   * result, so the settlement's finished-notice is redundant and is skipped
+   * entirely in `notifySettlement` — delivering it a second time, whether as a
+   * fresh wake-up or an inject into a busy parent's current turn, would make
+   * the parent answer a second time. A `quiet` report does NOT set this: it
+   * never woke the parent, so the settlement must still wake it once. This is a
+   * harness deviation from the official manager, which always delivers the
+   * settlement regardless of any prior report.
+   */
+  reportedWaking: boolean
   /** Renewed whenever a settlement watcher must re-observe quiescence. */
   poke: PromiseWithResolvers<void>
 }
@@ -713,6 +728,10 @@ export class SubagentContinuationManager {
     })
     if (delivery === 'wakeup') {
       this.sendWaking(parent, message, () => { this.sendReport(parent, message, delivery) })
+      // A wake-up report is the child's self-chosen final result. When the
+      // child then settles, the settlement's finished-notice is redundant, so
+      // this epoch is marked and `notifySettlement` skips it.
+      activation.reportedWaking = true
     } else {
       this.sendReport(parent, message, delivery)
     }
@@ -1168,6 +1187,7 @@ export class SubagentContinuationManager {
       disposal: undefined,
       accepted: new Set(),
       announced: false,
+      reportedWaking: false,
       poke: Promise.withResolvers<void>(),
     }
     // After transfer, any failure must dispose the created handle, remove the
@@ -1562,6 +1582,16 @@ export class SubagentContinuationManager {
         parent.inject(message)
         return
       }
+      // A parent already woken by this child's own wake-up report has processed
+      // the report in its own turn and answered the user once. The report's
+      // contract ("call once before you finish, with a self-contained final
+      // result") makes the settlement's finished-notice redundant, so it is
+      // skipped entirely rather than delivered — a second delivery, whether it
+      // wakes the parent or is injected into a busy parent's current turn, would
+      // make the parent answer a second time. Harness deviation: the official
+      // manager always delivers the settlement here, regardless of a prior
+      // report (see `deliverReport`'s `reportedWaking`).
+      if (activation.reportedWaking) return
       // An idle parent has nothing else to look at, so it gets one ordinary
       // turn. A busy parent is steered instead of woken: `Inbox.claim()` takes
       // the whole next-step batch at one boundary, so several children settling

@@ -352,8 +352,8 @@ export function apply(ctx: Context, config: Config): void {
     disposeTool = ctx.tools.register(defineTool({
       name: toolName,
       description: wording.description + (backgroundEnabled
-        ? ' One-shot roles wait for the result by default (set `run_in_background: true` to return a job id; collect with `job_output` and stop with `job_kill`). Persistent roles always run as durable children that keep their conversation for later turns; the runtime sends you a notice when they settle, and `send_message` continues them.'
-        : ' One-shot roles wait for the result. Persistent roles always run as durable children that keep their conversation for later turns.'),
+        ? ' One-shot roles wait for the result by default (set `run_in_background: true` to return a job id; collect with `job_output` and stop with `job_kill`). Persistent roles are NOT jobs: they always run as durable children that keep their conversation for later turns, so do NOT wait on them with `job_output` — the runtime sends you a notice when they report or settle, and `send_message` continues them.'
+        : ' One-shot roles wait for the result. Persistent roles always run as durable children that keep their conversation for later turns, so do NOT wait on them with `job_output` — the runtime sends you a notice when they settle, and `send_message` continues them.'),
       parameters: {
         description: {
           type: 'string',
