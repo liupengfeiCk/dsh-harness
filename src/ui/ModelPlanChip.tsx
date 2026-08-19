@@ -135,7 +135,12 @@ export function ModelPlanChip({ locked, useModelPlanChip, t, load, select }: Mod
           title={label}
           disabled={disabled}
           onKeyDown={onTriggerKeyDown}
-          onClick={() => { setOpen(value => !value) }}
+          onClick={() => {
+            // Re-read the roster each time the menu opens so a plan authored
+            // in Settings shows up here without a reload.
+            if (!open) void load()
+            setOpen(value => !value)
+          }}
         >
           {label}
           <IconChevronDownOutline14 className={css.chevron} />
