@@ -74,6 +74,30 @@ describe('currentTeamMode fold', () => {
     session.append('turn/start', {})
     expect(currentTeamMode(session.events)).toEqual({ mode: 'standard' })
   })
+
+  it('folds identically when the mode event carries the ignorable envelope field', () => {
+    // The write path passes `ignorable: true` so a first-party reader that
+    // does not know `subagent-team/mode` can still accept the log (and reload
+    // the session); the flag must NOT change how our own fold reads the event.
+    //
+    // This suite runs against the npm-published `@deepseek-ai/dsh-session`
+    // whose append predates the upstream ignorable surface, so it does NOT
+    // assert the field on a live append (the running host CLI — the rebuilt
+    // in-repo package — is where the flag lands; that round-trip is covered by
+    // the upstream session-persistence contract tests and the E2E). Instead we
+    // seed an event that already carries `ignorable: true` and assert the fold
+    // is unchanged — the exact property the flag must preserve.
+    const session = Session.create(SessionId('s-ignorable'), [
+      { type: 'subagent-team/mode', seq: 0, time: 1, data: { mode: 'team', team: 'edit' }, ignorable: true },
+    ])
+    expect(session.events[0].ignorable).toBe(true)
+    expect(currentTeamMode(session.events)).toEqual({ mode: 'team', team: 'edit' })
+
+    // A seeded replay of the ignorable log folds the same way.
+    const replayed = Session.create(SessionId('s-ignorable-replay'), [...session.events])
+    expect(replayed.events[0].ignorable).toBe(true)
+    expect(currentTeamMode(replayed.events)).toEqual({ mode: 'team', team: 'edit' })
+  })
 })
 
 describe('modeLocked', () => {

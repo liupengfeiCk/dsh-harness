@@ -33,7 +33,7 @@ import { applyModeRestrictions, currentTeamMode, modeLocked, type TeamMode, type
 // Type-only: `ctx.agents` for applying a session's mode restriction and
 // appending the durable mode event to the live session.
 import type {} from '@deepseek-ai/dsh-agent'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 
 export { TEAM_FILE } from './metadata.ts'
 export { discoverTeams, scanRoot, USER_TEAM_DIR } from './discovery.ts'
@@ -371,9 +371,35 @@ export class Teams extends Service {
     }
     // The durable record is the commit point; the log states what the agent
     // runs, and the restriction follows it.
-    session.append('subagent-team/mode', mode === 'team'
+    //
+    // `subagent-team/mode` is a Harness-only event type that no first-party
+    // reader knows, so it must be marked `ignorable: true`: the official
+    // `coordinator.load` rejects any log carrying an unknown event type that is
+    // NOT marked ignorable (see `assertEventsSupported`), which would refuse a
+    // reopened team-mode session. The flag declares that skipping this event
+    // changes nothing about the interpretation of every other event — a reader
+    // without this bundle simply replays the session in its default (standard)
+    // mode. The event is still preserved through a first-party load and the
+    // `currentTeamMode` fold reads it unchanged.
+    //
+    // UPSTREAM-SYNC NOTE (type escape hatch): this harness depends on the npm
+    // published `@deepseek-ai/dsh-session@0.1.0-rc.7`, whose `Session.append`
+    // signature predates the upstream ignorable surface — the official
+    // session-log-version-mechanism note reserves that surface for its first
+    // writer ("`Session.append` gains that surface with its first user"), which
+    // is this bundle. We cannot repoint the harness dependency at the in-repo
+    // package (its `workspace:^` peer graph does not cross the harness
+    // workspace root), so we escape the stale npm types here (compile-time
+    // only): a bundle never constructs a Session, it calls the host instance's
+    // append, and the host is the official CLI running the rebuilt in-repo
+    // session package whose append DOES consume the trailing `ignorable` flag.
+    // So this bound append is asserted to accept it; at runtime the third
+    // argument lands as `ignorable: true` on the event.
+    type AppendWithIgnorable = (type: string, data: Record<string, unknown>, ignorable?: true) => SessionEvent
+    const appendIgnorable = session.append.bind(session) as unknown as AppendWithIgnorable
+    appendIgnorable('subagent-team/mode', mode === 'team'
       ? { mode, team: team as string }
-      : { mode })
+      : { mode }, true)
     const state = currentTeamMode(session.events)
     const agent = this.ctx.get('agents')?.get(sessionId)
     if (agent !== undefined) {
