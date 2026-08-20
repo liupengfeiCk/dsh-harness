@@ -111,6 +111,23 @@ function messageOf(error: unknown): string {
 }
 
 /**
+ * The capability face of the currently selected model/route, as far as the
+ * editor can tell. Each field is `null` when no model is selected yet (the
+ * capability is undetermined and the editor stays permissive); `true`/`false`
+ * once a model is selected.
+ *
+ * `reasoningEffort` sources from the official model directory's per-route
+ * reasoning metadata (the exact field the reasoning dropdown already reads),
+ * so it needs no local copy. Adapter-parameter capabilities the official
+ * surface does not expose (e.g. whether a route honours `stop`) are layered in
+ * here from the architecture map in `capability.ts`.
+ */
+export interface PlanAbility {
+  /** Whether the selected model exposes reasoning efforts. */
+  reasoningEffort: boolean | null
+}
+
+/**
  * Whether a text is a legal JSON scalar per the wire's JSON-value vocabulary.
  * Any text `JSON.parse` accepts is a legal JSON value; the empty string is not.
  */
@@ -129,11 +146,16 @@ export function isJsonValue(text: string): boolean {
  * When creating, the id is checked for emptiness, then legality, then a clash
  * against the roster (a duplicate id is refused before the host does).
  */
+export type PlanBlockerKey =
+  | 'idRequired' | 'idInvalid' | 'idTaken' | 'modelRequired' | 'keyRequired' | 'valueInvalid'
+  | 'reasoningUnsupported'
+
 export function planBlocker(
   draft: PlanDraft,
   creating: boolean,
   rows: readonly PlanRow[],
-): 'idRequired' | 'idInvalid' | 'idTaken' | 'modelRequired' | 'keyRequired' | 'valueInvalid' | undefined {
+  ability: PlanAbility = { reasoningEffort: null },
+): PlanBlockerKey | undefined {
   if (creating) {
     if (draft.id === '') return 'idRequired'
     if (!PLAN_ID.test(draft.id)) return 'idInvalid'
@@ -143,6 +165,12 @@ export function planBlocker(
   for (const param of draft.params) {
     if (param.key.trim() === '') return 'keyRequired'
     if (!isJsonValue(param.value)) return 'valueInvalid'
+    // Capability gate: a well-known key the selected route cannot honour is a
+    // real (typed) value is refused here so the user hears about it in the
+    // editor instead of at request time.
+    if (param.value.trim() !== '') {
+      if (param.key === 'reasoningEffort' && ability.reasoningEffort === false) return 'reasoningUnsupported'
+    }
   }
   return undefined
 }

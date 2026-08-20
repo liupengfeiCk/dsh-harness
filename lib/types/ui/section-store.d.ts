@@ -76,6 +76,22 @@ export interface ModelPlanSectionState {
     deleting: boolean;
 }
 /**
+ * The capability face of the currently selected model/route, as far as the
+ * editor can tell. Each field is `null` when no model is selected yet (the
+ * capability is undetermined and the editor stays permissive); `true`/`false`
+ * once a model is selected.
+ *
+ * `reasoningEffort` sources from the official model directory's per-route
+ * reasoning metadata (the exact field the reasoning dropdown already reads),
+ * so it needs no local copy. Adapter-parameter capabilities the official
+ * surface does not expose (e.g. whether a route honours `stop`) are layered in
+ * here from the architecture map in `capability.ts`.
+ */
+export interface PlanAbility {
+    /** Whether the selected model exposes reasoning efforts. */
+    reasoningEffort: boolean | null;
+}
+/**
  * Whether a text is a legal JSON scalar per the wire's JSON-value vocabulary.
  * Any text `JSON.parse` accepts is a legal JSON value; the empty string is not.
  */
@@ -85,7 +101,8 @@ export declare function isJsonValue(text: string): boolean;
  * When creating, the id is checked for emptiness, then legality, then a clash
  * against the roster (a duplicate id is refused before the host does).
  */
-export declare function planBlocker(draft: PlanDraft, creating: boolean, rows: readonly PlanRow[]): 'idRequired' | 'idInvalid' | 'idTaken' | 'modelRequired' | 'keyRequired' | 'valueInvalid' | undefined;
+export type PlanBlockerKey = 'idRequired' | 'idInvalid' | 'idTaken' | 'modelRequired' | 'keyRequired' | 'valueInvalid' | 'reasoningUnsupported';
+export declare function planBlocker(draft: PlanDraft, creating: boolean, rows: readonly PlanRow[], ability?: PlanAbility): PlanBlockerKey | undefined;
 /**
  * Read the roster and drive the create/edit dialog, set-default, and delete.
  */

@@ -23,7 +23,7 @@ import {
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  planBlocker, type ModelPlanSectionState, type ParamDraft, type PlanDraft, type PlanRow,
+  planBlocker, type ModelPlanSectionState, type ParamDraft, type PlanAbility, type PlanDraft, type PlanRow,
 } from './section-store.ts'
 import type { ModelCatalogState } from './directory.ts'
 import type { ModelPlanKey } from './locales.ts'
@@ -154,14 +154,16 @@ function ParamRow(props: {
   param: ParamDraft
   index: number
   reasoningEffortOptions: readonly string[]
+  reasoningUnsupported: boolean
   t: (key: ModelPlanKey) => string
   onKey: (index: number, key: string) => void
   onValue: (index: number, value: string) => void
   onRemove: (index: number) => void
 }): ReactNode {
-  const { param, index, reasoningEffortOptions, t, onKey, onValue, onRemove } = props
+  const { param, index, reasoningEffortOptions, reasoningUnsupported, t, onKey, onValue, onRemove } = props
+  const isReasoningEffort = param.key === 'reasoningEffort'
   return (
-    <div className={css.paramRow}>
+    <div className={`${css.paramRow} ${reasoningUnsupported ? css.paramRowBlocked : ''}`}>
       <div className={css.field}>
         <span className={css.fieldLabel}>{t('paramKeyLabel')}</span>
         <input
@@ -173,11 +175,12 @@ function ParamRow(props: {
       </div>
       <div className={css.field}>
         <span className={css.fieldLabel}>{t('paramValueLabel')}</span>
-        {param.key === 'reasoningEffort' && reasoningEffortOptions.length > 0
+        {isReasoningEffort && reasoningEffortOptions.length > 0
           ? (
             <select
               className={`${css.input} ${css.select}`}
               value={param.value}
+              disabled={reasoningUnsupported}
               onChange={e => onValue(index, e.target.value)}
             >
               {/* Each option's value is the JSON-serialized form of the effort
@@ -194,10 +197,14 @@ function ParamRow(props: {
             <input
               className={css.input}
               value={param.value}
+              disabled={reasoningUnsupported}
               placeholder={t('paramValuePlaceholder')}
               onChange={e => onValue(index, e.target.value)}
             />
           )}
+        {reasoningUnsupported
+          ? <p className={css.paramBlocked}>{t('reasoningUnavailable')}</p>
+          : null}
       </div>
       <Tooltip label={t('removeParam')} side="top">
         <button
@@ -233,11 +240,13 @@ function PlanDialog(props: {
 }): ReactNode {
   const { draft, creating, catalog, rows, t, setDialogId, setDialogProvider, setDialogModel,
     setParamKey, setParamValue, setReasoningEffort, addParam, removeParam, confirm, cancel } = props
-  const blocker = planBlocker(draft, creating, rows)
-  const message = draft.error ?? (blocker === undefined ? null : t(blocker))
   const group = catalog.groups.find(g => g.id === draft.provider)
   const model = group?.models.find(m => m.id === draft.model)
   const reasoningOptions = reasoningChoices(model?.reasoning)
+  const reasoningUnsupported = model !== undefined && (model.reasoning?.efforts.length ?? 0) === 0
+  const ability: PlanAbility = { reasoningEffort: model === undefined ? null : !reasoningUnsupported }
+  const blocker = planBlocker(draft, creating, rows, ability)
+  const message = draft.error ?? (blocker === undefined ? null : t(blocker))
   const catalogFailed = catalog.status === 'error'
   const modelSelectable = catalog.status === 'ready' && catalog.groups.length > 0
 
@@ -311,6 +320,7 @@ function PlanDialog(props: {
               param={param}
               index={index}
               reasoningEffortOptions={reasoningOptions}
+              reasoningUnsupported={reasoningUnsupported}
               t={t}
               onKey={setParamKey}
               onValue={param.key === 'reasoningEffort' ? (_i, v) => setReasoningEffort(v) : setParamValue}

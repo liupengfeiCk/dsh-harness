@@ -98,6 +98,21 @@ describe('the create/edit blocker', () => {
     expect(planBlocker(base({ params: [{ key: 'temperature', value: 'oops' }] }), true, [])).toBe('valueInvalid')
   })
 
+  it('refuses a reasoningEffort value when the selected model exposes no reasoning', () => {
+    const draft = base({ params: [{ key: 'reasoningEffort', value: '"high"' }] })
+    expect(planBlocker(draft, true, [], { reasoningEffort: false })).toBe('reasoningUnsupported')
+  })
+
+  it('allows a reasoningEffort value when the selected model exposes reasoning', () => {
+    const draft = base({ params: [{ key: 'reasoningEffort', value: '"high"' }] })
+    expect(planBlocker(draft, true, [], { reasoningEffort: true })).toBeUndefined()
+  })
+
+  it('does not refuse reasoningEffort when no model is selected (capability undetermined)', () => {
+    const draft = base({ params: [{ key: 'reasoningEffort', value: '"high"' }] })
+    expect(planBlocker(draft, true, [], { reasoningEffort: null })).toBeUndefined()
+  })
+
   it('passes a fully-staged create against an empty roster', () => {
     expect(planBlocker(base(), true, [])).toBeUndefined()
   })
