@@ -162,8 +162,12 @@ function ParamRow(props: {
 }): ReactNode {
   const { param, index, reasoningEffortOptions, reasoningUnsupported, t, onKey, onValue, onRemove } = props
   const isReasoningEffort = param.key === 'reasoningEffort'
+  // The "model does not support reasoning effort" block applies ONLY to the
+  // `reasoningEffort` row — a temperature/maxTokens/other row must stay fully
+  // editable even when the model exposes no effort tiers.
+  const blocked = isReasoningEffort && reasoningUnsupported
   return (
-    <div className={`${css.paramRow} ${reasoningUnsupported ? css.paramRowBlocked : ''}`}>
+    <div className={`${css.paramRow} ${blocked ? css.paramRowBlocked : ''}`}>
       <div className={css.field}>
         <span className={css.fieldLabel}>{t('paramKeyLabel')}</span>
         <input
@@ -180,7 +184,7 @@ function ParamRow(props: {
             <select
               className={`${css.input} ${css.select}`}
               value={param.value}
-              disabled={reasoningUnsupported}
+              disabled={blocked}
               onChange={e => onValue(index, e.target.value)}
             >
               {/* Each option's value is the JSON-serialized form of the effort
@@ -197,12 +201,12 @@ function ParamRow(props: {
             <input
               className={css.input}
               value={param.value}
-              disabled={reasoningUnsupported}
+              disabled={blocked}
               placeholder={t('paramValuePlaceholder')}
               onChange={e => onValue(index, e.target.value)}
             />
           )}
-        {reasoningUnsupported
+        {blocked
           ? <p className={css.paramBlocked}>{t('reasoningUnavailable')}</p>
           : null}
       </div>

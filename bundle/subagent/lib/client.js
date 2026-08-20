@@ -5,20 +5,10 @@ window.__ModuleLoader__.load({
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 		let _deepseek_ai_dsh_client_runtime_client = require("@deepseek-ai/dsh-client-runtime/client");
-		let react_jsx_runtime = require("react/jsx-runtime");
 		let react = require("react");
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
-		//#region lib/types/ui/section-store.js
-		/**
-		* Subagent management controller: the roster as a list, a create/copy dialog,
-		* a row-level enable/disable toggle, an edit dialog over the metadata fields,
-		* delete, and opening a subagent's directory.
-		*
-		* The host stays the single fact source. Every mutation writes through the
-		* wire and the page re-reads the roster afterwards, because a toggle or edit
-		* changes more than the row it targeted (the roster order and states recompute
-		* from the host).
-		*/
+		let react_jsx_runtime = require("react/jsx-runtime");
+		//#region src/ui/section-store.ts
 		/** Ids a subagent directory may be named, mirroring the host's own rule. */
 		const SUBAGENT_ID = /^[a-z0-9][a-z0-9-]*$/;
 		/**
@@ -519,56 +509,56 @@ window.__ModuleLoader__.load({
 			document.head.appendChild(tag);
 		}
 		var SubagentPresetSection_module_css_default = {
-			"toolRow": "ZIPf0q_toolRow",
-			"dialogScroll": "ZIPf0q_dialogScroll",
 			"cardId": "ZIPf0q_cardId",
-			"iconButton": "ZIPf0q_iconButton",
-			"revealedPathLabel": "ZIPf0q_revealedPathLabel",
-			"blockTitle": "ZIPf0q_blockTitle",
-			"badge": "ZIPf0q_badge",
-			"toolInfoBody": "ZIPf0q_toolInfoBody",
-			"toolDesc": "ZIPf0q_toolDesc",
+			"select": "ZIPf0q_select",
+			"dialogScroll": "ZIPf0q_dialogScroll",
+			"cardHead": "ZIPf0q_cardHead",
 			"cardDesc": "ZIPf0q_cardDesc",
+			"cardFoot": "ZIPf0q_cardFoot",
+			"blockTitle": "ZIPf0q_blockTitle",
+			"toolId": "ZIPf0q_toolId",
+			"toolExpr": "ZIPf0q_toolExpr",
+			"card": "ZIPf0q_card",
+			"dialogFields": "ZIPf0q_dialogFields",
+			"fieldLabel": "ZIPf0q_fieldLabel",
+			"dialog": "ZIPf0q_dialog",
+			"deleteConfirm": "ZIPf0q_deleteConfirm",
+			"toolInfoSpacer": "ZIPf0q_toolInfoSpacer",
+			"iconButton": "ZIPf0q_iconButton",
+			"viewer": "ZIPf0q_viewer",
+			"toggleField": "ZIPf0q_toggleField",
+			"revealedPathLabel": "ZIPf0q_revealedPathLabel",
+			"toggle": "ZIPf0q_toggle",
+			"toolState": "ZIPf0q_toolState",
 			"inheritLabel": "ZIPf0q_inheritLabel",
 			"error": "ZIPf0q_error",
-			"input": "ZIPf0q_input",
-			"toolInfo": "ZIPf0q_toolInfo",
-			"textarea": "ZIPf0q_textarea",
-			"iconDanger": "ZIPf0q_iconDanger",
-			"creatorButton": "ZIPf0q_creatorButton",
-			"cards": "ZIPf0q_cards",
 			"revealedPath": "ZIPf0q_revealedPath",
-			"select": "ZIPf0q_select",
-			"dialogFields": "ZIPf0q_dialogFields",
-			"title": "ZIPf0q_title",
-			"toggleField": "ZIPf0q_toggleField",
-			"dialog": "ZIPf0q_dialog",
-			"card": "ZIPf0q_card",
-			"intro": "ZIPf0q_intro",
-			"toggle": "ZIPf0q_toggle",
-			"field": "ZIPf0q_field",
-			"fieldLabel": "ZIPf0q_fieldLabel",
-			"viewer": "ZIPf0q_viewer",
-			"cardHead": "ZIPf0q_cardHead",
-			"toolState": "ZIPf0q_toolState",
-			"toolId": "ZIPf0q_toolId",
-			"fieldHint": "ZIPf0q_fieldHint",
+			"toolRow": "ZIPf0q_toolRow",
+			"toolInfoBody": "ZIPf0q_toolInfoBody",
 			"deleteDialog": "ZIPf0q_deleteDialog",
-			"cardBroken": "ZIPf0q_cardBroken",
-			"cardFoot": "ZIPf0q_cardFoot",
-			"toolExpr": "ZIPf0q_toolExpr",
-			"editorBlock": "ZIPf0q_editorBlock",
-			"toolInfoSpacer": "ZIPf0q_toolInfoSpacer",
-			"inheritRow": "ZIPf0q_inheritRow",
-			"cardName": "ZIPf0q_cardName",
 			"headSpacer": "ZIPf0q_headSpacer",
 			"brokenBadge": "ZIPf0q_brokenBadge",
+			"editorBlock": "ZIPf0q_editorBlock",
+			"title": "ZIPf0q_title",
+			"fieldHint": "ZIPf0q_fieldHint",
+			"creatorButton": "ZIPf0q_creatorButton",
+			"inheritRow": "ZIPf0q_inheritRow",
 			"section": "ZIPf0q_section",
+			"field": "ZIPf0q_field",
+			"intro": "ZIPf0q_intro",
+			"toolInfo": "ZIPf0q_toolInfo",
+			"cards": "ZIPf0q_cards",
+			"input": "ZIPf0q_input",
+			"iconDanger": "ZIPf0q_iconDanger",
 			"toolInfoSummary": "ZIPf0q_toolInfoSummary",
-			"deleteConfirm": "ZIPf0q_deleteConfirm"
+			"textarea": "ZIPf0q_textarea",
+			"cardBroken": "ZIPf0q_cardBroken",
+			"badge": "ZIPf0q_badge",
+			"toolDesc": "ZIPf0q_toolDesc",
+			"cardName": "ZIPf0q_cardName"
 		};
 		//#endregion
-		//#region lib/types/ui/SubagentPresetSection.js
+		//#region src/ui/SubagentPresetSection.tsx
 		/**
 		* Subagents settings section: the independent "子代理" roster as cards, with
 		* a create/copy dialog, a row-level enable/disable switch, an edit dialog over
@@ -583,29 +573,29 @@ window.__ModuleLoader__.load({
 			const { row, t, onToggle, onView, onCopy, onEdit, onDelete, onOpen, hasDocument, revealedPath } = props;
 			const custom = row.trust === "user";
 			const broken = row.broken !== void 0;
-			return (0, react_jsx_runtime.jsxs)("li", {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
 				className: `${SubagentPresetSection_module_css_default.card} ${broken ? SubagentPresetSection_module_css_default.cardBroken : ""}`,
 				children: [
-					(0, react_jsx_runtime.jsxs)("div", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: SubagentPresetSection_module_css_default.cardHead,
 						children: [
-							(0, react_jsx_runtime.jsx)("span", {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: SubagentPresetSection_module_css_default.cardName,
 								children: row.id
 							}),
-							(0, react_jsx_runtime.jsx)("span", {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: SubagentPresetSection_module_css_default.badge,
 								children: custom ? t("userTrust") : t("systemTrust")
 							}),
-							broken ? (0, react_jsx_runtime.jsx)("span", {
+							broken ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: SubagentPresetSection_module_css_default.brokenBadge,
 								children: t("brokenBadge")
 							}) : null,
-							(0, react_jsx_runtime.jsx)("span", { className: SubagentPresetSection_module_css_default.headSpacer }),
-							(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: SubagentPresetSection_module_css_default.headSpacer }),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 								label: row.metadata.enabled !== false ? t("enabled") : t("disabled"),
 								side: "top",
-								children: (0, react_jsx_runtime.jsx)("input", {
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 									type: "checkbox",
 									className: SubagentPresetSection_module_css_default.toggle,
 									checked: row.metadata.enabled !== false,
@@ -615,81 +605,81 @@ window.__ModuleLoader__.load({
 							})
 						]
 					}),
-					(0, react_jsx_runtime.jsx)("p", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: SubagentPresetSection_module_css_default.cardDesc,
 						children: row.metadata.description ?? t("noDescription")
 					}),
-					(0, react_jsx_runtime.jsx)("div", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: SubagentPresetSection_module_css_default.cardId,
 						children: row.id
 					}),
-					(0, react_jsx_runtime.jsxs)("div", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: SubagentPresetSection_module_css_default.cardFoot,
 						children: [
-							(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 								label: t("view"),
 								side: "top",
-								children: (0, react_jsx_runtime.jsx)("button", {
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
 									className: SubagentPresetSection_module_css_default.iconButton,
 									onClick: () => onView(row.id),
-									children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBrowseOutline16, {})
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBrowseOutline16, {})
 								})
 							}),
-							(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 								label: t("copy"),
 								side: "top",
-								children: (0, react_jsx_runtime.jsx)("button", {
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
 									className: SubagentPresetSection_module_css_default.iconButton,
 									disabled: broken,
 									onClick: () => onCopy(row.id),
-									children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutline16, {})
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutline16, {})
 								})
 							}),
-							(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 								label: t("edit"),
 								side: "top",
-								children: (0, react_jsx_runtime.jsx)("button", {
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
 									className: SubagentPresetSection_module_css_default.iconButton,
 									disabled: !custom,
 									onClick: () => onEdit(row.id),
-									children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEditOutline16, {})
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEditOutline16, {})
 								})
 							}),
-							(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 								label: t("delete"),
 								side: "top",
-								children: (0, react_jsx_runtime.jsx)("button", {
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
 									className: `${SubagentPresetSection_module_css_default.iconButton} ${SubagentPresetSection_module_css_default.iconDanger}`,
 									disabled: !custom,
 									onClick: () => onDelete(row.id),
-									children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutline16, {})
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutline16, {})
 								})
 							}),
-							(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 								label: hasDocument ? t("openLocation") : t("showLocation"),
 								side: "top",
-								children: (0, react_jsx_runtime.jsx)("button", {
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
 									className: SubagentPresetSection_module_css_default.iconButton,
 									onClick: () => onOpen(row.id),
-									children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenOutline16, {})
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenOutline16, {})
 								})
 							})
 						]
 					}),
-					revealedPath !== void 0 ? (0, react_jsx_runtime.jsxs)("p", {
+					revealedPath !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
 						className: SubagentPresetSection_module_css_default.revealedPath,
 						children: [
-							(0, react_jsx_runtime.jsx)("span", {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: SubagentPresetSection_module_css_default.revealedPathLabel,
 								children: t("revealedPathLabel")
 							}),
 							" ",
-							(0, react_jsx_runtime.jsx)("code", { children: revealedPath })
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", { children: revealedPath })
 						]
 					}) : null
 				]
@@ -702,29 +692,29 @@ window.__ModuleLoader__.load({
 			if (draft === null) return null;
 			const blocker = createBlocker(draft, state.rows);
 			const message = draft.error ?? (blocker === void 0 ? null : t(blocker));
-			return (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
 				open: true,
 				onClose: cancel,
 				title: t("createTitle"),
 				closeLabel: t("close"),
 				description: t("createIntro"),
 				className: SubagentPresetSection_module_css_default.dialog,
-				footer: (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				footer: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 					variant: "outline",
 					disabled: draft.saving,
 					onClick: cancel,
 					children: t("cancel")
-				}), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 					disabled: draft.saving || blocker !== void 0,
 					onClick: confirm,
 					children: draft.saving ? t("creating") : t("create")
 				})] }),
-				children: (0, react_jsx_runtime.jsxs)("div", {
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: SubagentPresetSection_module_css_default.dialogFields,
 					children: [
-						(0, react_jsx_runtime.jsx)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 							className: SubagentPresetSection_module_css_default.field,
-							children: (0, react_jsx_runtime.jsxs)("span", {
+							children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 								className: SubagentPresetSection_module_css_default.fieldLabel,
 								children: [
 									t("copyOf"),
@@ -733,19 +723,19 @@ window.__ModuleLoader__.load({
 								]
 							})
 						}),
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: SubagentPresetSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: SubagentPresetSection_module_css_default.fieldLabel,
 								children: t("idLabel")
-							}), (0, react_jsx_runtime.jsx)("input", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 								className: SubagentPresetSection_module_css_default.input,
 								value: draft.id,
 								placeholder: t("idPlaceholder"),
 								onChange: (e) => setCreateId(e.target.value)
 							})]
 						}),
-						message !== null ? (0, react_jsx_runtime.jsx)("p", {
+						message !== null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 							className: SubagentPresetSection_module_css_default.error,
 							children: message
 						}) : null
@@ -756,7 +746,7 @@ window.__ModuleLoader__.load({
 		/** The read-only composition viewer. */
 		function ViewDialog(props) {
 			const { view, t, close } = props;
-			return (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
 				open: true,
 				onClose: close,
 				title: `${t("viewTitle")}: ${view.title}`,
@@ -764,12 +754,12 @@ window.__ModuleLoader__.load({
 				description: t("viewIntro"),
 				className: SubagentPresetSection_module_css_default.dialog,
 				contentClassName: SubagentPresetSection_module_css_default.dialogScroll,
-				footer: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				footer: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 					variant: "outline",
 					onClick: close,
 					children: t("close")
 				}),
-				children: (0, react_jsx_runtime.jsx)("pre", {
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
 					className: SubagentPresetSection_module_css_default.viewer,
 					children: view.content
 				})
@@ -778,7 +768,7 @@ window.__ModuleLoader__.load({
 		/** The metadata edit dialog. */
 		function EditDialog(props) {
 			const { edit, t, setEditField, confirm, cancel } = props;
-			return (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
 				open: true,
 				onClose: cancel,
 				title: `${t("editTitle")}: ${edit.title}`,
@@ -786,93 +776,93 @@ window.__ModuleLoader__.load({
 				description: t("editIntro"),
 				className: SubagentPresetSection_module_css_default.dialog,
 				contentClassName: SubagentPresetSection_module_css_default.dialogScroll,
-				footer: (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				footer: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 					variant: "outline",
 					disabled: edit.saving,
 					onClick: cancel,
 					children: t("cancel")
-				}), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 					disabled: edit.saving,
 					onClick: confirm,
 					children: edit.saving ? t("saving") : t("save")
 				})] }),
-				children: (0, react_jsx_runtime.jsxs)("div", {
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: SubagentPresetSection_module_css_default.dialogFields,
 					children: [
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: SubagentPresetSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: SubagentPresetSection_module_css_default.fieldLabel,
 								children: t("descriptionLabel")
-							}), (0, react_jsx_runtime.jsx)("input", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 								className: SubagentPresetSection_module_css_default.input,
 								value: edit.metadata.description,
 								placeholder: t("descriptionPlaceholder"),
 								onChange: (e) => setEditField("description", "value", e.target.value)
 							})]
 						}),
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: SubagentPresetSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: SubagentPresetSection_module_css_default.fieldLabel,
 								children: t("personaLabel")
-							}), (0, react_jsx_runtime.jsx)("textarea", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("textarea", {
 								className: `${SubagentPresetSection_module_css_default.input} ${SubagentPresetSection_module_css_default.textarea}`,
 								value: edit.persona ?? "",
 								placeholder: t("personaPlaceholder"),
 								onChange: (e) => setEditField("persona", "value", e.target.value)
 							})]
 						}),
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: SubagentPresetSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: SubagentPresetSection_module_css_default.fieldLabel,
 								children: t("model")
-							}), (0, react_jsx_runtime.jsxs)("select", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("select", {
 								className: `${SubagentPresetSection_module_css_default.input} ${SubagentPresetSection_module_css_default.select}`,
 								value: edit.metadata.model === void 0 ? "" : edit.metadata.model,
 								onChange: (e) => setEditField("model", "value", e.target.value),
-								children: [(0, react_jsx_runtime.jsx)("option", {
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
 									value: "",
 									children: t("inheritModel")
-								}), edit.planChoices.map((plan) => (0, react_jsx_runtime.jsx)("option", {
+								}), edit.planChoices.map((plan) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
 									value: plan.id,
 									children: `${plan.id} — ${plan.provider}/${plan.model}`
 								}, plan.id))]
 							})]
 						}),
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: SubagentPresetSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsxs)("label", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
 								className: SubagentPresetSection_module_css_default.inheritRow,
-								children: [(0, react_jsx_runtime.jsx)("input", {
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 									type: "checkbox",
 									role: "switch",
 									className: SubagentPresetSection_module_css_default.toggle,
 									checked: edit.metadata.inheritParent,
 									onChange: (e) => setEditField("inheritParent", "value", e.target.checked)
-								}), (0, react_jsx_runtime.jsx)("span", {
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: SubagentPresetSection_module_css_default.inheritLabel,
 									children: t("inheritParentLabel")
 								})]
-							}), (0, react_jsx_runtime.jsx)("span", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: SubagentPresetSection_module_css_default.fieldHint,
 								children: t("inheritParentHint")
 							})]
 						}),
-						edit.catalog.length === 0 ? null : (0, react_jsx_runtime.jsxs)("section", {
+						edit.catalog.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 							className: SubagentPresetSection_module_css_default.editorBlock,
-							children: [(0, react_jsx_runtime.jsx)("h4", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h4", {
 								className: SubagentPresetSection_module_css_default.blockTitle,
 								children: t("toolsTitle")
-							}), edit.catalog.map((entry) => (0, react_jsx_runtime.jsx)(ToolRowView, {
+							}), edit.catalog.map((entry) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ToolRowView, {
 								entry,
 								edit,
 								t,
 								setEditField
 							}, entry.name))]
 						}),
-						edit.error !== null ? (0, react_jsx_runtime.jsx)("p", {
+						edit.error !== null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 							className: SubagentPresetSection_module_css_default.error,
 							children: edit.error
 						}) : null
@@ -882,14 +872,14 @@ window.__ModuleLoader__.load({
 		}
 		/** A collapsible detail disclosure rendered as an info marker after a row. */
 		function ToolInfo({ title, children }) {
-			return (0, react_jsx_runtime.jsxs)("details", {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
 				className: SubagentPresetSection_module_css_default.toolInfo,
-				children: [(0, react_jsx_runtime.jsx)("summary", {
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("summary", {
 					className: SubagentPresetSection_module_css_default.toolInfoSummary,
 					"aria-label": `${title}: 详情`,
 					title,
 					children: "!"
-				}), (0, react_jsx_runtime.jsx)("div", {
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 					className: SubagentPresetSection_module_css_default.toolInfoBody,
 					children
 				})]
@@ -900,10 +890,10 @@ window.__ModuleLoader__.load({
 			const scope = `catalog:${entry.name}`;
 			if (entry.installed) {
 				const toggleable = edit.tools.find((candidate) => candidate.name === entry.name)?.disabled !== "expr";
-				return (0, react_jsx_runtime.jsxs)("div", {
+				return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: SubagentPresetSection_module_css_default.toolRow,
 					children: [
-						(0, react_jsx_runtime.jsx)("input", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 							type: "checkbox",
 							role: "switch",
 							"aria-label": entry.name,
@@ -914,21 +904,21 @@ window.__ModuleLoader__.load({
 								setEditField(scope, "remove", !event.target.checked);
 							}
 						}),
-						(0, react_jsx_runtime.jsx)("span", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: SubagentPresetSection_module_css_default.toolId,
 							children: entry.name
 						}),
-						(0, react_jsx_runtime.jsx)("span", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: SubagentPresetSection_module_css_default.toolState,
 							children: t("toolInstalled")
 						}),
-						!toggleable ? (0, react_jsx_runtime.jsx)("span", {
+						!toggleable ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: SubagentPresetSection_module_css_default.toolExpr,
 							children: t("toolExprDisabled")
 						}) : null,
-						entry.description === void 0 ? (0, react_jsx_runtime.jsx)("span", { className: SubagentPresetSection_module_css_default.toolInfoSpacer }) : (0, react_jsx_runtime.jsx)(ToolInfo, {
+						entry.description === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: SubagentPresetSection_module_css_default.toolInfoSpacer }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ToolInfo, {
 							title: entry.name,
-							children: (0, react_jsx_runtime.jsx)("span", {
+							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: SubagentPresetSection_module_css_default.toolDesc,
 								children: entry.description
 							})
@@ -936,10 +926,10 @@ window.__ModuleLoader__.load({
 					]
 				});
 			}
-			return (0, react_jsx_runtime.jsxs)("div", {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: SubagentPresetSection_module_css_default.toolRow,
 				children: [
-					(0, react_jsx_runtime.jsx)("input", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 						type: "checkbox",
 						role: "switch",
 						"aria-label": entry.name,
@@ -949,17 +939,17 @@ window.__ModuleLoader__.load({
 							setEditField(scope, "install", event.target.checked);
 						}
 					}),
-					(0, react_jsx_runtime.jsx)("span", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 						className: SubagentPresetSection_module_css_default.toolId,
 						children: entry.name
 					}),
-					(0, react_jsx_runtime.jsx)("span", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 						className: SubagentPresetSection_module_css_default.toolState,
 						children: t("toolUninstalled")
 					}),
-					entry.description === void 0 ? (0, react_jsx_runtime.jsx)("span", { className: SubagentPresetSection_module_css_default.toolInfoSpacer }) : (0, react_jsx_runtime.jsx)(ToolInfo, {
+					entry.description === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: SubagentPresetSection_module_css_default.toolInfoSpacer }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ToolInfo, {
 						title: entry.name,
-						children: (0, react_jsx_runtime.jsx)("span", {
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: SubagentPresetSection_module_css_default.toolDesc,
 							children: entry.description
 						})
@@ -978,28 +968,28 @@ window.__ModuleLoader__.load({
 			(0, react.useEffect)(() => {
 				if (state.status === "idle") load();
 			}, [state.status, load]);
-			if (state.status === "loading") return (0, react_jsx_runtime.jsx)("div", { children: t("loading") });
-			if (state.status === "error") return (0, react_jsx_runtime.jsx)("div", {
+			if (state.status === "loading") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { children: t("loading") });
+			if (state.status === "error") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				style: { color: "var(--dsw-alias-state-error-primary)" },
 				children: t("error")
 			});
-			if (state.status === "unavailable") return (0, react_jsx_runtime.jsx)("div", { children: t("unavailable") });
+			if (state.status === "unavailable") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { children: t("unavailable") });
 			if (state.status !== "ready") return null;
 			const factory = state.rows.find((row) => row.trust === "system");
-			return (0, react_jsx_runtime.jsxs)("div", {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: SubagentPresetSection_module_css_default.section,
 				children: [
-					(0, react_jsx_runtime.jsx)("h2", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", {
 						className: SubagentPresetSection_module_css_default.title,
 						children: t("nav")
 					}),
-					(0, react_jsx_runtime.jsx)("p", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: SubagentPresetSection_module_css_default.intro,
 						children: t("sectionIntro")
 					}),
-					(0, react_jsx_runtime.jsx)("ul", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
 						className: SubagentPresetSection_module_css_default.cards,
-						children: state.rows.map((row) => (0, react_jsx_runtime.jsx)(SubagentRowView, {
+						children: state.rows.map((row) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SubagentRowView, {
 							row,
 							t,
 							onToggle: props.toggle,
@@ -1012,45 +1002,45 @@ window.__ModuleLoader__.load({
 							revealedPath: state.revealedPaths[row.id]
 						}, row.id))
 					}),
-					factory === void 0 ? null : (0, react_jsx_runtime.jsxs)("button", {
+					factory === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 						type: "button",
 						className: SubagentPresetSection_module_css_default.creatorButton,
 						disabled: !state.authorable,
 						onClick: () => props.beginCreate(factory.id),
-						children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, {}), t("create")]
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, {}), t("create")]
 					}),
-					(0, react_jsx_runtime.jsx)(CreateDialog$1, {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(CreateDialog$1, {
 						state,
 						t,
 						setCreateId: props.setCreateId,
 						confirm: () => void props.confirmCreate(),
 						cancel: props.cancelCreate
 					}),
-					state.view !== null ? (0, react_jsx_runtime.jsx)(ViewDialog, {
+					state.view !== null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ViewDialog, {
 						view: state.view,
 						t,
 						close: props.closeView
 					}) : null,
-					state.edit !== null ? (0, react_jsx_runtime.jsx)(EditDialog, {
+					state.edit !== null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EditDialog, {
 						edit: state.edit,
 						t,
 						setEditField: props.setEditField,
 						confirm: () => void props.confirmEdit(),
 						cancel: props.cancelEdit
 					}) : null,
-					(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
 						open: state.pendingDelete !== null,
 						onClose: () => props.confirmDelete(null),
 						title: t("deleteTitle"),
 						closeLabel: t("close"),
 						description: t("deleteDescription"),
 						className: SubagentPresetSection_module_css_default.deleteDialog,
-						footer: (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+						footer: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 							variant: "outline",
 							disabled: state.deleting,
 							onClick: () => props.confirmDelete(null),
 							children: t("cancel")
-						}), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 							className: SubagentPresetSection_module_css_default.deleteConfirm,
 							disabled: state.deleting,
 							onClick: () => void props.remove(),
@@ -1062,20 +1052,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		//#region lib/types/ui/wire-client.js
-		/**
-		* Browser transport for the subagent-management wire channel.
-		*
-		* The withdrawn apiproxy `subagentPreset.*` domain reached the browser as
-		* methods on the shared `IApiClient`; that domain now lives on the connection's
-		* dedicated `/subagent-preset` channel, so this module adapts
-		* {@link ClientConnectionRpc.call} into the same management surface the section
-		* controller consumes. Each method mints the payload the Host handler
-		* validates against its zod schema and returns the Host's `RpcResult` — the
-		* same success/failure shape the withdrawn `IApiClient` methods returned
-		* (minus the echoed rpcId, which the section never used).
-		* @module dsh-harness-subagent-bundle/ui/wire-client
-		*/
+		//#region src/ui/wire-client.ts
 		/** Absolute logical channel the Host serves subagent management on. */
 		const SUBAGENT_PRESET_CHANNEL = "/subagent-preset";
 		/** Build the management wire face over one connection RPC caller. */
@@ -1095,8 +1072,7 @@ window.__ModuleLoader__.load({
 			}
 		}
 		//#endregion
-		//#region lib/types/ui/locales.js
-		/** Locale bundles for the user-defined subagent settings section. */
+		//#region src/ui/locales.ts
 		/** English copy. */
 		const en$1 = {
 			nav: "Subagents",
@@ -1210,25 +1186,7 @@ window.__ModuleLoader__.load({
 			noDescription: "暂无描述。"
 		};
 		//#endregion
-		//#region lib/types/ui-team/section-store.js
-		/**
-		* Team management controller: the roster as a list, a create dialog, a
-		* row-level enable/disable toggle, an edit detail over the team's role roster
-		* (subagent/prompt/memory per role), delete, and opening a team's directory.
-		*
-		* The host stays the single fact source. Every mutation writes through the
-		* wire and the page re-reads the roster afterwards, because a toggle or edit
-		* changes more than the row it targeted (the roster order and states recompute
-		* from the host).
-		*
-		* Inside one team's edit detail, the role roster is rendered as compact list
-		* rows. Tapping a row (or tapping "add role") opens a single-role edit
-		* dialog over a staged draft. The open edit holds its own `dirty` flag so
-		* `cancel` rolls back without touching the roster (for an existing role) and
-		* without leaving a phantom row behind (for a new role). A role edit must be
-		* either saved or cancelled before the team-level save; the controller
-		* enforces that ordering at `confirmDetail`.
-		*/
+		//#region src/ui-team/section-store.ts
 		/** Ids a team directory may be named, mirroring the host's own rule. */
 		const TEAM_ID = /^[a-z0-9][a-z0-9-]*$/;
 		const INITIAL$1 = {
@@ -1803,67 +1761,67 @@ window.__ModuleLoader__.load({
 			document.head.appendChild(tag);
 		}
 		var TeamSection_module_css_default = {
-			"roleListId": "_90YGPq_roleListId",
+			"roleEditForm": "_90YGPq_roleEditForm",
+			"intro": "_90YGPq_intro",
+			"cardFoot": "_90YGPq_cardFoot",
+			"cards": "_90YGPq_cards",
+			"roleListLabel": "_90YGPq_roleListLabel",
+			"roleListSummary": "_90YGPq_roleListSummary",
+			"dialogFields": "_90YGPq_dialogFields",
+			"error": "_90YGPq_error",
+			"card": "_90YGPq_card",
+			"deleteConfirm": "_90YGPq_deleteConfirm",
+			"input": "_90YGPq_input",
 			"iconDanger": "_90YGPq_iconDanger",
-			"blockTitle": "_90YGPq_blockTitle",
-			"roleListSubagentValue": "_90YGPq_roleListSubagentValue",
+			"fieldLabel": "_90YGPq_fieldLabel",
+			"badge": "_90YGPq_badge",
+			"roleRowFoot": "_90YGPq_roleRowFoot",
+			"field": "_90YGPq_field",
+			"cardHead": "_90YGPq_cardHead",
 			"title": "_90YGPq_title",
+			"blockTitle": "_90YGPq_blockTitle",
+			"emptyRoles": "_90YGPq_emptyRoles",
+			"roleListLevelValue": "_90YGPq_roleListLevelValue",
+			"fieldHint": "_90YGPq_fieldHint",
+			"toggle": "_90YGPq_toggle",
+			"roleGrid": "_90YGPq_roleGrid",
+			"cardDesc": "_90YGPq_cardDesc",
+			"editorBlock": "_90YGPq_editorBlock",
+			"roleListId": "_90YGPq_roleListId",
+			"headSpacer": "_90YGPq_headSpacer",
+			"roleListMain": "_90YGPq_roleListMain",
+			"cardName": "_90YGPq_cardName",
+			"roleListSubagentValue": "_90YGPq_roleListSubagentValue",
+			"rolesList": "_90YGPq_rolesList",
+			"select": "_90YGPq_select",
+			"cardBroken": "_90YGPq_cardBroken",
+			"roleRow": "_90YGPq_roleRow",
+			"section": "_90YGPq_section",
+			"roleEditDialog": "_90YGPq_roleEditDialog",
+			"revealedPath": "_90YGPq_revealedPath",
 			"roleListMemoryValue": "_90YGPq_roleListMemoryValue",
 			"deleteDialog": "_90YGPq_deleteDialog",
-			"cardFoot": "_90YGPq_cardFoot",
-			"creatorButton": "_90YGPq_creatorButton",
-			"roleListMeta": "_90YGPq_roleListMeta",
-			"revealedPathLabel": "_90YGPq_revealedPathLabel",
-			"textarea": "_90YGPq_textarea",
 			"roleCount": "_90YGPq_roleCount",
-			"toggle": "_90YGPq_toggle",
-			"roleListMain": "_90YGPq_roleListMain",
-			"rolesList": "_90YGPq_rolesList",
-			"cardName": "_90YGPq_cardName",
-			"cardDesc": "_90YGPq_cardDesc",
-			"emptyRoles": "_90YGPq_emptyRoles",
-			"roleListLevel": "_90YGPq_roleListLevel",
-			"roleEditForm": "_90YGPq_roleEditForm",
-			"dialogScroll": "_90YGPq_dialogScroll",
-			"dialogFields": "_90YGPq_dialogFields",
-			"roleListSummary": "_90YGPq_roleListSummary",
-			"field": "_90YGPq_field",
-			"fieldHint": "_90YGPq_fieldHint",
-			"cardHead": "_90YGPq_cardHead",
-			"iconButton": "_90YGPq_iconButton",
-			"roleListSubagent": "_90YGPq_roleListSubagent",
-			"roleListLabel": "_90YGPq_roleListLabel",
-			"error": "_90YGPq_error",
-			"roleListMemory": "_90YGPq_roleListMemory",
-			"input": "_90YGPq_input",
-			"roleListLevelValue": "_90YGPq_roleListLevelValue",
-			"cards": "_90YGPq_cards",
-			"roleEditDialog": "_90YGPq_roleEditDialog",
-			"cardId": "_90YGPq_cardId",
-			"select": "_90YGPq_select",
-			"roleRowFoot": "_90YGPq_roleRowFoot",
-			"card": "_90YGPq_card",
-			"roleGrid": "_90YGPq_roleGrid",
-			"editorBlock": "_90YGPq_editorBlock",
-			"section": "_90YGPq_section",
-			"badge": "_90YGPq_badge",
-			"fieldLabel": "_90YGPq_fieldLabel",
-			"dialog": "_90YGPq_dialog",
-			"removeRole": "_90YGPq_removeRole",
 			"brokenBadge": "_90YGPq_brokenBadge",
 			"hygieneWarning": "_90YGPq_hygieneWarning",
-			"roleEditPrompt": "_90YGPq_roleEditPrompt",
-			"deleteConfirm": "_90YGPq_deleteConfirm",
-			"revealedPath": "_90YGPq_revealedPath",
-			"roleRow": "_90YGPq_roleRow",
-			"addRole": "_90YGPq_addRole",
+			"dialog": "_90YGPq_dialog",
+			"revealedPathLabel": "_90YGPq_revealedPathLabel",
+			"creatorButton": "_90YGPq_creatorButton",
+			"textarea": "_90YGPq_textarea",
+			"removeRole": "_90YGPq_removeRole",
 			"roleListRow": "_90YGPq_roleListRow",
-			"headSpacer": "_90YGPq_headSpacer",
-			"intro": "_90YGPq_intro",
-			"cardBroken": "_90YGPq_cardBroken"
+			"roleListMeta": "_90YGPq_roleListMeta",
+			"addRole": "_90YGPq_addRole",
+			"roleListMemory": "_90YGPq_roleListMemory",
+			"roleListSubagent": "_90YGPq_roleListSubagent",
+			"dialogScroll": "_90YGPq_dialogScroll",
+			"roleListLevel": "_90YGPq_roleListLevel",
+			"cardId": "_90YGPq_cardId",
+			"iconButton": "_90YGPq_iconButton",
+			"roleEditPrompt": "_90YGPq_roleEditPrompt"
 		};
 		//#endregion
-		//#region lib/types/ui-team/TeamSection.js
+		//#region src/ui-team/TeamSection.tsx
 		/**
 		* Teams settings section: the independent "团队" (编制表) roster as cards, with
 		* a create dialog, a row-level enable/disable switch, an edit detail over the
@@ -1884,51 +1842,51 @@ window.__ModuleLoader__.load({
 		/** A compact role-row: id + one-line description summary + subagent + memory tag + remove. */
 		function RoleListRow(props) {
 			const { role, index, t, canEdit, saving, onEdit, onRemove } = props;
-			return (0, react_jsx_runtime.jsxs)("li", {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
 				className: TeamSection_module_css_default.roleListRow,
-				children: [(0, react_jsx_runtime.jsxs)("button", {
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 					type: "button",
 					className: TeamSection_module_css_default.roleListMain,
 					disabled: !canEdit,
 					onClick: () => onEdit(index),
 					children: [
-						(0, react_jsx_runtime.jsx)("span", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: TeamSection_module_css_default.roleListId,
 							children: role.id === "" ? t("roleIdEmpty") : role.id
 						}),
-						(0, react_jsx_runtime.jsx)("span", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: TeamSection_module_css_default.roleListSummary,
 							children: role.description === "" ? t("noRoleSummary") : role.description
 						}),
-						(0, react_jsx_runtime.jsxs)("span", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 							className: TeamSection_module_css_default.roleListMeta,
 							children: [
-								(0, react_jsx_runtime.jsxs)("span", {
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 									className: TeamSection_module_css_default.roleListSubagent,
-									children: [(0, react_jsx_runtime.jsx)("span", {
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: TeamSection_module_css_default.roleListLabel,
 										children: t("roleSubagentLabelShort")
-									}), (0, react_jsx_runtime.jsx)("span", {
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: TeamSection_module_css_default.roleListSubagentValue,
 										children: role.subagent === "" ? "—" : role.subagent
 									})]
 								}),
-								(0, react_jsx_runtime.jsxs)("span", {
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 									className: TeamSection_module_css_default.roleListMemory,
-									children: [(0, react_jsx_runtime.jsx)("span", {
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: TeamSection_module_css_default.roleListLabel,
 										children: t("roleMemoryLabelShort")
-									}), (0, react_jsx_runtime.jsx)("span", {
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: TeamSection_module_css_default.roleListMemoryValue,
 										children: role.memory === "persistent" ? t("memoryPersistent") : t("memoryOneShot")
 									})]
 								}),
-								(0, react_jsx_runtime.jsxs)("span", {
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 									className: TeamSection_module_css_default.roleListLevel,
-									children: [(0, react_jsx_runtime.jsx)("span", {
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: TeamSection_module_css_default.roleListLabel,
 										children: t("roleLevelLabelShort")
-									}), (0, react_jsx_runtime.jsx)("span", {
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: TeamSection_module_css_default.roleListLevelValue,
 										children: role.level
 									})]
@@ -1936,16 +1894,16 @@ window.__ModuleLoader__.load({
 							]
 						})
 					]
-				}), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 					label: t("removeRole"),
 					side: "top",
-					children: (0, react_jsx_runtime.jsx)("button", {
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						type: "button",
 						className: `${TeamSection_module_css_default.iconButton} ${TeamSection_module_css_default.iconDanger}`,
 						disabled: !canEdit || saving,
 						onClick: () => onRemove(index),
 						"aria-label": t("removeRole"),
-						children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutline16, {})
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutline16, {})
 					})
 				})]
 			});
@@ -1955,29 +1913,29 @@ window.__ModuleLoader__.load({
 			const { row, t, onToggle, onDetail, onDelete, onOpen, hasDocument, revealedPath } = props;
 			const custom = row.trust === "user";
 			const broken = row.broken !== void 0;
-			return (0, react_jsx_runtime.jsxs)("li", {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
 				className: `${TeamSection_module_css_default.card} ${broken ? TeamSection_module_css_default.cardBroken : ""}`,
 				children: [
-					(0, react_jsx_runtime.jsxs)("div", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: TeamSection_module_css_default.cardHead,
 						children: [
-							(0, react_jsx_runtime.jsx)("span", {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.cardName,
 								children: row.metadata.name ?? row.id
 							}),
-							(0, react_jsx_runtime.jsx)("span", {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.badge,
 								children: custom ? t("userTrust") : t("systemTrust")
 							}),
-							broken ? (0, react_jsx_runtime.jsx)("span", {
+							broken ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.brokenBadge,
 								children: t("brokenBadge")
 							}) : null,
-							(0, react_jsx_runtime.jsx)("span", { className: TeamSection_module_css_default.headSpacer }),
-							(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: TeamSection_module_css_default.headSpacer }),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 								label: row.metadata.enabled !== false ? t("enabled") : t("disabled"),
 								side: "top",
-								children: (0, react_jsx_runtime.jsx)("input", {
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 									type: "checkbox",
 									className: TeamSection_module_css_default.toggle,
 									checked: row.metadata.enabled !== false,
@@ -1987,13 +1945,13 @@ window.__ModuleLoader__.load({
 							})
 						]
 					}),
-					(0, react_jsx_runtime.jsx)("p", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: TeamSection_module_css_default.cardDesc,
 						children: row.metadata.description ?? t("noDescription")
 					}),
-					(0, react_jsx_runtime.jsx)("div", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: TeamSection_module_css_default.cardId,
-						children: (0, react_jsx_runtime.jsxs)("span", {
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 							className: TeamSection_module_css_default.roleCount,
 							children: [
 								row.roleCount,
@@ -2002,52 +1960,52 @@ window.__ModuleLoader__.load({
 							]
 						})
 					}),
-					(0, react_jsx_runtime.jsxs)("div", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: TeamSection_module_css_default.cardFoot,
 						children: [
-							(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 								label: t("detailTitle"),
 								side: "top",
-								children: (0, react_jsx_runtime.jsx)("button", {
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
 									className: TeamSection_module_css_default.iconButton,
 									disabled: !custom,
 									onClick: () => onDetail(row.id),
-									children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEditOutline16, {})
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEditOutline16, {})
 								})
 							}),
-							(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 								label: t("delete"),
 								side: "top",
-								children: (0, react_jsx_runtime.jsx)("button", {
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
 									className: `${TeamSection_module_css_default.iconButton} ${TeamSection_module_css_default.iconDanger}`,
 									disabled: !custom,
 									onClick: () => onDelete(row.id),
-									children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutline16, {})
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutline16, {})
 								})
 							}),
-							(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 								label: hasDocument ? t("openLocation") : t("showLocation"),
 								side: "top",
-								children: (0, react_jsx_runtime.jsx)("button", {
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
 									className: TeamSection_module_css_default.iconButton,
 									onClick: () => onOpen(row.id),
-									children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenOutline16, {})
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenOutline16, {})
 								})
 							})
 						]
 					}),
-					revealedPath !== void 0 ? (0, react_jsx_runtime.jsxs)("p", {
+					revealedPath !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
 						className: TeamSection_module_css_default.revealedPath,
 						children: [
-							(0, react_jsx_runtime.jsx)("span", {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.revealedPathLabel,
 								children: t("revealedPathLabel")
 							}),
 							" ",
-							(0, react_jsx_runtime.jsx)("code", { children: revealedPath })
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", { children: revealedPath })
 						]
 					}) : null
 				]
@@ -2060,7 +2018,7 @@ window.__ModuleLoader__.load({
 			if (draft === null) return null;
 			const blocker = createBlocker$1(draft, state.rows);
 			const message = draft.error ?? (blocker === void 0 ? null : t(blocker));
-			return (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
 				open: true,
 				onClose: cancel,
 				title: t("createTitle"),
@@ -2068,44 +2026,44 @@ window.__ModuleLoader__.load({
 				description: t("createIntro"),
 				className: TeamSection_module_css_default.dialog,
 				contentClassName: TeamSection_module_css_default.dialogScroll,
-				footer: (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				footer: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 					variant: "outline",
 					disabled: draft.saving,
 					onClick: cancel,
 					children: t("cancel")
-				}), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 					disabled: draft.saving || blocker !== void 0,
 					onClick: confirm,
 					children: draft.saving ? t("creating") : t("create")
 				})] }),
-				children: (0, react_jsx_runtime.jsxs)("div", {
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: TeamSection_module_css_default.dialogFields,
 					children: [
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: TeamSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.fieldLabel,
 								children: t("idLabel")
-							}), (0, react_jsx_runtime.jsx)("input", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 								className: TeamSection_module_css_default.input,
 								value: draft.id,
 								placeholder: t("idPlaceholder"),
 								onChange: (e) => setCreateId(e.target.value)
 							})]
 						}),
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: TeamSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.fieldLabel,
 								children: t("nameLabel")
-							}), (0, react_jsx_runtime.jsx)("input", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 								className: TeamSection_module_css_default.input,
 								value: draft.name,
 								placeholder: t("namePlaceholder"),
 								onChange: (e) => setCreateName(e.target.value)
 							})]
 						}),
-						(0, react_jsx_runtime.jsx)(CreateRolesEditor, {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(CreateRolesEditor, {
 							roles: draft.roles,
 							subagents: state.subagents,
 							t,
@@ -2113,7 +2071,7 @@ window.__ModuleLoader__.load({
 							addRole,
 							removeRole
 						}),
-						message !== null ? (0, react_jsx_runtime.jsx)("p", {
+						message !== null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 							className: TeamSection_module_css_default.error,
 							children: message
 						}) : null
@@ -2124,14 +2082,14 @@ window.__ModuleLoader__.load({
 		/** The roster editor used inside the create dialog (the only place a team is born with several roles at once). */
 		function CreateRolesEditor(props) {
 			const { roles, subagents, t, setRoleField, addRole, removeRole } = props;
-			return (0, react_jsx_runtime.jsxs)("section", {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 				className: TeamSection_module_css_default.editorBlock,
 				children: [
-					(0, react_jsx_runtime.jsx)("h4", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h4", {
 						className: TeamSection_module_css_default.blockTitle,
 						children: t("rolesLabel")
 					}),
-					roles.map((role, index) => (0, react_jsx_runtime.jsx)(CreateRoleRow, {
+					roles.map((role, index) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CreateRoleRow, {
 						role,
 						index,
 						subagents,
@@ -2140,11 +2098,11 @@ window.__ModuleLoader__.load({
 						onRemove: removeRole,
 						removable: roles.length > 1
 					}, index)),
-					(0, react_jsx_runtime.jsxs)("button", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 						type: "button",
 						className: TeamSection_module_css_default.addRole,
 						onClick: addRole,
-						children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, {}), t("addRole")]
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, {}), t("addRole")]
 					})
 				]
 			});
@@ -2152,79 +2110,79 @@ window.__ModuleLoader__.load({
 		/** One dense role row inside the create dialog (the multi-role seed keeps the existing flat layout). */
 		function CreateRoleRow(props) {
 			const { role, index, subagents, t, onField, onRemove, removable } = props;
-			return (0, react_jsx_runtime.jsxs)("div", {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: TeamSection_module_css_default.roleRow,
 				children: [
-					(0, react_jsx_runtime.jsxs)("div", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: TeamSection_module_css_default.roleGrid,
 						children: [
-							(0, react_jsx_runtime.jsxs)("div", {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 								className: TeamSection_module_css_default.field,
-								children: [(0, react_jsx_runtime.jsx)("span", {
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: TeamSection_module_css_default.fieldLabel,
 									children: t("roleIdLabel")
-								}), (0, react_jsx_runtime.jsx)("input", {
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 									className: TeamSection_module_css_default.input,
 									value: role.id,
 									placeholder: t("roleIdPlaceholder"),
 									onChange: (e) => onField(index, "id", e.target.value)
 								})]
 							}),
-							(0, react_jsx_runtime.jsxs)("div", {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 								className: TeamSection_module_css_default.field,
-								children: [(0, react_jsx_runtime.jsx)("span", {
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: TeamSection_module_css_default.fieldLabel,
 									children: t("roleDescriptionLabel")
-								}), (0, react_jsx_runtime.jsx)("input", {
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 									className: TeamSection_module_css_default.input,
 									value: role.description,
 									placeholder: t("roleDescriptionPlaceholder"),
 									onChange: (e) => onField(index, "description", e.target.value)
 								})]
 							}),
-							(0, react_jsx_runtime.jsxs)("div", {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 								className: TeamSection_module_css_default.field,
-								children: [(0, react_jsx_runtime.jsx)("span", {
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: TeamSection_module_css_default.fieldLabel,
 									children: t("roleSubagentLabel")
-								}), (0, react_jsx_runtime.jsxs)("select", {
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("select", {
 									className: `${TeamSection_module_css_default.input} ${TeamSection_module_css_default.select}`,
 									value: role.subagent,
 									onChange: (e) => onField(index, "subagent", e.target.value),
-									children: [(0, react_jsx_runtime.jsx)("option", {
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
 										value: "",
 										disabled: true,
 										children: subagents.length === 0 ? t("noSubagents") : t("roleSubagentPlaceholder")
-									}), subagents.map((subagent) => (0, react_jsx_runtime.jsx)("option", {
+									}), subagents.map((subagent) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
 										value: subagent,
 										children: subagent
 									}, subagent))]
 								})]
 							}),
-							(0, react_jsx_runtime.jsxs)("div", {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 								className: TeamSection_module_css_default.field,
-								children: [(0, react_jsx_runtime.jsx)("span", {
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: TeamSection_module_css_default.fieldLabel,
 									children: t("roleMemoryLabel")
-								}), (0, react_jsx_runtime.jsxs)("select", {
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("select", {
 									className: `${TeamSection_module_css_default.input} ${TeamSection_module_css_default.select}`,
 									value: role.memory,
 									onChange: (e) => onField(index, "memory", e.target.value),
-									children: [(0, react_jsx_runtime.jsx)("option", {
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
 										value: "one-shot",
 										children: t("memoryOneShot")
-									}), (0, react_jsx_runtime.jsx)("option", {
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
 										value: "persistent",
 										children: t("memoryPersistent")
 									})]
 								})]
 							}),
-							(0, react_jsx_runtime.jsxs)("div", {
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 								className: TeamSection_module_css_default.field,
-								children: [(0, react_jsx_runtime.jsx)("span", {
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: TeamSection_module_css_default.fieldLabel,
 									children: t("roleLevelLabel")
-								}), (0, react_jsx_runtime.jsx)("input", {
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 									className: TeamSection_module_css_default.input,
 									type: "number",
 									min: 1,
@@ -2236,26 +2194,26 @@ window.__ModuleLoader__.load({
 							})
 						]
 					}),
-					(0, react_jsx_runtime.jsxs)("div", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: TeamSection_module_css_default.field,
-						children: [(0, react_jsx_runtime.jsx)("span", {
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: TeamSection_module_css_default.fieldLabel,
 							children: t("rolePromptLabel")
-						}), (0, react_jsx_runtime.jsx)("textarea", {
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("textarea", {
 							className: `${TeamSection_module_css_default.input} ${TeamSection_module_css_default.textarea}`,
 							value: role.prompt,
 							placeholder: t("rolePromptPlaceholder"),
 							onChange: (e) => onField(index, "prompt", e.target.value)
 						})]
 					}),
-					(0, react_jsx_runtime.jsx)("div", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: TeamSection_module_css_default.roleRowFoot,
-						children: removable ? (0, react_jsx_runtime.jsx)("button", {
+						children: removable ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 							type: "button",
 							className: TeamSection_module_css_default.removeRole,
 							onClick: () => onRemove(index),
 							children: t("removeRole")
-						}) : (0, react_jsx_runtime.jsx)("span", {})
+						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {})
 					})
 				]
 			});
@@ -2266,7 +2224,7 @@ window.__ModuleLoader__.load({
 			const rolesEditable = detail.id !== "";
 			const blocker = detailBlocker(detail);
 			const message = detail.error ?? (blocker === void 0 ? null : t(blocker));
-			return (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
 				open: true,
 				onClose: cancel,
 				title: `${t("detailTitle")}: ${detail.title}`,
@@ -2274,44 +2232,44 @@ window.__ModuleLoader__.load({
 				description: t("detailIntro"),
 				className: TeamSection_module_css_default.dialog,
 				contentClassName: TeamSection_module_css_default.dialogScroll,
-				footer: (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				footer: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 					variant: "outline",
 					disabled: detail.saving,
 					onClick: cancel,
 					children: t("cancel")
-				}), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 					disabled: detail.saving || blocker !== void 0,
 					onClick: confirm,
 					children: detail.saving ? t("saving") : t("save")
 				})] }),
-				children: (0, react_jsx_runtime.jsxs)("div", {
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: TeamSection_module_css_default.dialogFields,
 					children: [
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: TeamSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.fieldLabel,
 								children: t("nameLabel")
-							}), (0, react_jsx_runtime.jsx)("input", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 								className: TeamSection_module_css_default.input,
 								value: detail.metadata.name ?? "",
 								placeholder: t("namePlaceholder"),
 								onChange: (e) => setDetailName(e.target.value)
 							})]
 						}),
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: TeamSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.fieldLabel,
 								children: t("descriptionLabel")
-							}), (0, react_jsx_runtime.jsx)("input", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 								className: TeamSection_module_css_default.input,
 								value: detail.metadata.description ?? "",
 								placeholder: t("descriptionPlaceholder"),
 								onChange: (e) => setDetailDescription(e.target.value)
 							})]
 						}),
-						detail.warning !== void 0 ? (0, react_jsx_runtime.jsxs)("p", {
+						detail.warning !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
 							className: TeamSection_module_css_default.hygieneWarning,
 							children: [
 								t("hygieneWarningLabel"),
@@ -2319,19 +2277,19 @@ window.__ModuleLoader__.load({
 								detail.warning
 							]
 						}) : null,
-						(0, react_jsx_runtime.jsxs)("section", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 							className: TeamSection_module_css_default.editorBlock,
 							children: [
-								(0, react_jsx_runtime.jsx)("h4", {
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h4", {
 									className: TeamSection_module_css_default.blockTitle,
 									children: t("rolesLabel")
 								}),
-								detail.roles.length === 0 ? (0, react_jsx_runtime.jsx)("p", {
+								detail.roles.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 									className: TeamSection_module_css_default.emptyRoles,
 									children: t("noRoles")
-								}) : (0, react_jsx_runtime.jsx)("ul", {
+								}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
 									className: TeamSection_module_css_default.rolesList,
-									children: detail.roles.map((role, index) => (0, react_jsx_runtime.jsx)(RoleListRow, {
+									children: detail.roles.map((role, index) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RoleListRow, {
 										role,
 										index,
 										t,
@@ -2341,16 +2299,16 @@ window.__ModuleLoader__.load({
 										onRemove: removeRole
 									}, `${detail.id}\u0000${index}`))
 								}),
-								(0, react_jsx_runtime.jsxs)("button", {
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 									type: "button",
 									className: TeamSection_module_css_default.addRole,
 									disabled: !rolesEditable || detail.saving,
 									onClick: addRole,
-									children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, {}), t("addRole")]
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, {}), t("addRole")]
 								})
 							]
 						}),
-						message !== null ? (0, react_jsx_runtime.jsx)("p", {
+						message !== null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 							className: TeamSection_module_css_default.error,
 							children: message
 						}) : null
@@ -2364,7 +2322,7 @@ window.__ModuleLoader__.load({
 			const draft = edit.draft;
 			const blocker = roleBlocker([draft]);
 			const message = edit.error ?? (blocker === void 0 ? null : t(blocker));
-			return (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
 				open: true,
 				onClose: cancel,
 				title: t("roleEditTitle"),
@@ -2372,89 +2330,89 @@ window.__ModuleLoader__.load({
 				description: t("roleEditIntro"),
 				className: `${TeamSection_module_css_default.dialog} ${TeamSection_module_css_default.roleEditDialog}`,
 				contentClassName: TeamSection_module_css_default.dialogScroll,
-				footer: (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				footer: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 					variant: "outline",
 					disabled: saving,
 					onClick: cancel,
-					icon: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronLeftOutline14, {}),
+					icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronLeftOutline14, {}),
 					children: t("roleEditBack")
-				}), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 					disabled: saving || blocker !== void 0 || !edit.dirty,
 					onClick: confirm,
 					children: saving ? t("saving") : t("roleEditSave")
 				})] }),
-				children: (0, react_jsx_runtime.jsxs)("div", {
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: TeamSection_module_css_default.roleEditForm,
 					children: [
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: TeamSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.fieldLabel,
 								children: t("roleIdLabel")
-							}), (0, react_jsx_runtime.jsx)("input", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 								className: TeamSection_module_css_default.input,
 								value: draft.id,
 								placeholder: t("roleIdPlaceholder"),
 								onChange: (e) => setField("id", e.target.value)
 							})]
 						}),
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: TeamSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.fieldLabel,
 								children: t("roleDescriptionLabel")
-							}), (0, react_jsx_runtime.jsx)("input", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 								className: TeamSection_module_css_default.input,
 								value: draft.description,
 								placeholder: t("roleDescriptionPlaceholder"),
 								onChange: (e) => setField("description", e.target.value)
 							})]
 						}),
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: TeamSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.fieldLabel,
 								children: t("roleSubagentLabel")
-							}), (0, react_jsx_runtime.jsxs)("select", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("select", {
 								className: `${TeamSection_module_css_default.input} ${TeamSection_module_css_default.select}`,
 								value: draft.subagent,
 								onChange: (e) => setField("subagent", e.target.value),
-								children: [(0, react_jsx_runtime.jsx)("option", {
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
 									value: "",
 									disabled: true,
 									children: subagents.length === 0 ? t("noSubagents") : t("roleSubagentPlaceholder")
-								}), subagents.map((subagent) => (0, react_jsx_runtime.jsx)("option", {
+								}), subagents.map((subagent) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
 									value: subagent,
 									children: subagent
 								}, subagent))]
 							})]
 						}),
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: TeamSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.fieldLabel,
 								children: t("roleMemoryLabel")
-							}), (0, react_jsx_runtime.jsxs)("select", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("select", {
 								className: `${TeamSection_module_css_default.input} ${TeamSection_module_css_default.select}`,
 								value: draft.memory,
 								onChange: (e) => setField("memory", e.target.value),
-								children: [(0, react_jsx_runtime.jsx)("option", {
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
 									value: "one-shot",
 									children: t("memoryOneShot")
-								}), (0, react_jsx_runtime.jsx)("option", {
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
 									value: "persistent",
 									children: t("memoryPersistent")
 								})]
 							})]
 						}),
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: TeamSection_module_css_default.field,
 							children: [
-								(0, react_jsx_runtime.jsx)("span", {
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: TeamSection_module_css_default.fieldLabel,
 									children: t("roleLevelLabel")
 								}),
-								(0, react_jsx_runtime.jsx)("input", {
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 									className: TeamSection_module_css_default.input,
 									type: "number",
 									min: 1,
@@ -2463,25 +2421,25 @@ window.__ModuleLoader__.load({
 									placeholder: t("roleLevelPlaceholder"),
 									onChange: (e) => setField("level", e.target.value)
 								}),
-								(0, react_jsx_runtime.jsx)("span", {
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: TeamSection_module_css_default.fieldHint,
 									children: t("roleLevelHint")
 								})
 							]
 						}),
-						(0, react_jsx_runtime.jsxs)("div", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: TeamSection_module_css_default.field,
-							children: [(0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.fieldLabel,
 								children: t("rolePromptLabel")
-							}), (0, react_jsx_runtime.jsx)("textarea", {
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("textarea", {
 								className: `${TeamSection_module_css_default.input} ${TeamSection_module_css_default.textarea} ${TeamSection_module_css_default.roleEditPrompt}`,
 								value: draft.prompt,
 								placeholder: t("rolePromptPlaceholder"),
 								onChange: (e) => setField("prompt", e.target.value)
 							})]
 						}),
-						message !== null ? (0, react_jsx_runtime.jsx)("p", {
+						message !== null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 							className: TeamSection_module_css_default.error,
 							children: message
 						}) : null
@@ -2500,29 +2458,29 @@ window.__ModuleLoader__.load({
 			(0, react.useEffect)(() => {
 				if (state.status === "idle") load();
 			}, [state.status, load]);
-			if (state.status === "loading") return (0, react_jsx_runtime.jsx)("div", { children: t("loading") });
-			if (state.status === "error") return (0, react_jsx_runtime.jsx)("div", {
+			if (state.status === "loading") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { children: t("loading") });
+			if (state.status === "error") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				style: { color: "var(--dsw-alias-state-error-primary)" },
 				children: t("error")
 			});
-			if (state.status === "unavailable") return (0, react_jsx_runtime.jsx)("div", { children: t("unavailable") });
+			if (state.status === "unavailable") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { children: t("unavailable") });
 			if (state.status !== "ready") return null;
 			const roleEdit = state.detail?.roleEdit ?? null;
 			const inRoleEdit = roleEdit !== null;
-			return (0, react_jsx_runtime.jsxs)("div", {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: TeamSection_module_css_default.section,
 				children: [
-					(0, react_jsx_runtime.jsx)("h2", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", {
 						className: TeamSection_module_css_default.title,
 						children: t("nav")
 					}),
-					(0, react_jsx_runtime.jsx)("p", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: TeamSection_module_css_default.intro,
 						children: t("sectionIntro")
 					}),
-					(0, react_jsx_runtime.jsx)("ul", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
 						className: TeamSection_module_css_default.cards,
-						children: state.rows.map((row) => (0, react_jsx_runtime.jsx)(TeamRowView, {
+						children: state.rows.map((row) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TeamRowView, {
 							row,
 							t,
 							onToggle: props.toggle,
@@ -2533,14 +2491,14 @@ window.__ModuleLoader__.load({
 							revealedPath: state.revealedPaths[row.id]
 						}, row.id))
 					}),
-					(0, react_jsx_runtime.jsxs)("button", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 						type: "button",
 						className: TeamSection_module_css_default.creatorButton,
 						disabled: !state.authorable,
 						onClick: () => props.beginCreate(),
-						children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, {}), t("create")]
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, {}), t("create")]
 					}),
-					(0, react_jsx_runtime.jsx)(CreateDialog, {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(CreateDialog, {
 						state,
 						t,
 						setCreateId: props.setCreateId,
@@ -2551,7 +2509,7 @@ window.__ModuleLoader__.load({
 						confirm: () => void props.confirmCreate(),
 						cancel: props.cancelCreate
 					}),
-					state.detail !== null ? inRoleEdit ? null : (0, react_jsx_runtime.jsx)(DetailDialog, {
+					state.detail !== null ? inRoleEdit ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DetailDialog, {
 						detail: state.detail,
 						subagents: state.subagents,
 						t,
@@ -2563,7 +2521,7 @@ window.__ModuleLoader__.load({
 						confirm: () => void props.confirmDetail(),
 						cancel: props.closeDetail
 					}) : null,
-					inRoleEdit && state.detail !== null ? (0, react_jsx_runtime.jsx)(RoleEditDialog, {
+					inRoleEdit && state.detail !== null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RoleEditDialog, {
 						edit: roleEdit,
 						subagents: state.subagents,
 						t,
@@ -2572,19 +2530,19 @@ window.__ModuleLoader__.load({
 						confirm: () => void props.saveRoleEdit(),
 						cancel: props.cancelRoleEdit
 					}) : null,
-					(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
 						open: state.pendingDelete !== null,
 						onClose: () => props.confirmDelete(null),
 						title: t("deleteTitle"),
 						closeLabel: t("close"),
 						description: t("deleteDescription"),
 						className: TeamSection_module_css_default.deleteDialog,
-						footer: (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+						footer: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 							variant: "outline",
 							disabled: state.deleting,
 							onClick: () => props.confirmDelete(null),
 							children: t("cancel")
-						}), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 							className: TeamSection_module_css_default.deleteConfirm,
 							disabled: state.deleting,
 							onClick: () => void props.remove(),
@@ -2596,7 +2554,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		//#region lib/types/ui-team/mode-store.js
+		//#region src/ui-team/mode-store.ts
 		/**
 		* Session team-mode chip controller: which delegation surface the CURRENT
 		* session runs — the standard surface or a user-defined team ("编制表").
@@ -2780,7 +2738,7 @@ window.__ModuleLoader__.load({
 			"chip": "P2Rh7q_chip"
 		};
 		//#endregion
-		//#region lib/types/ui-team/TeamModeChip.js
+		//#region src/ui-team/TeamModeChip.tsx
 		/**
 		* Session team-mode chip: the input-card tool-row control that names the
 		* current delegation surface (standard or a user-defined team) and switches
@@ -2818,7 +2776,7 @@ window.__ModuleLoader__.load({
 			const locked = !session.blank;
 			const disabled = locked || state.busy;
 			const label = modeLabel(state, t);
-			return (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
 				open,
 				onClose: () => {
 					setOpen(false);
@@ -2835,11 +2793,11 @@ window.__ModuleLoader__.load({
 				},
 				align: "start",
 				portal: true,
-				anchor: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+				anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 					label: locked ? t("modeLocked") : state.error ?? t("modeHint"),
 					side: "top",
 					delayMs: locked ? 0 : 500,
-					children: (0, react_jsx_runtime.jsxs)("button", {
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 						type: "button",
 						className: TeamModeChip_module_css_default.chip,
 						"aria-haspopup": "menu",
@@ -2849,24 +2807,13 @@ window.__ModuleLoader__.load({
 						onClick: () => {
 							setOpen((value) => !value);
 						},
-						children: [label, (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutline14, { className: TeamModeChip_module_css_default.chevron })]
+						children: [label, /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutline14, { className: TeamModeChip_module_css_default.chevron })]
 					})
 				})
 			});
 		}
 		//#endregion
-		//#region lib/types/ui-team/wire-client.js
-		/**
-		* Browser transport for the team-management wire channel.
-		*
-		* The team roster ("编制表") management rides the connection's dedicated
-		* `/team-preset` channel, so this module adapts
-		* {@link ClientConnectionRpc.call} into the management surface the team
-		* section controller consumes. Each method mints the payload the Host handler
-		* validates against its zod schema and returns the Host's `RpcResult` — the
-		* same success/failure shape the subagent-management wire returns.
-		* @module dsh-harness-subagent-bundle/ui-team/wire-client
-		*/
+		//#region src/ui-team/wire-client.ts
 		/** Absolute logical channel the Host serves team management on. */
 		const TEAM_PRESET_CHANNEL = "/team-preset";
 		/** Build the management wire face over one connection RPC caller. */
@@ -2887,8 +2834,7 @@ window.__ModuleLoader__.load({
 			}
 		}
 		//#endregion
-		//#region lib/types/ui-team/locales.js
-		/** Locale bundles for the user-defined team ("编制表") settings section. */
+		//#region src/ui-team/locales.ts
 		/** English copy. */
 		const en = {
 			nav: "Teams",
@@ -3044,22 +2990,7 @@ window.__ModuleLoader__.load({
 			modeLocked: "对话已开始，委派方式无法再更改。"
 		};
 		//#endregion
-		//#region lib/types/ui-team/index.js
-		/**
-		* User-defined team surface plugin, browser half — an independent settings
-		* section ("团队"/"编制表") parallel to the subagent section, over its OWN
-		* roster (the team registry), fully separate from both the agent-preset list
-		* and the subagent list.
-		*
-		* The section lists every user-defined team with its name, description, role
-		* count, and an enable/disable switch on the row, and drives create, edit
-		* (over the full role roster), delete, and open-directory through the host.
-		*
-		* The section's apply is called from the package's single browser client
-		* entry (`src/ui/index.ts`) so both settings sections ship in one client
-		* bundle; the `settings.subagentTeam` locale namespace keeps its copy apart
-		* from the subagent section's `settings.subagentPreset`.
-		*/
+		//#region src/ui-team/index.ts
 		/**
 		* Mount the independent "团队" settings section.
 		* @param ctx - the browser plugin context.
@@ -3173,17 +3104,7 @@ window.__ModuleLoader__.load({
 			}, TeamModeChip));
 		}
 		//#endregion
-		//#region lib/types/ui/index.js
-		/**
-		* User-defined subagent surface plugin, browser half — an independent
-		* settings section ("子代理") parallel to the agent-preset section, over its
-		* OWN roster (the subagent registry), fully separate from the agent-preset
-		* list.
-		*
-		* The section lists every user-defined subagent with its mode, Auto Run,
-		* description, and an enable/disable switch on the row, and drives create,
-		* edit, delete, and open-directory through the host.
-		*/
+		//#region src/ui/index.ts
 		/**
 		* The model-plan management channel, served by the model-plan bundle's Host
 		* half. The subagent surface reads only its `list` endpoint (to feed the edit

@@ -1,6 +1,7 @@
-# A subagent carrying its own model override: dispatching it must route the
-# child's requests to the override's provider/model instead of the parent's.
+# A subagent bound to a model-plan: dispatching it appends a `model-plan/select`
+# event carrying this plan id onto the child session, so the model-plan merge
+# interceptor routes the child's requests to that plan's provider/model/params.
+# (In these in-process tests the interceptor is not mounted, so the child
+# inherits the parent's route; the binding is asserted on the event itself.)
 enabled: true
-model:
-  provider: mock
-  model: override-model
+model: reviewer-plan

@@ -63,20 +63,21 @@ describe('dsh-subagent-preset discovery', () => {
     }
   })
 
-  it('discards an old-format bare model string while parsing the rest of the metadata', async () => {
+  it('reads a bare model string as a model-plan id while parsing the rest of the metadata', async () => {
     const { root, cleanup } = makeRoot()
     const dir = join(root, 'reviewer')
     await mkdirPromise(dir, { recursive: true })
     await writeFilePromise(join(dir, 'agent.cordis.yml'),
       "- id: persona\n  name: '@deepseek-ai/dsh-persona'\n  config:\n    text: I am a helper.\n")
-    // Pre-release storage may hold a bare model string (no provider); the
-    // metadata reader must tolerate it by discarding it rather than crashing.
+    // A model-plan id IS a bare string (e.g. `flash2`), so a bare `model` value
+    // is kept verbatim as the plan id — only the old `{ provider, model }`
+    // object form is discarded (read as inherit the parent).
     await writeFilePromise(join(dir, 'subagent.yml'),
       'description: Reviews the change.\nenabled: true\nmodel: deepseek-v4\n')
     const ctx = await makeCtx(root)
     try {
       const reviewer = (await ctx.subagentPresets.list())[0]
-      expect(reviewer!.metadata.model).toBeUndefined()
+      expect(reviewer!.metadata.model).toBe('deepseek-v4')
       expect(reviewer!.metadata.description).toBe('Reviews the change.')
       expect(reviewer!.metadata.enabled).toBe(true)
     } finally {

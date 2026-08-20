@@ -425,42 +425,42 @@ window.__ModuleLoader__.load({
 			document.head.appendChild(tag);
 		}
 		var ModelPlanSection_module_css_default = {
-			"select": "_3Ut5vG_select",
-			"dialogScroll": "_3Ut5vG_dialogScroll",
-			"deleteConfirm": "_3Ut5vG_deleteConfirm",
 			"cardModelValue": "_3Ut5vG_cardModelValue",
-			"paramSummary": "_3Ut5vG_paramSummary",
 			"blockTitle": "_3Ut5vG_blockTitle",
-			"dialogFields": "_3Ut5vG_dialogFields",
-			"iconButton": "_3Ut5vG_iconButton",
-			"cardFoot": "_3Ut5vG_cardFoot",
-			"paramBlocked": "_3Ut5vG_paramBlocked",
-			"dialog": "_3Ut5vG_dialog",
-			"input": "_3Ut5vG_input",
-			"paramsHint": "_3Ut5vG_paramsHint",
-			"deleteDialog": "_3Ut5vG_deleteDialog",
-			"fieldLabel": "_3Ut5vG_fieldLabel",
-			"cardName": "_3Ut5vG_cardName",
 			"paramRow": "_3Ut5vG_paramRow",
-			"cardModel": "_3Ut5vG_cardModel",
-			"cards": "_3Ut5vG_cards",
-			"card": "_3Ut5vG_card",
-			"defaultBadge": "_3Ut5vG_defaultBadge",
-			"creatorButton": "_3Ut5vG_creatorButton",
-			"section": "_3Ut5vG_section",
-			"title": "_3Ut5vG_title",
-			"iconDanger": "_3Ut5vG_iconDanger",
-			"modelRow": "_3Ut5vG_modelRow",
 			"editorBlock": "_3Ut5vG_editorBlock",
-			"addParam": "_3Ut5vG_addParam",
-			"cardHead": "_3Ut5vG_cardHead",
-			"brokenBadge": "_3Ut5vG_brokenBadge",
-			"cardBroken": "_3Ut5vG_cardBroken",
-			"error": "_3Ut5vG_error",
+			"cards": "_3Ut5vG_cards",
+			"creatorButton": "_3Ut5vG_creatorButton",
+			"cardFoot": "_3Ut5vG_cardFoot",
 			"field": "_3Ut5vG_field",
-			"paramRowBlocked": "_3Ut5vG_paramRowBlocked",
+			"input": "_3Ut5vG_input",
+			"paramBlocked": "_3Ut5vG_paramBlocked",
+			"addParam": "_3Ut5vG_addParam",
+			"cardName": "_3Ut5vG_cardName",
+			"deleteDialog": "_3Ut5vG_deleteDialog",
+			"iconButton": "_3Ut5vG_iconButton",
+			"paramSummary": "_3Ut5vG_paramSummary",
+			"title": "_3Ut5vG_title",
+			"intro": "_3Ut5vG_intro",
+			"paramsHint": "_3Ut5vG_paramsHint",
+			"cardModel": "_3Ut5vG_cardModel",
+			"section": "_3Ut5vG_section",
+			"brokenBadge": "_3Ut5vG_brokenBadge",
+			"fieldLabel": "_3Ut5vG_fieldLabel",
+			"defaultBadge": "_3Ut5vG_defaultBadge",
 			"customNote": "_3Ut5vG_customNote",
-			"intro": "_3Ut5vG_intro"
+			"error": "_3Ut5vG_error",
+			"deleteConfirm": "_3Ut5vG_deleteConfirm",
+			"card": "_3Ut5vG_card",
+			"dialog": "_3Ut5vG_dialog",
+			"paramRowBlocked": "_3Ut5vG_paramRowBlocked",
+			"cardBroken": "_3Ut5vG_cardBroken",
+			"iconDanger": "_3Ut5vG_iconDanger",
+			"dialogFields": "_3Ut5vG_dialogFields",
+			"dialogScroll": "_3Ut5vG_dialogScroll",
+			"modelRow": "_3Ut5vG_modelRow",
+			"select": "_3Ut5vG_select",
+			"cardHead": "_3Ut5vG_cardHead"
 		};
 		//#endregion
 		//#region lib/types/ui/ModelPlanSection.js
@@ -575,8 +575,9 @@ window.__ModuleLoader__.load({
 		function ParamRow(props) {
 			const { param, index, reasoningEffortOptions, reasoningUnsupported, t, onKey, onValue, onRemove } = props;
 			const isReasoningEffort = param.key === "reasoningEffort";
+			const blocked = isReasoningEffort && reasoningUnsupported;
 			return (0, react_jsx_runtime.jsxs)("div", {
-				className: `${ModelPlanSection_module_css_default.paramRow} ${reasoningUnsupported ? ModelPlanSection_module_css_default.paramRowBlocked : ""}`,
+				className: `${ModelPlanSection_module_css_default.paramRow} ${blocked ? ModelPlanSection_module_css_default.paramRowBlocked : ""}`,
 				children: [
 					(0, react_jsx_runtime.jsxs)("div", {
 						className: ModelPlanSection_module_css_default.field,
@@ -600,7 +601,7 @@ window.__ModuleLoader__.load({
 							isReasoningEffort && reasoningEffortOptions.length > 0 ? (0, react_jsx_runtime.jsx)("select", {
 								className: `${ModelPlanSection_module_css_default.input} ${ModelPlanSection_module_css_default.select}`,
 								value: param.value,
-								disabled: reasoningUnsupported,
+								disabled: blocked,
 								onChange: (e) => onValue(index, e.target.value),
 								children: reasoningEffortOptions.map((effort) => (0, react_jsx_runtime.jsx)("option", {
 									value: JSON.stringify(effort),
@@ -609,11 +610,11 @@ window.__ModuleLoader__.load({
 							}) : (0, react_jsx_runtime.jsx)("input", {
 								className: ModelPlanSection_module_css_default.input,
 								value: param.value,
-								disabled: reasoningUnsupported,
+								disabled: blocked,
 								placeholder: t("paramValuePlaceholder"),
 								onChange: (e) => onValue(index, e.target.value)
 							}),
-							reasoningUnsupported ? (0, react_jsx_runtime.jsx)("p", {
+							blocked ? (0, react_jsx_runtime.jsx)("p", {
 								className: ModelPlanSection_module_css_default.paramBlocked,
 								children: t("reasoningUnavailable")
 							}) : null
@@ -1055,31 +1056,31 @@ window.__ModuleLoader__.load({
 			document.head.appendChild(tag);
 		}
 		var ModelPlanChip_module_css_default = {
+			"clearButton": "wp_f9q_clearButton",
 			"overrideTitle": "wp_f9q_overrideTitle",
-			"chevron": "wp_f9q_chevron",
+			"empty": "wp_f9q_empty",
 			"override": "wp_f9q_override",
-			"overrideKey": "wp_f9q_overrideKey",
-			"plans": "wp_f9q_plans",
+			"error": "wp_f9q_error",
+			"optionDefault": "wp_f9q_optionDefault",
 			"menu": "wp_f9q_menu",
-			"optionName": "wp_f9q_optionName",
+			"applyButton": "wp_f9q_applyButton",
 			"option": "wp_f9q_option",
+			"root": "wp_f9q_root",
 			"emptyHint": "wp_f9q_emptyHint",
+			"chip": "wp_f9q_chip",
+			"optionBrokenTag": "wp_f9q_optionBrokenTag",
+			"optionModel": "wp_f9q_optionModel",
+			"overrideRow": "wp_f9q_overrideRow",
+			"overrideKey": "wp_f9q_overrideKey",
 			"selected": "wp_f9q_selected",
 			"optionBroken": "wp_f9q_optionBroken",
-			"error": "wp_f9q_error",
+			"optionName": "wp_f9q_optionName",
+			"input": "wp_f9q_input",
 			"optionMain": "wp_f9q_optionMain",
 			"rejected": "wp_f9q_rejected",
-			"empty": "wp_f9q_empty",
-			"optionModel": "wp_f9q_optionModel",
-			"applyButton": "wp_f9q_applyButton",
-			"input": "wp_f9q_input",
-			"chip": "wp_f9q_chip",
-			"overrideHint": "wp_f9q_overrideHint",
-			"root": "wp_f9q_root",
-			"optionBrokenTag": "wp_f9q_optionBrokenTag",
-			"overrideRow": "wp_f9q_overrideRow",
-			"optionDefault": "wp_f9q_optionDefault",
-			"clearButton": "wp_f9q_clearButton"
+			"chevron": "wp_f9q_chevron",
+			"plans": "wp_f9q_plans",
+			"overrideHint": "wp_f9q_overrideHint"
 		};
 		//#endregion
 		//#region lib/types/ui/ModelPlanChip.js

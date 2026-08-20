@@ -39,9 +39,13 @@ function PlanCard(props) {
 function ParamRow(props) {
     const { param, index, reasoningEffortOptions, reasoningUnsupported, t, onKey, onValue, onRemove } = props;
     const isReasoningEffort = param.key === 'reasoningEffort';
-    return (_jsxs("div", { className: `${css.paramRow} ${reasoningUnsupported ? css.paramRowBlocked : ''}`, children: [_jsxs("div", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('paramKeyLabel') }), _jsx("input", { className: css.input, value: param.key, placeholder: t('paramKeyPlaceholder'), onChange: e => onKey(index, e.target.value) })] }), _jsxs("div", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('paramValueLabel') }), isReasoningEffort && reasoningEffortOptions.length > 0
-                        ? (_jsx("select", { className: `${css.input} ${css.select}`, value: param.value, disabled: reasoningUnsupported, onChange: e => onValue(index, e.target.value), children: reasoningEffortOptions.map(effort => (_jsx("option", { value: JSON.stringify(effort), children: effort === '' ? t('reasoningProviderDefault') : effort }, effort))) }))
-                        : (_jsx("input", { className: css.input, value: param.value, disabled: reasoningUnsupported, placeholder: t('paramValuePlaceholder'), onChange: e => onValue(index, e.target.value) })), reasoningUnsupported
+    // The "model does not support reasoning effort" block applies ONLY to the
+    // `reasoningEffort` row — a temperature/maxTokens/other row must stay fully
+    // editable even when the model exposes no effort tiers.
+    const blocked = isReasoningEffort && reasoningUnsupported;
+    return (_jsxs("div", { className: `${css.paramRow} ${blocked ? css.paramRowBlocked : ''}`, children: [_jsxs("div", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('paramKeyLabel') }), _jsx("input", { className: css.input, value: param.key, placeholder: t('paramKeyPlaceholder'), onChange: e => onKey(index, e.target.value) })] }), _jsxs("div", { className: css.field, children: [_jsx("span", { className: css.fieldLabel, children: t('paramValueLabel') }), isReasoningEffort && reasoningEffortOptions.length > 0
+                        ? (_jsx("select", { className: `${css.input} ${css.select}`, value: param.value, disabled: blocked, onChange: e => onValue(index, e.target.value), children: reasoningEffortOptions.map(effort => (_jsx("option", { value: JSON.stringify(effort), children: effort === '' ? t('reasoningProviderDefault') : effort }, effort))) }))
+                        : (_jsx("input", { className: css.input, value: param.value, disabled: blocked, placeholder: t('paramValuePlaceholder'), onChange: e => onValue(index, e.target.value) })), blocked
                         ? _jsx("p", { className: css.paramBlocked, children: t('reasoningUnavailable') })
                         : null] }), _jsx(Tooltip, { label: t('removeParam'), side: "top", children: _jsx("button", { type: "button", className: `${css.iconButton} ${css.iconDanger}`, onClick: () => onRemove(index), "aria-label": t('removeParam'), children: _jsx(IconTrashOutline16, {}) }) })] }));
 }

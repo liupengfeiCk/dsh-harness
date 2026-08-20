@@ -38,18 +38,20 @@ function flag(value) {
  * Parse a subagent's stored model override.
  *
  * The current format is a single plan id string (e.g. `flash2`). Pre-release
- * storage may hold the OLD `{ provider, model }` object (or an even-older bare
- * model string without a provider); that is tolerated by DISCARDING it — the
- * field reads as absent (inherit the parent) rather than crashing or
- * surfacing a value the runtime can no longer route. The discard is a
- * pre-release stance: no migration is written for a format that shipped with
- * no persisted instances in the wild.
+ * storage may hold the OLD `{ provider, model }` object; that is tolerated by
+ * DISCARDING it — the field reads as absent (inherit the parent) rather than
+ * crashing or surfacing a value the runtime can no longer route. The discard
+ * is a pre-release stance: no migration is written for a format that shipped
+ * with no persisted instances in the wild.
  * @param value - the raw `model` value from the metadata file.
  * @returns the plan id, or undefined when absent or old-format.
  */
 function model(value) {
-    // A plan id is a bare string; anything else (the old object form, numbers,
-    // arrays) is pre-release and reads as absent. A blank string is also absent.
+    // A plan id IS a bare string (e.g. `flash2`), so any non-empty string is kept
+    // verbatim as a plan id — bare strings are indistinguishable from plan ids and
+    // therefore cannot be "discarded" the way the old object form is. Only
+    // non-string values (the old `{ provider, model }` object, numbers, arrays)
+    // are pre-release and read as absent. A blank string is also absent.
     if (typeof value !== 'string')
         return undefined;
     return value.trim() === '' ? undefined : value.trim();

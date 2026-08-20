@@ -105,8 +105,8 @@ describe('host-plane delegate tool → factory subagent (P1-5 smoke)', () => {
   })
 })
 
-describe('subagent model override on dispatch (P1-5 smoke)', () => {
-  it('routes a named subagent with a model override to the override model', async () => {
+describe('subagent model-plan binding on dispatch (P1-5 smoke)', () => {
+  it('records a named subagent\'s model-plan binding as a model-plan/select event on the child', async () => {
     const ctx = new Context()
     contexts.push(ctx)
     ctx.baseUrl = pathToFileURL(FIXTURES).href + '/'
@@ -124,7 +124,9 @@ describe('subagent model override on dispatch (P1-5 smoke)', () => {
       setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'coding'),
     })
 
-    // `reviewer-model` declares model { provider: mock, model: override-model }.
+    // `reviewer-model` declares `model: reviewer-plan` (a model-plan id, a
+    // reference rather than a `{ provider, model }` route). Delegation records
+    // the binding as a `model-plan/select` event on the child session.
     const run = await startInProcessRun(
       {
         label: 'child task',
@@ -137,9 +139,13 @@ describe('subagent model override on dispatch (P1-5 smoke)', () => {
       {},
     )
     await run.result
+    const selectEvent = run.localAgent?.session.events.find(event => event.type === 'model-plan/select')
+    expect(selectEvent?.data).toMatchObject({ planId: 'reviewer-plan' })
+    // Without the model-plan interceptor (not mounted here), the child inherits
+    // the parent's `mock`/`mock` route.
     const childRequest = adapter.requests.at(-1)
     expect(childRequest?.provider).toBe('mock')
-    expect(childRequest?.model).toBe('override-model')
+    expect(childRequest?.model).toBe('mock')
     await run.dispose()
   })
 })

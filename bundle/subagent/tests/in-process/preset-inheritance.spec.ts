@@ -177,21 +177,28 @@ describe('a child agent composed in-process (harness engine)', () => {
     await run.dispose()
   })
 
-  it('routes a child carrying a named subagent with a model override to that model', async () => {
+  it('records a named subagent\'s model-plan binding as a model-plan/select event on the child', async () => {
     const { ctx, adapter, parent } = await setupPresetHost()
 
-    // `reviewer-model` declares `model: { provider: mock, model: override-model }`,
-    // so the child must be routed to that provider/model rather than inheriting
-    // the parent's `mock`/`mock` route.
+    // `reviewer-model` declares `model: reviewer-plan` (a model-plan id). A plan
+    // id is a reference, not a `{ provider, model }` route: delegation records
+    // the binding as a `model-plan/select` event on the child session, which the
+    // model-plan merge interceptor (registered on every `agent/request`) then
+    // routes to the plan's provider/model/params. The subagent engine's own
+    // contract stops at recording the binding — routing lives in the plan.
     const run = await startInProcessRun(
       { ...spawnRequest(parent), subagent: 'reviewer-model' },
       {},
     )
     await run.result
 
+    const selectEvent = run.localAgent?.session.events.find(event => event.type === 'model-plan/select')
+    expect(selectEvent?.data).toMatchObject({ planId: 'reviewer-plan' })
+    // Without the model-plan interceptor (not mounted in this in-process suite),
+    // the child inherits the parent's `mock`/`mock` route.
     const childRequest = adapter.requests.at(-1)
     expect(childRequest?.provider).toBe('mock')
-    expect(childRequest?.model).toBe('override-model')
+    expect(childRequest?.model).toBe('mock')
     // The subagent tree still mounted (its helper tool is visible on the child),
     // and `reviewer-model` does not opt in to inheritance, so the parent's
     // `preset_only` tool is absent.
@@ -240,10 +247,11 @@ describe('a child agent composed in-process (harness engine)', () => {
     await run.dispose()
   })
 
-  it('preserves the subagent model override over the parent\'s effective model', async () => {
+  it('preserves a bound subagent\'s plan-id reference against the parent\'s effective model', async () => {
     const { ctx, adapter, parent } = await setupPresetHost()
     // The parent ran on `mock`/`effective-model`; `reviewer-model` still must
-    // win with its own override — the override precedence is unchanged.
+    // record its OWN plan binding (`reviewer-plan`) on the child rather than
+    // merely inheriting the parent's live route — the binding is the override.
     parent.session.append('request/header', { header: { config: { provider: 'mock', model: 'effective-model' } } })
 
     const run = await startInProcessRun(
@@ -251,9 +259,13 @@ describe('a child agent composed in-process (harness engine)', () => {
       {},
     )
     await run.result
+    const selectEvent = run.localAgent?.session.events.find(event => event.type === 'model-plan/select')
+    expect(selectEvent?.data).toMatchObject({ planId: 'reviewer-plan' })
+    // Without the model-plan interceptor, the child inherits the parent's
+    // effective route.
     const childRequest = adapter.requests.at(-1)
     expect(childRequest?.provider).toBe('mock')
-    expect(childRequest?.model).toBe('override-model')
+    expect(childRequest?.model).toBe('effective-model')
     await run.dispose()
   })
 
