@@ -1,0 +1,265 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.intro {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--dsw-alias-text-secondary);
+}
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, 0.2));
+  border-radius: 8px;
+  background: var(--dsw-alias-surface-primary);
+}
+
+.cardBroken {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cardName {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.defaultBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--dsw-alias-state-warning-primary, #b45309);
+  background: var(--dsw-alias-state-warning-soft, rgba(180, 83, 9, 0.12));
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.brokenBadge {
+  font-size: 12px;
+  color: var(--dsw-alias-state-error-primary);
+  background: var(--dsw-alias-state-error-soft, rgba(220, 38, 38, 0.12));
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.cardModel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.cardModelValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--dsw-alias-text-primary);
+}
+
+.paramSummary {
+  color: var(--dsw-alias-text-tertiary);
+  font-size: 12px;
+}
+
+.cardFoot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-text-secondary);
+  cursor: pointer;
+}
+
+.iconButton:hover:not(:disabled) {
+  background: var(--dsw-alias-surface-hover, rgba(128, 128, 128, 0.1));
+}
+
+.iconButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.iconDanger {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.creatorButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 6px 12px;
+  border: 1px dashed var(--dsw-alias-divider, rgba(128, 128, 128, 0.3));
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-text-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.creatorButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.dialog {
+  width: min(560px, 92vw);
+}
+
+.dialogScroll {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.dialogFields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  color: var(--dsw-alias-text-secondary);
+}
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, 0.3));
+  border-radius: 6px;
+  background: var(--dsw-alias-surface-primary);
+  color: var(--dsw-alias-text-primary);
+  font-size: 13px;
+}
+
+.select {
+  cursor: pointer;
+}
+
+.modelRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.editorBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, 0.2));
+  border-radius: 8px;
+}
+
+.blockTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.paramsHint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-text-secondary);
+}
+
+.paramRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 28px;
+  gap: 8px;
+  align-items: end;
+}
+
+.paramRowBlocked {
+  opacity: 0.6;
+}
+
+.paramBlocked {
+  margin: 0;
+  font-size: 11px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.addParam {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 4px 10px;
+  border: 1px dashed var(--dsw-alias-divider, rgba(128, 128, 128, 0.3));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.customNote {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-text-tertiary);
+}
+
+.error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.deleteDialog {
+  width: min(440px, 92vw);
+}
+
+.deleteConfirm {
+  background: var(--dsw-alias-state-error-primary);
+}

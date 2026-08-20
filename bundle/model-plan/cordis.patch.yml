@@ -1,0 +1,23 @@
+# The dsh-harness-model-plan-bundle patch: mounts the Harness-owned model-plan
+# registry, its merge interceptor, and its management wire as host rows.
+# A model plan is a fixed asset (固定资产): a provider/model route plus a bag of
+# params, bound to a session (not to a bare model). The `modelPlans` service
+# owns the registry (dual-root: `config/model-plans/` read-only + user-writable),
+# the per-session durable selection ledger, and the merge interceptor that
+# layers session overrides over plan params over model defaults.
+#
+# A later layer (the profile's own cordis.patch.yml or a --patch overlay) wins
+# per row. This row uses distinct ids (`model-plans`, `model-plan-wire`) from
+# any official row (the Loader rejects duplicate ids).
+
+- insert:
+    # The `ctx.modelPlans` service: the registry, the per-session selection
+    # ledger, and the merge interceptor. A host row.
+    - id: model-plans
+      name: 'dsh-harness-model-plan-bundle'
+
+    # The model-plan management wire: the `/model-plan` loopback RPC channel
+    # carrying list/read/create/update/remove/select/readSelection over the
+    # registry's public interface. Rides alongside the `modelPlans` service.
+    - id: model-plan-wire
+      name: 'dsh-harness-model-plan-bundle/wire'
