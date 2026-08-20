@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo"
+  },
+  "include": [
+    "src/index.ts",
+    "src/adapter.ts",
+    "src/catalog.ts",
+    "src/config.ts",
+    "src/context.ts",
+    "src/discovery.ts",
+    "src/invariant.ts",
+    "src/provider.ts",
+    "src/replay.ts",
+    "src/stream.ts"
+  ]
+}
