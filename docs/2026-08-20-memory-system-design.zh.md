@@ -64,7 +64,7 @@ DSH 现有记忆机制是 compaction（压缩总结）：单个会话窗口快�
 | Agent（记忆人格载体） | **团队编制表里的角色（role，soul）**——持久身份+人设 prompt+绑定执行体（subagent），与 TencentDB Agent 的"人格载体不跑循环"同构：我们的角色定义人格，执行由绑定的子代理身体承担（souls bound to bodies） |
 | Task | **任务（新增实体，见 §7 F10）** |
 | user | 单机固定用户 |
-| （主会话） | 默认"主代理"身份，记忆独立沉淀 |
+| （主会话） | **team 本身的记忆**——主代理即团队的对外代表，主会话沉淀的记忆归属团队级（跨角色、跨会话共享的团队记忆）。TencentDB 侧对应"每个 Team 自动建 default Agent"的机制，我们直接以 team 为归属维度 |
 
 **角色记忆策略挂钩**：编制表角色已有 `memory: persistent | one-shot` 字段——persistent 角色的记忆沉淀进记忆系统（跨派遣累积）；one-shot 角色每次派遣全新、不沉淀（与其"对之前派遣一无所知"的语义一致）。记忆归属为 per-(team, role)。
 
