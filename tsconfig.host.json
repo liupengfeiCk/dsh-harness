@@ -1,0 +1,22 @@
+{
+  // Host aggregate (one of the two check units; see tsconfig.json). The two
+  // harness client halves (the browser UI under each bundle's src/ui) type-check
+  // in tsconfig.client.json: the two sides merge cordis Context under the same
+  // keys, one program cannot see both. This program drives the Host build of
+  // the two bundles' server-side halves (bundle ×2); each bundle's tsconfig.json
+  // compiles its host src to lib/types and tsc -b visits them through the
+  // references below.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false
+  },
+  "files": [],
+  "references": [
+    { "path": "./bundle/subagent" },
+    { "path": "./bundle/agent-preset-editing" },
+    { "path": "./bundle/hot" },
+    { "path": "./bundle/model-plan" },
+    { "path": "./bundle/llm-pi-ai-extra" }
+  ]
+}

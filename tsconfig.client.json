@@ -1,0 +1,17 @@
+{
+  // Client-side typecheck aggregate: the browser halves of the two harness
+  // bundles (each bundle's src/ui). Split from the host aggregate because both
+  // sides merge cordis Context under the same keys with different services.
+  "extends": "./tsconfig.base.client.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false,
+    "types": ["node"]
+  },
+  "files": [],
+  "references": [
+    { "path": "./bundle/subagent/tsconfig.client.json" },
+    { "path": "./bundle/agent-preset-editing/tsconfig.client.json" },
+    { "path": "./bundle/model-plan/tsconfig.client.json" }
+  ]
+}

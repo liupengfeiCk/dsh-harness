@@ -1,0 +1,17 @@
+# The Harness-owned package tier, moved out of the main repo workspace so the
+# upstream `packages/*/*` glob never re-captures them. This workspace contains
+# ONLY the Harness-owned packages; all @deepseek-ai/dsh-* peer/dev dependencies
+# on the upstream tier resolve from the npm registry (the upstream packages are
+# published), and the Harness packages inter-depend through the workspace:^
+# protocol within this file's scope.
+#
+# After the 7-to-2 merge the only packages are the two self-contained bundles
+# (bundle/subagent, bundle/agent-preset-editing); the former client/, preset/,
+# and subagent/ packages were absorbed into them.
+packages:
+  - bundle/*
+linkWorkspacePackages: true
+autoInstallPeers: false
+allowBuilds:
+  koffi: true
+  node-pty: true
