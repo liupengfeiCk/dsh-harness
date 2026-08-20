@@ -64,6 +64,55 @@ describe('mergePlanConfig', () => {
     expect(config.reasoningEffort).toBe('medium')
   })
 
+  it('discards an inherited reasoningEffort when the plan declares none (official withoutInheritedEffort)', () => {
+    // base carries an inherited effort (e.g. the seat's default "high" written by
+    // the official model-selection layer); the plan takes over provider/model but
+    // declares no reasoningEffort, so the inherited band must be voided — this is
+    // what prevents a provider whose adapter rejects reasoningEffort from failing.
+    const inherited: LlmCallConfig = {
+      provider: 'official', model: 'default-model', temperature: 0.7,
+      reasoningEffort: 'high',
+    }
+    const { config, warnedExtra } = mergePlanConfig(
+      inherited,
+      { provider: 'tencent', model: 'deepseek-v4-flash', params: { temperature: 1 } },
+      {},
+    )
+    expect(config.provider).toBe('tencent')
+    expect(config.model).toBe('deepseek-v4-flash')
+    expect('reasoningEffort' in config).toBe(false)
+    expect(config.temperature).toBe(1)
+    expect(warnedExtra).toEqual([])
+  })
+
+  it('keeps a session-override reasoningEffort even when the plan declares none', () => {
+    // The merged bag (plan + overrides) DOES declare an effort via the override, so
+    // it must win over the inherited one rather than be discarded.
+    const inherited: LlmCallConfig = {
+      provider: 'official', model: 'default-model', temperature: 0.7,
+      reasoningEffort: 'high',
+    }
+    const { config } = mergePlanConfig(
+      inherited,
+      { provider: 'tencent', model: 'deepseek-v4-flash', params: {} },
+      { reasoningEffort: 'off' },
+    )
+    expect(config.reasoningEffort).toBe('off')
+  })
+
+  it('leaves the inherited reasoningEffort untouched when the plan declares one (declared wins)', () => {
+    const inherited: LlmCallConfig = {
+      provider: 'official', model: 'default-model', temperature: 0.7,
+      reasoningEffort: 'high',
+    }
+    const { config } = mergePlanConfig(
+      inherited,
+      { provider: 'p', model: 'm', params: { reasoningEffort: 'medium' } },
+      {},
+    )
+    expect(config.reasoningEffort).toBe('medium')
+  })
+
   it('applies a session override of a non-known key onto extra', () => {
     const { config, warnedExtra } = mergePlanConfig(
       base(),

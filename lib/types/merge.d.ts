@@ -56,6 +56,15 @@ export interface MergedCallConfig extends LlmCallConfig {
  * already-official config. The plan's provider/model/reasoningEffort land on
  * native fields so the requestHeader recorded for this request (and therefore
  * the display and child-agent inheritance) agrees with what actually ran.
+ *
+ * The plan taking over `provider`/`model` is an EXPLICIT selection, so the
+ * inherited reasoning effort (whatever the official route's own model-selection
+ * wrote into `base`, e.g. the seat's default "high") is discarded unless the
+ * merged bag explicitly declares one. This aligns with the official
+ * `installModelSelection` `withoutInheritedEffort` semantics: switching models
+ * voids the inherited thinking band — otherwise a plan that moves to a provider
+ * whose adapter does not accept `reasoningEffort` would inherit a stale band
+ * and fail whether or not the user configured one.
  * @param base - the config the official route resolved via `next()`.
  * @param plan - the resolved plan's route and params.
  * @param overrides - session-level temporary params riding above the plan's.

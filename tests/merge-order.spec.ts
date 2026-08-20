@@ -112,6 +112,29 @@ describe('agent/request waterfall ordering: merge vs official model-selection', 
     }
   })
 
+  it('with prepend, the plan voids an inherited reasoningEffort the official layer wrote (the夹死 bug)', async () => {
+    const ctx = new Context()
+    const agentCtx = ctx.extend()
+    try {
+      // The official model-selection layer writes its own reasoningEffort (the
+      // agent seat's default "high") into the resolved config BEFORE the merge
+      // interceptor rewrites the route. The plan (tencent, deepseek-v4-flash)
+      // declares no reasoningEffort, so the inherited band must be discarded —
+      // otherwise tencent rejects the request whether or not the user set one.
+      agentCtx.on('agent/request', async (_payload: unknown, next: () => Promise<any>) => {
+        const resolved = await next()
+        return { ...resolved, provider: 'deepseek-official', model: 'deepseek-v4-flash', reasoningEffort: 'high' }
+      })
+      agentCtx.on('agent/request', buildMergeHandler(), { prepend: true })
+      const result = await fireRequest(agentCtx)
+      expect(result.provider).toBe('tencent')
+      expect(result.model).toBe('deepseek-v4-flash')
+      expect('reasoningEffort' in result).toBe(false)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('with prepend, dispatched through the real agentEvents scope carrier, the plan provider wins', async () => {
     const ctx = new Context()
     // Simulate the agent's scoped context as a child of the loop context.
