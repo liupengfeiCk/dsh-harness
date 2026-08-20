@@ -17,7 +17,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
  * usable plan here — so only the bar's own disable state (`locked`) and a
  * started session disable the trigger.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { IconChevronDownOutline14, IconPlusOutline16, IconTrashOutline16, IconWarningOutline16, Tooltip, } from '@deepseek-ai/dsh-client-ui-primitives';
 import css from './ModelPlanChip.module.css';
 /** The trigger's current label: the bound plan's name, else the default, else a prompt. */
@@ -40,7 +40,11 @@ export function ModelPlanChip({ locked, useModelPlanChip, t, load, select, begin
     const state = useModelPlanChip(snapshot => snapshot);
     const [open, setOpen] = useState(false);
     const rootRef = useRef(null);
+    const menuRef = useRef(null);
     const triggerRef = useRef(null);
+    // Fixed viewport position for the menu, resolved from the trigger rect with
+    // the viewport clamped so the popup never exits the visible area.
+    const [menuPos, setMenuPos] = useState(null);
     useEffect(() => {
         if (state.status === 'idle')
             void load();
@@ -49,11 +53,50 @@ export function ModelPlanChip({ locked, useModelPlanChip, t, load, select, begin
         if (!open)
             return;
         const closeOutside = (event) => {
-            if (!rootRef.current?.contains(event.target))
+            if (!rootRef.current?.contains(event.target) && !menuRef.current?.contains(event.target))
                 setOpen(false);
         };
         document.addEventListener('mousedown', closeOutside);
         return () => { document.removeEventListener('mousedown', closeOutside); };
+    }, [open]);
+    // Position the popup ABOVE the trigger (it sits in the composer's bottom
+    // bar), clamped to the viewport so a tall menu or a short window never
+    // pushes it off-screen. The menu uses `position: fixed`, so it anchors to
+    // the viewport (escaping the composer's overflow clipping) and layers above
+    // the stats bar; the composer container chain is deliberately transform-free
+    // (ConversationRoot's .composerHero avoids transform precisely so fixed
+    // pickers/modals like this stay viewport-anchored).
+    useLayoutEffect(() => {
+        if (!open) {
+            setMenuPos(null);
+            return;
+        }
+        const place = () => {
+            const trigger = triggerRef.current;
+            if (trigger === null)
+                return;
+            const r = trigger.getBoundingClientRect();
+            const menuEl = menuRef.current;
+            const MARGIN = 12;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const mw = menuEl?.offsetWidth ?? 0;
+            const mh = menuEl?.offsetHeight ?? 0;
+            let x = r.right - mw;
+            let y = r.top - mh - 4;
+            if (mw > 0)
+                x = Math.min(Math.max(x, MARGIN), vw - mw - MARGIN);
+            if (mh > 0)
+                y = Math.min(Math.max(y, MARGIN), vh - mh - MARGIN);
+            setMenuPos({ left: x, top: y });
+        };
+        place();
+        window.addEventListener('scroll', place, true);
+        window.addEventListener('resize', place);
+        return () => {
+            window.removeEventListener('scroll', place, true);
+            window.removeEventListener('resize', place);
+        };
     }, [open]);
     // The owner passes only `locked` (the bar's chrome disable state for a
     // removed session). A started session cannot change its plan binding, but
@@ -91,7 +134,7 @@ export function ModelPlanChip({ locked, useModelPlanChip, t, load, select, begin
                             beginOverrideDraft();
                         }
                         setOpen(value => !value);
-                    }, children: [label, _jsx(IconChevronDownOutline14, { className: css.chevron })] }) }), open && !disabled && (_jsxs("div", { className: css.menu, role: "menu", "aria-label": t('seatSelect'), children: [state.status === 'error' && _jsx("div", { className: css.error, children: t('error') }), _jsx("div", { className: css.plans, children: state.options.length === 0
+                    }, children: [label, _jsx(IconChevronDownOutline14, { className: css.chevron })] }) }), open && !disabled && (_jsxs("div", { ref: menuRef, className: css.menu, role: "menu", "aria-label": t('seatSelect'), style: menuPos ?? undefined, children: [state.status === 'error' && _jsx("div", { className: css.error, children: t('error') }), _jsx("div", { className: css.plans, children: state.options.length === 0
                             ? (_jsxs("div", { className: css.empty, children: [_jsx("div", { children: t('noPlans') }), _jsx("div", { className: css.emptyHint, children: t('noPlansHint') })] }))
                             : state.options.map(option => {
                                 const selected = option.id === state.planId;

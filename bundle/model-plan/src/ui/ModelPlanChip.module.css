@@ -1,10 +1,6 @@
 .root {
   position: relative;
   display: inline-flex;
-  /* Establish a stacking context so the open menu (z-index below) floats above
-     the composer's own chrome (e.g. the session stats bar) instead of the menu
-     rows overlapping text that renders behind it. */
-  z-index: 30;
 }
 
 .chip {
@@ -13,10 +9,10 @@
   gap: 4px;
   max-width: 220px;
   padding: 4px 8px;
-  border: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, 0.3));
+  border: 1px solid var(--dsw-alias-border-l2, rgba(128, 128, 128, 0.3));
   border-radius: 6px;
-  background: var(--dsw-alias-surface-primary);
-  color: var(--dsw-alias-text-primary);
+  background: var(--dsw-alias-interactive-bg-hover, rgba(128, 128, 128, 0.08));
+  color: var(--dsw-alias-label-primary);
   font-size: 13px;
   cursor: pointer;
   overflow: hidden;
@@ -25,7 +21,7 @@
 }
 
 .chip:hover:not(:disabled) {
-  background: var(--dsw-alias-surface-hover, rgba(128, 128, 128, 0.08));
+  background: var(--dsw-alias-interactive-bg-hover-solid, rgba(128, 128, 128, 0.08));
 }
 
 .chip:disabled {
@@ -35,20 +31,29 @@
 
 .chevron {
   flex-shrink: 0;
-  color: var(--dsw-alias-text-secondary);
+  color: var(--dsw-alias-label-caption);
 }
 
+/* The popup is fixed-positioned from the trigger rect by the component (JS,
+   so no `top`/`right` offset rules apply here). `position: fixed` anchors it
+   to the viewport, escaping the composer's overflow clipping and layering it
+   above the stats bar; the composer chain is deliberately transform-free so
+   fixed stays viewport-anchored. It is a full design-system elevated menu
+   surface: an opaque fill (the menu token), the inverted hairline, and the
+   lv3 shadow — the fill must be opaque or the composer's stats-bar text shows
+   through the card. */
 .menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 50;
+  position: fixed;
+  left: auto;
+  top: auto;
+  z-index: 1100;
+  box-sizing: border-box;
   min-width: 260px;
   max-width: 340px;
-  background: var(--dsw-alias-surface-primary);
-  border: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, 0.25));
+  background: var(--dsw-specific-menu);
+  border: 1px solid var(--dsw-alias-border-inverted);
   border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--dsw-shadow-lv3);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -71,13 +76,13 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-alias-text-primary);
+  color: var(--dsw-alias-label-primary);
   text-align: left;
   cursor: pointer;
 }
 
 .option:hover:not(:disabled) {
-  background: var(--dsw-alias-surface-hover, rgba(128, 128, 128, 0.1));
+  background: var(--dsw-alias-interactive-bg-hover, rgba(128, 128, 128, 0.1));
 }
 
 .option:disabled {
@@ -86,7 +91,7 @@
 }
 
 .selected {
-  background: var(--dsw-alias-surface-hover, rgba(128, 128, 128, 0.14));
+  background: var(--dsw-alias-interactive-bg-hover-solid, rgba(128, 128, 128, 0.14));
 }
 
 .optionBroken {
@@ -109,8 +114,8 @@
 
 .optionDefault {
   font-size: 11px;
-  color: var(--dsw-alias-state-warning-primary, #b45309);
-  background: var(--dsw-alias-state-warning-soft, rgba(180, 83, 9, 0.12));
+  color: var(--dsw-alias-state-warn-primary, #b45309);
+  background: var(--dsw-alias-state-warn-tertiary, rgba(180, 83, 9, 0.12));
   padding: 0 4px;
   border-radius: 4px;
   flex-shrink: 0;
@@ -119,7 +124,7 @@
 .optionBrokenTag {
   font-size: 11px;
   color: var(--dsw-alias-state-error-primary);
-  background: var(--dsw-alias-state-error-soft, rgba(220, 38, 38, 0.12));
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(220, 38, 38, 0.12));
   padding: 0 4px;
   border-radius: 4px;
   flex-shrink: 0;
@@ -127,7 +132,7 @@
 
 .optionModel {
   font-size: 11px;
-  color: var(--dsw-alias-text-secondary);
+  color: var(--dsw-alias-label-secondary);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
@@ -140,7 +145,7 @@
   flex-direction: column;
   gap: 6px;
   padding-top: 10px;
-  border-top: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, 0.2));
+  border-top: 1px solid var(--dsw-alias-border-l2, rgba(128, 128, 128, 0.2));
 }
 
 .overrideHead {
@@ -152,21 +157,21 @@
 .overrideTitle {
   font-size: 12px;
   font-weight: 600;
-  color: var(--dsw-alias-text-secondary);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .overrideCount {
   font-size: 11px;
   font-weight: 500;
-  color: var(--dsw-alias-state-primary, rgba(59, 130, 246, 0.9));
-  background: var(--dsw-alias-state-primary-soft, rgba(59, 130, 246, 0.12));
+  color: var(--dsw-alias-state-business-primary, rgba(59, 130, 246, 0.9));
+  background: var(--dsw-alias-state-business-tertiary, rgba(59, 130, 246, 0.12));
   padding: 0 5px;
   border-radius: 8px;
 }
 
 .overrideHint {
   font-size: 11px;
-  color: var(--dsw-alias-text-tertiary);
+  color: var(--dsw-alias-label-tertiary);
 }
 
 /* The compact key=value table: two editable columns + a remove column. */
@@ -185,7 +190,7 @@
 .overrideColKey,
 .overrideColValue {
   font-size: 11px;
-  color: var(--dsw-alias-text-tertiary);
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .overrideColRemove {
@@ -204,10 +209,10 @@
   min-width: 0;
   box-sizing: border-box;
   padding: 4px 6px;
-  border: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, 0.3));
+  border: 1px solid var(--dsw-alias-border-l2, rgba(128, 128, 128, 0.3));
   border-radius: 6px;
-  background: var(--dsw-alias-surface-primary);
-  color: var(--dsw-alias-text-primary);
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
   font-size: 12px;
 }
 
@@ -221,12 +226,12 @@
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: var(--dsw-alias-text-tertiary);
+  color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
 }
 
 .removeRowButton:hover:not(:disabled) {
-  background: var(--dsw-alias-surface-hover, rgba(128, 128, 128, 0.1));
+  background: var(--dsw-alias-interactive-bg-hover, rgba(128, 128, 128, 0.1));
   color: var(--dsw-alias-state-error-primary);
 }
 
@@ -236,10 +241,10 @@
   gap: 4px;
   align-self: flex-start;
   padding: 3px 8px;
-  border: 1px dashed var(--dsw-alias-divider, rgba(128, 128, 128, 0.3));
+  border: 1px dashed var(--dsw-alias-border-l2, rgba(128, 128, 128, 0.3));
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-alias-text-secondary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   cursor: pointer;
 }
@@ -260,7 +265,7 @@
   padding: 4px 12px;
   border: none;
   border-radius: 6px;
-  background: var(--dsw-alias-state-primary, rgba(59, 130, 246, 0.9));
+  background: var(--dsw-alias-button-info-fill, rgba(59, 130, 246, 0.9));
   color: #fff;
   font-size: 12px;
   cursor: pointer;
@@ -303,11 +308,11 @@
   flex-direction: column;
   gap: 2px;
   font-size: 12px;
-  color: var(--dsw-alias-text-tertiary);
+  color: var(--dsw-alias-label-tertiary);
   padding: 4px 8px;
 }
 
 .emptyHint {
   font-size: 11px;
-  color: var(--dsw-alias-text-tertiary);
+  color: var(--dsw-alias-label-tertiary);
 }
