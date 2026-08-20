@@ -10,10 +10,6 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
-    "./adapter": {
-      "types": "./lib/types/adapter.d.ts",
-      "default": "./lib/adapter.js"
-    },
     "./invariant": {
       "types": "./lib/types/invariant.d.ts",
       "default": "./lib/invariant.js"
@@ -23,7 +19,6 @@
   },
   "files": [
     "lib/index.js",
-    "lib/adapter.js",
     "lib/invariant.js",
     "lib/types/**/*.d.ts",
     "cordis.patch.yml"

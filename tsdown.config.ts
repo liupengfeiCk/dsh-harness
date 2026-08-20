@@ -9,5 +9,5 @@ import { buildFace, clientLibraryConfig } from '../../client/tsdown.client.ts'
 export default (({ env }) => {
   const face = buildFace(env?.DSH_BUILD_FACE)
   if (face === 'client') return [{ entry: '' }]
-  return [clientLibraryConfig('dsh-harness-llm-pi-ai-extra-bundle', ['lib/types/index.js', 'lib/types/adapter.js', 'lib/types/invariant.js'])]
+  return [clientLibraryConfig('dsh-harness-llm-pi-ai-extra-bundle', ['lib/types/index.js', 'lib/types/invariant.js'])]
 })
