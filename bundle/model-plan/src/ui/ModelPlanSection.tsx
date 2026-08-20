@@ -4,26 +4,25 @@
  * pick, and a params bag) and delete with confirmation.
  *
  * The model pick reads the session-independent host catalog (`llm.models`):
- * provider-grouped, with each exact route's reasoning metadata. `reasoningEffort`
- * renders as a dropdown sourced from the selected model's efforts when that
- * model exposes them. The params bag is an array of editable key/value rows —
+ * provider-grouped. The params bag is an array of editable key/value rows —
  * every key can be deleted, re-valued, its spelling edited inline, and new
- * key=value rows appended. A note reminds the user that custom keys pass
- * through into the request body without implying provider support.
+ * key=value rows appended. Every row is a plain key + value input: the bag is
+ * passed through to the LLM request verbatim, so the editor judges nothing
+ * about a key's meaning or capability. A note reminds the user that the params
+ * pass through into the request body.
  *
  * A shipped (system) plan is read-only: it cannot be edited or deleted.
  */
 
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
-import type { ModelReasoningEffort } from '@deepseek-ai/dsh-api-remotes/client'
 import {
   Button, IconCheckOutline16, IconEditOutline16, IconPlusOutline16, IconTrashOutline16, Modal, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  planBlocker, type ModelPlanSectionState, type ParamDraft, type PlanAbility, type PlanDraft, type PlanRow,
+  planBlocker, type ModelPlanSectionState, type ParamDraft, type PlanDraft, type PlanRow,
 } from './section-store.ts'
 import type { ModelCatalogState } from './directory.ts'
 import type { ModelPlanKey } from './locales.ts'
@@ -61,8 +60,6 @@ export interface ModelPlanSectionInjected {
   addParam: () => void
   /** Remove one params-bag row. */
   removeParam: (index: number) => void
-  /** Set the draft's reasoningEffort through its dropdown. */
-  setReasoningEffort: (effort: string) => void
   /** Submit the create. */
   confirmCreate: () => Promise<void>
   /** Submit the edit. */
@@ -86,15 +83,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /** Model-plan management-section copy. */
     'settings.modelPlan': ModelPlanKey
   }
-}
-
-/** The `reasoningEffort` bag row's dropdown choices for the selected model. */
-function reasoningChoices(reasoning: { efforts: readonly ModelReasoningEffort[]; defaultEffort?: string } | undefined): readonly string[] {
-  if (reasoning === undefined) return []
-  return [
-    ...reasoning.defaultEffort === undefined ? [''] : [],
-    ...reasoning.efforts.map(effort => effort.id),
-  ]
 }
 
 /** One plan card: name, model, param summary, default badge, broken marker, and row controls. */
@@ -149,25 +137,18 @@ function PlanCard(props: {
   )
 }
 
-/** One params-bag row: key + value (value is a typed JSON scalar). */
+/** One params-bag row: a plain key + value input (value is a typed JSON scalar). */
 function ParamRow(props: {
   param: ParamDraft
   index: number
-  reasoningEffortOptions: readonly string[]
-  reasoningUnsupported: boolean
   t: (key: ModelPlanKey) => string
   onKey: (index: number, key: string) => void
   onValue: (index: number, value: string) => void
   onRemove: (index: number) => void
 }): ReactNode {
-  const { param, index, reasoningEffortOptions, reasoningUnsupported, t, onKey, onValue, onRemove } = props
-  const isReasoningEffort = param.key === 'reasoningEffort'
-  // The "model does not support reasoning effort" block applies ONLY to the
-  // `reasoningEffort` row — a temperature/maxTokens/other row must stay fully
-  // editable even when the model exposes no effort tiers.
-  const blocked = isReasoningEffort && reasoningUnsupported
+  const { param, index, t, onKey, onValue, onRemove } = props
   return (
-    <div className={`${css.paramRow} ${blocked ? css.paramRowBlocked : ''}`}>
+    <div className={css.paramRow}>
       <div className={css.field}>
         <span className={css.fieldLabel}>{t('paramKeyLabel')}</span>
         <input
@@ -179,36 +160,12 @@ function ParamRow(props: {
       </div>
       <div className={css.field}>
         <span className={css.fieldLabel}>{t('paramValueLabel')}</span>
-        {isReasoningEffort && reasoningEffortOptions.length > 0
-          ? (
-            <select
-              className={`${css.input} ${css.select}`}
-              value={param.value}
-              disabled={blocked}
-              onChange={e => onValue(index, e.target.value)}
-            >
-              {/* Each option's value is the JSON-serialized form of the effort
-                  (e.g. `"off"`), so the picked value is a legal JSON scalar the
-                  bag can store and the wire can re-read exactly. */}
-              {reasoningEffortOptions.map(effort => (
-                <option key={effort} value={JSON.stringify(effort)}>
-                  {effort === '' ? t('reasoningProviderDefault') : effort}
-                </option>
-              ))}
-            </select>
-          )
-          : (
-            <input
-              className={css.input}
-              value={param.value}
-              disabled={blocked}
-              placeholder={t('paramValuePlaceholder')}
-              onChange={e => onValue(index, e.target.value)}
-            />
-          )}
-        {blocked
-          ? <p className={css.paramBlocked}>{t('reasoningUnavailable')}</p>
-          : null}
+        <input
+          className={css.input}
+          value={param.value}
+          placeholder={t('paramValuePlaceholder')}
+          onChange={e => onValue(index, e.target.value)}
+        />
       </div>
       <Tooltip label={t('removeParam')} side="top">
         <button
@@ -236,20 +193,15 @@ function PlanDialog(props: {
   setDialogModel: (model: string) => void
   setParamKey: (index: number, key: string) => void
   setParamValue: (index: number, value: string) => void
-  setReasoningEffort: (effort: string) => void
   addParam: () => void
   removeParam: (index: number) => void
   confirm: () => void
   cancel: () => void
 }): ReactNode {
   const { draft, creating, catalog, rows, t, setDialogId, setDialogProvider, setDialogModel,
-    setParamKey, setParamValue, setReasoningEffort, addParam, removeParam, confirm, cancel } = props
+    setParamKey, setParamValue, addParam, removeParam, confirm, cancel } = props
   const group = catalog.groups.find(g => g.id === draft.provider)
-  const model = group?.models.find(m => m.id === draft.model)
-  const reasoningOptions = reasoningChoices(model?.reasoning)
-  const reasoningUnsupported = model !== undefined && (model.reasoning?.efforts.length ?? 0) === 0
-  const ability: PlanAbility = { reasoningEffort: model === undefined ? null : !reasoningUnsupported }
-  const blocker = planBlocker(draft, creating, rows, ability)
+  const blocker = planBlocker(draft, creating, rows)
   const message = draft.error ?? (blocker === undefined ? null : t(blocker))
   const catalogFailed = catalog.status === 'error'
   const modelSelectable = catalog.status === 'ready' && catalog.groups.length > 0
@@ -323,11 +275,9 @@ function PlanDialog(props: {
               key={`${index}-${param.key}`}
               param={param}
               index={index}
-              reasoningEffortOptions={reasoningOptions}
-              reasoningUnsupported={reasoningUnsupported}
               t={t}
               onKey={setParamKey}
-              onValue={param.key === 'reasoningEffort' ? (_i, v) => setReasoningEffort(v) : setParamValue}
+              onValue={setParamValue}
               onRemove={removeParam}
             />
           ))}
@@ -408,7 +358,6 @@ export function ModelPlanSection(props: ModelPlanSectionProps): ReactNode {
           setDialogModel={props.setDialogModel}
           setParamKey={props.setParamKey}
           setParamValue={props.setParamValue}
-          setReasoningEffort={props.setReasoningEffort}
           addParam={props.addParam}
           removeParam={props.removeParam}
           confirm={() => void (dialog.creating ? props.confirmCreate() : props.confirmEdit())}

@@ -10,19 +10,19 @@
  *
  * The params bag is edited as an array of `{ key, value }` rows: every key can
  * be deleted, its value re-typed, its spelling edited inline, and arbitrary
- * new key=value rows appended. The three familiar keys (temperature / maxTokens
- * / reasoningEffort) are pre-seeded with friendly labels, and
- * `reasoningEffort` renders as a dropdown sourced from the selected model's
- * reasoning metadata when that model exposes any. Validation rejects an empty
- * key and a value that is not a legal JSON scalar (the wire's JSON-value
- * vocabulary: string / number / boolean / null / array / object).
+ * new key=value rows appended. Every row is a plain key + value input — the bag
+ * is passed through to the LLM request verbatim, so the editor judges nothing
+ * about a key's meaning or capability. Three common wire names (temperature /
+ * max_tokens / top_p) are pre-seeded blank. Validation rejects an empty key and
+ * a value that is not a legal JSON scalar (the wire's JSON-value vocabulary:
+ * string / number / boolean / null / array / object).
  */
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ModelPlanWire, WireParams, WirePlanEntry } from './wire-client.ts'
 
-/** The familiar params pre-seeded into the bag editor. */
-export const KNOWN_KEYS = ['temperature', 'reasoningEffort', 'maxTokens'] as const
+/** The common wire names pre-seeded into the bag editor (blank, all removable). */
+export const KNOWN_KEYS = ['temperature', 'max_tokens', 'top_p'] as const
 
 /** A plan id may be named by, mirroring the host's own rule (id = file name). */
 const PLAN_ID = /^[a-z0-9][a-z0-9-]*$/
@@ -111,23 +111,6 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * The capability face of the currently selected model/route, as far as the
- * editor can tell. Each field is `null` when no model is selected yet (the
- * capability is undetermined and the editor stays permissive); `true`/`false`
- * once a model is selected.
- *
- * `reasoningEffort` sources from the official model directory's per-route
- * reasoning metadata (the exact field the reasoning dropdown already reads),
- * so it needs no local copy. Adapter-parameter capabilities the official
- * surface does not expose (e.g. whether a route honours `stop`) are layered in
- * here from the architecture map in `capability.ts`.
- */
-export interface PlanAbility {
-  /** Whether the selected model exposes reasoning efforts. */
-  reasoningEffort: boolean | null
-}
-
-/**
  * Whether a text is a legal JSON scalar per the wire's JSON-value vocabulary.
  * Any text `JSON.parse` accepts is a legal JSON value; the empty string is not.
  */
@@ -148,13 +131,11 @@ export function isJsonValue(text: string): boolean {
  */
 export type PlanBlockerKey =
   | 'idRequired' | 'idInvalid' | 'idTaken' | 'modelRequired' | 'keyRequired' | 'valueInvalid'
-  | 'reasoningUnsupported'
 
 export function planBlocker(
   draft: PlanDraft,
   creating: boolean,
   rows: readonly PlanRow[],
-  ability: PlanAbility = { reasoningEffort: null },
 ): PlanBlockerKey | undefined {
   if (creating) {
     if (draft.id === '') return 'idRequired'
@@ -165,12 +146,6 @@ export function planBlocker(
   for (const param of draft.params) {
     if (param.key.trim() === '') return 'keyRequired'
     if (!isJsonValue(param.value)) return 'valueInvalid'
-    // Capability gate: a well-known key the selected route cannot honour is a
-    // real (typed) value is refused here so the user hears about it in the
-    // editor instead of at request time.
-    if (param.value.trim() !== '') {
-      if (param.key === 'reasoningEffort' && ability.reasoningEffort === false) return 'reasoningUnsupported'
-    }
   }
   return undefined
 }
@@ -323,19 +298,6 @@ export class ModelPlanSectionController {
     const { dialog } = this.store.getSnapshot()
     if (dialog === null) return
     this.patchDialog({ params: dialog.params.filter((_, i) => i !== index), error: null })
-  }
-
-  /** Set the draft's `reasoningEffort` value through the dropdown. */
-  setReasoningEffort(effort: string): void {
-    const { dialog } = this.store.getSnapshot()
-    if (dialog === null) return
-    const row = dialog.params.find(param => param.key === 'reasoningEffort')
-    if (row === undefined) return
-    this.patchDialog({
-      params: dialog.params.map(param =>
-        param.key === 'reasoningEffort' ? { ...param, value: effort } : param),
-      error: null,
-    })
   }
 
   /** Submit the create or edit (the draft's own `creating` decides), then re-read. */

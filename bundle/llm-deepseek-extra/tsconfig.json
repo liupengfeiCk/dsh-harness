@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo"
+  },
+  "include": [
+    "src/index.ts",
+    "src/adapter.ts",
+    "src/invariant.ts",
+    "src/serialize.ts",
+    "src/sse.ts",
+    "src/translate.ts",
+    "src/types.ts"
+  ]
+}

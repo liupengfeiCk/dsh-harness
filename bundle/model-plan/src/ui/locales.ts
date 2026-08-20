@@ -10,11 +10,8 @@ export type ModelPlanKey =
   | 'modelLabel' | 'modelPlaceholder'
   | 'paramsLabel' | 'paramsHint' | 'addParam' | 'paramKeyLabel' | 'paramKeyPlaceholder'
   | 'paramValueLabel' | 'paramValuePlaceholder' | 'removeParam'
-  | 'temperatureKey' | 'maxTokensKey' | 'stopKey' | 'reasoningEffortKey'
-  | 'reasoningProviderDefault'
-  | 'paramsEmpty'
+  | 'temperatureKey'
   | 'keyRequired' | 'valueInvalid'
-  | 'reasoningUnavailable' | 'reasoningUnsupported'
   | 'idRequired' | 'idInvalid' | 'idTaken'
   | 'providerDefaultBadge' | 'brokenBadge'
   | 'setDefault' | 'defaultLabel'
@@ -64,15 +61,8 @@ export const en: Record<ModelPlanKey, string> = {
   paramValuePlaceholder: 'A JSON scalar, e.g. 0.7 or "high"',
   removeParam: 'Remove',
   temperatureKey: 'Temperature',
-  maxTokensKey: 'Max tokens',
-  stopKey: 'Stop',
-  reasoningEffortKey: 'Reasoning effort',
-  reasoningProviderDefault: 'Provider default',
-  paramsEmpty: 'No params — the model\'s defaults apply.',
   keyRequired: 'Give every param a key.',
   valueInvalid: 'The value must be a valid JSON scalar.',
-  reasoningUnavailable: 'This model does not support a reasoning effort.',
-  reasoningUnsupported: 'This model does not support a reasoning effort; remove the value to save.',
   providerDefaultBadge: 'Default',
   brokenBadge: 'Failed to load',
   setDefault: 'Set default',
@@ -145,15 +135,8 @@ export const zh: Record<ModelPlanKey, string> = {
   paramValuePlaceholder: '合法的 JSON 标量，如 0.7 或 "high"',
   removeParam: '移除',
   temperatureKey: '温度',
-  maxTokensKey: '最大 tokens',
-  stopKey: '停止词',
-  reasoningEffortKey: '推理档位',
-  reasoningProviderDefault: '跟随服务商默认',
-  paramsEmpty: '没有参数——使用型号默认值。',
   keyRequired: '请为每个参数填写键。',
   valueInvalid: '值必须是合法的 JSON 标量。',
-  reasoningUnavailable: '该型号不支持思考档。',
-  reasoningUnsupported: '该型号不支持思考档；请删除该值后再保存。',
   providerDefaultBadge: '默认',
   brokenBadge: '加载失败',
   setDefault: '设为默认',

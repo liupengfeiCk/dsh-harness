@@ -16,23 +16,25 @@
  * semantics). Only when a session binds no plan AND no default exists does the
  * interceptor run zero-intervention on the official route.
  *
- * The merge then seals two channels:
- * - known keys (`temperature`, `reasoningEffort`, `maxTokens`, `stop`) land on
- *   native `LlmCallConfig` fields — they flow into the session ledger, the
- *   display, and child-agent inheritance automatically;
- * - every other key lands on `LlmCallConfig.extra` — an upstream-optional
- *   contract (`extra?: Record<string, JsonValue>`) that the model-selection
- *   workstream is landing on `LlmCallConfig`. Because the PUBLISHED
- *   `@deepseek-ai/dsh-llm` types do not yet carry `extra`, this module reaches
- *   the field through the same typed-escape hatch the bundle uses for
- *   `Session.append`'s `ignorable` — it is written against the contract, and
- *   the integration that lands the field consumes it unchanged.
+ * The merge is a VERBATIM passthrough: every key in the plan's params bag (and
+ * every session override) lands untouched on `LlmCallConfig.extra` — there is
+ * no native-field routing and no key renamed. Whatever the user filled in the
+ * bag is exactly what the request body carries (the adapter spreads `extra`
+ * into the wire top level; a key colliding with a native wire field is a
+ * misuse and the native field wins). "把填的字段，原样发给 LLM" — the bag is
+ * the whole story, nothing is judged or reshaped here.
  *
- * The provider's adapter may or may not forward `extra` (pi-ai, in particular,
- * is known not to forward unknown options). This module NEVER silently drops a
- * non-known key: whenever the merged bag carries one, it logs a warning naming
- * the risk, so a plan that expects an adapter to forward its extra params does
- * not fail quietly.
+ * `extra` is reached through the same typed-escape hatch the bundle uses for
+ * `Session.append`'s `ignorable`: the PUBLISHED `@deepseek-ai/dsh-llm` types
+ * carry `extra?: Record<string, JsonValue>` on both `LlmCallConfig` and
+ * `GenerateOptions`, and the agent-loop's `buildRequest` spreads the header
+ * config (including `extra`) into the adapter's `GenerateOptions`, so the bag
+ * reaches the wire without this module touching the native route.
+ *
+ * The provider's adapter may or may not forward `extra`. This module NEVER
+ * silently drops a key: whenever the merged bag is non-empty, it logs a
+ * warning naming the keys, so a plan that expects an adapter to forward its
+ * params does not fail quietly.
  *
  * Reference semantics: the interceptor re-resolves the bound plan on every
  * request, so editing a plan's `plan.yml` changes what a bound session uses on
@@ -42,20 +44,19 @@
 import type { LlmCallConfig } from '@deepseek-ai/dsh-llm';
 import type { JsonValue, PlanParams } from './types.ts';
 /**
- * The keys a plan's params bag maps onto NATIVE `LlmCallConfig` fields. Any
- * other key maps onto `LlmCallConfig.extra` (see the module doc).
+ * The widest type of the merged config: `LlmCallConfig` plus the passthrough
+ * extra bag. `extra` is present only when the merged bag is non-empty.
  */
-export declare const KNOWN_KEYS: readonly ["temperature", "reasoningEffort", "maxTokens", "stop"];
-/** The widest type of the merged config: `LlmCallConfig` plus the optional extra bag. */
 export interface MergedCallConfig extends LlmCallConfig {
-    /** Non-known plan/override keys the provider may or may not forward. */
+    /** The verbatim plan/override params bag the adapter spreads into the wire body. */
     extra?: Record<string, JsonValue>;
 }
 /**
  * Merge a resolved plan's route + params with a session's overrides onto an
- * already-official config. The plan's provider/model/reasoningEffort land on
- * native fields so the requestHeader recorded for this request (and therefore
- * the display and child-agent inheritance) agrees with what actually ran.
+ * already-official config. The plan's provider/model land on native fields so
+ * the requestHeader recorded for this request (and therefore the display and
+ * child-agent inheritance) agrees with what actually ran; every params-bag key
+ * lands on `extra` verbatim.
  *
  * The plan taking over `provider`/`model` is an EXPLICIT selection, so the
  * inherited reasoning effort (whatever the official route's own model-selection
@@ -64,11 +65,12 @@ export interface MergedCallConfig extends LlmCallConfig {
  * `installModelSelection` `withoutInheritedEffort` semantics: switching models
  * voids the inherited thinking band — otherwise a plan that moves to a provider
  * whose adapter does not accept `reasoningEffort` would inherit a stale band
- * and fail whether or not the user configured one.
+ * and fail whether or not the user configured one. An effort the user DID fill
+ * in travels through `extra` like any other bag key.
  * @param base - the config the official route resolved via `next()`.
  * @param plan - the resolved plan's route and params.
  * @param overrides - session-level temporary params riding above the plan's.
- * @returns the merged config with the two sealed channels.
+ * @returns the merged config with the verbatim extra bag.
  */
 export declare function mergePlanConfig(base: LlmCallConfig, plan: {
     readonly provider: string;
@@ -107,7 +109,7 @@ export interface ModelPlanMergeDeps {
         readonly model: string;
         readonly params: PlanParams;
     } | undefined>;
-    /** Logger: a non-known key never silently drops. */
+    /** Logger: a non-empty bag never silently drops. */
     readonly logger: {
         warn(message: string, ...args: unknown[]): void;
     };

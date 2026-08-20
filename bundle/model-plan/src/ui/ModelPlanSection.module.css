@@ -220,16 +220,6 @@
   align-items: end;
 }
 
-.paramRowBlocked {
-  opacity: 0.6;
-}
-
-.paramBlocked {
-  margin: 0;
-  font-size: 11px;
-  color: var(--dsw-alias-state-error-primary);
-}
-
 .addParam {
   display: inline-flex;
   align-items: center;

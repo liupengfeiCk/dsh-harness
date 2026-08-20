@@ -17,6 +17,7 @@
     { "path": "./bundle/agent-preset-editing" },
     { "path": "./bundle/hot" },
     { "path": "./bundle/model-plan" },
-    { "path": "./bundle/llm-pi-ai-extra" }
+    { "path": "./bundle/llm-pi-ai-extra" },
+    { "path": "./bundle/llm-deepseek-extra" }
   ]
 }

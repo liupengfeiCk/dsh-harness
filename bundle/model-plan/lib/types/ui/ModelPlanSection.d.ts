@@ -4,12 +4,12 @@
  * pick, and a params bag) and delete with confirmation.
  *
  * The model pick reads the session-independent host catalog (`llm.models`):
- * provider-grouped, with each exact route's reasoning metadata. `reasoningEffort`
- * renders as a dropdown sourced from the selected model's efforts when that
- * model exposes them. The params bag is an array of editable key/value rows —
+ * provider-grouped. The params bag is an array of editable key/value rows —
  * every key can be deleted, re-valued, its spelling edited inline, and new
- * key=value rows appended. A note reminds the user that custom keys pass
- * through into the request body without implying provider support.
+ * key=value rows appended. Every row is a plain key + value input: the bag is
+ * passed through to the LLM request verbatim, so the editor judges nothing
+ * about a key's meaning or capability. A note reminds the user that the params
+ * pass through into the request body.
  *
  * A shipped (system) plan is read-only: it cannot be edited or deleted.
  */
@@ -51,8 +51,6 @@ export interface ModelPlanSectionInjected {
     addParam: () => void;
     /** Remove one params-bag row. */
     removeParam: (index: number) => void;
-    /** Set the draft's reasoningEffort through its dropdown. */
-    setReasoningEffort: (effort: string) => void;
     /** Submit the create. */
     confirmCreate: () => Promise<void>;
     /** Submit the edit. */

@@ -98,19 +98,11 @@ describe('the create/edit blocker', () => {
     expect(planBlocker(base({ params: [{ key: 'temperature', value: 'oops' }] }), true, [])).toBe('valueInvalid')
   })
 
-  it('refuses a reasoningEffort value when the selected model exposes no reasoning', () => {
+  it('accepts any key with a legal JSON value (no capability judgement)', () => {
+    // The bag is passed through verbatim, so the editor never blocks a key on
+    // capability — a reasoningEffort value is accepted like any other.
     const draft = base({ params: [{ key: 'reasoningEffort', value: '"high"' }] })
-    expect(planBlocker(draft, true, [], { reasoningEffort: false })).toBe('reasoningUnsupported')
-  })
-
-  it('allows a reasoningEffort value when the selected model exposes reasoning', () => {
-    const draft = base({ params: [{ key: 'reasoningEffort', value: '"high"' }] })
-    expect(planBlocker(draft, true, [], { reasoningEffort: true })).toBeUndefined()
-  })
-
-  it('does not refuse reasoningEffort when no model is selected (capability undetermined)', () => {
-    const draft = base({ params: [{ key: 'reasoningEffort', value: '"high"' }] })
-    expect(planBlocker(draft, true, [], { reasoningEffort: null })).toBeUndefined()
+    expect(planBlocker(draft, true, [])).toBeUndefined()
   })
 
   it('passes a fully-staged create against an empty roster', () => {
@@ -134,7 +126,8 @@ describe('the settings-section controller', () => {
     controller.beginCreate()
     const draft = controller.store.getSnapshot().dialog
     expect(draft?.creating).toBe(true)
-    expect(draft?.params.map(p => p.key)).toEqual(['temperature', 'reasoningEffort', 'maxTokens', 'stop'])
+    // The pre-seeded keys are the common wire names, all blank and removable.
+    expect(draft?.params.map(p => p.key)).toEqual(['temperature', 'max_tokens', 'top_p'])
   })
 
   it('sets a plan as default through the wire update', async () => {
@@ -163,10 +156,11 @@ describe('the settings-section controller', () => {
     controller.setDialogProvider('pi-ai')
     controller.setDialogModel('deepseek-v3')
     controller.setParamValue(0, '0.7')
-    // A custom key row appended with a string value.
+    // A custom key row appended with a string value (appended at index 3
+    // after the 3 pre-seeded keys).
     controller.addParam()
-    controller.setParamKey(4, 'custom')
-    controller.setParamValue(4, '"yes"')
+    controller.setParamKey(3, 'custom')
+    controller.setParamValue(3, '"yes"')
     await controller.confirmCreate()
     const createCall = (wire as unknown as { create: (r: { params?: WireParams }) => Promise<unknown> }).create
     expect(createCall).toBeDefined()

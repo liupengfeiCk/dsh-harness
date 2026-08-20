@@ -83,7 +83,8 @@ describe('agent/request waterfall ordering: merge vs official model-selection', 
       const result = await fireRequest(agentCtx)
       expect(result.provider).toBe('tencent')
       expect(result.model).toBe('deepseek-v4-flash')
-      expect(result.temperature).toBe(0.7)
+      // The plan's temperature rides through extra verbatim.
+      expect((result as { extra?: Record<string, unknown> }).extra).toEqual({ temperature: 0.7 })
     } finally {
       await ctx.fiber.dispose()
     }

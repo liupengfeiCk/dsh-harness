@@ -15,7 +15,7 @@ import { type PlanSelectionState } from './selection.ts';
 import { type Config, type ModelPlan, type PlanParams } from './types.ts';
 export { PLAN_FILE, discoverPlans, scanRoot, USER_PLAN_DIR } from './discovery.ts';
 export { InvalidPlanIdError, PlanExistsError, PlanNotWritableError, PlanRouteInvalidError, createPlan, deletePlan, setPlanDefault, updatePlan, writableRoot, } from './authoring.ts';
-export { KNOWN_KEYS, createMergeHandler, mergePlanConfig } from './merge.ts';
+export { createMergeHandler, mergePlanConfig } from './merge.ts';
 export type { MergedCallConfig, ModelPlanMergeDeps } from './merge.ts';
 export { currentPlanSelection, planLocked, NO_PLAN_SELECTION } from './selection.ts';
 export type { PlanSelectionState } from './selection.ts';

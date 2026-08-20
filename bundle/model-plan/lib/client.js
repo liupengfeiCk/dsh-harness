@@ -21,18 +21,18 @@ window.__ModuleLoader__.load({
 		*
 		* The params bag is edited as an array of `{ key, value }` rows: every key can
 		* be deleted, its value re-typed, its spelling edited inline, and arbitrary
-		* new key=value rows appended. The three familiar keys (temperature / maxTokens
-		* / reasoningEffort) are pre-seeded with friendly labels, and
-		* `reasoningEffort` renders as a dropdown sourced from the selected model's
-		* reasoning metadata when that model exposes any. Validation rejects an empty
-		* key and a value that is not a legal JSON scalar (the wire's JSON-value
-		* vocabulary: string / number / boolean / null / array / object).
+		* new key=value rows appended. Every row is a plain key + value input — the bag
+		* is passed through to the LLM request verbatim, so the editor judges nothing
+		* about a key's meaning or capability. Three common wire names (temperature /
+		* max_tokens / top_p) are pre-seeded blank. Validation rejects an empty key and
+		* a value that is not a legal JSON scalar (the wire's JSON-value vocabulary:
+		* string / number / boolean / null / array / object).
 		*/
-		/** The familiar params pre-seeded into the bag editor. */
+		/** The common wire names pre-seeded into the bag editor (blank, all removable). */
 		const KNOWN_KEYS = [
 			"temperature",
-			"reasoningEffort",
-			"maxTokens"
+			"max_tokens",
+			"top_p"
 		];
 		/** A plan id may be named by, mirroring the host's own rule (id = file name). */
 		const PLAN_ID = /^[a-z0-9][a-z0-9-]*$/;
@@ -81,7 +81,7 @@ window.__ModuleLoader__.load({
 				return false;
 			}
 		}
-		function planBlocker(draft, creating, rows, ability = { reasoningEffort: null }) {
+		function planBlocker(draft, creating, rows) {
 			if (creating) {
 				if (draft.id === "") return "idRequired";
 				if (!PLAN_ID.test(draft.id)) return "idInvalid";
@@ -91,9 +91,6 @@ window.__ModuleLoader__.load({
 			for (const param of draft.params) {
 				if (param.key.trim() === "") return "keyRequired";
 				if (!isJsonValue(param.value)) return "valueInvalid";
-				if (param.value.trim() !== "") {
-					if (param.key === "reasoningEffort" && ability.reasoningEffort === false) return "reasoningUnsupported";
-				}
 			}
 		}
 		/** Map the wire's params record onto editable draft rows. */
@@ -277,19 +274,6 @@ window.__ModuleLoader__.load({
 					error: null
 				});
 			}
-			/** Set the draft's `reasoningEffort` value through the dropdown. */
-			setReasoningEffort(effort) {
-				const { dialog } = this.store.getSnapshot();
-				if (dialog === null) return;
-				if (dialog.params.find((param) => param.key === "reasoningEffort") === void 0) return;
-				this.patchDialog({
-					params: dialog.params.map((param) => param.key === "reasoningEffort" ? {
-						...param,
-						value: effort
-					} : param),
-					error: null
-				});
-			}
 			/** Submit the create or edit (the draft's own `creating` decides), then re-read. */
 			async confirmSave() {
 				const draft = this.store.getSnapshot().dialog;
@@ -415,7 +399,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:bundle/model-plan/src/ui/ModelPlanSection.module.css.mjs
-		const css$1 = "._3Ut5vG_section{flex-direction:column;gap:12px;display:flex}._3Ut5vG_title{margin:0;font-size:16px;font-weight:600;line-height:1.4}._3Ut5vG_intro{color:var(--dsw-alias-text-secondary);margin:0;font-size:13px;line-height:1.6}._3Ut5vG_cards{flex-direction:column;gap:10px;margin:0;padding:0;list-style:none;display:flex}._3Ut5vG_card{border:1px solid var(--dsw-alias-divider,#80808033);background:var(--dsw-alias-surface-primary);border-radius:8px;flex-direction:column;gap:8px;padding:12px 14px;display:flex}._3Ut5vG_cardBroken{border-color:var(--dsw-alias-state-error-primary)}._3Ut5vG_cardHead{align-items:center;gap:8px;display:flex}._3Ut5vG_cardName{text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:600;overflow:hidden}._3Ut5vG_defaultBadge{color:var(--dsw-alias-state-warning-primary,#b45309);background:var(--dsw-alias-state-warning-soft,#b453091f);white-space:nowrap;border-radius:6px;align-items:center;gap:4px;padding:2px 6px;font-size:12px;display:inline-flex}._3Ut5vG_brokenBadge{color:var(--dsw-alias-state-error-primary);background:var(--dsw-alias-state-error-soft,#dc26261f);white-space:nowrap;border-radius:6px;padding:2px 6px;font-size:12px}._3Ut5vG_cardModel{align-items:center;gap:8px;font-size:13px;display:flex}._3Ut5vG_cardModelValue{color:var(--dsw-alias-text-primary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}._3Ut5vG_paramSummary{color:var(--dsw-alias-text-tertiary);font-size:12px}._3Ut5vG_cardFoot{align-items:center;gap:4px;display:flex}._3Ut5vG_iconButton{width:28px;height:28px;color:var(--dsw-alias-text-secondary);cursor:pointer;background:0 0;border:none;border-radius:6px;justify-content:center;align-items:center;padding:0;display:inline-flex}._3Ut5vG_iconButton:hover:not(:disabled){background:var(--dsw-alias-surface-hover,#8080801a)}._3Ut5vG_iconButton:disabled{opacity:.4;cursor:default}._3Ut5vG_iconDanger{color:var(--dsw-alias-state-error-primary)}._3Ut5vG_creatorButton{border:1px dashed var(--dsw-alias-divider,#8080804d);color:var(--dsw-alias-text-primary);cursor:pointer;background:0 0;border-radius:8px;align-self:flex-start;align-items:center;gap:6px;padding:6px 12px;font-size:13px;display:inline-flex}._3Ut5vG_creatorButton:disabled{opacity:.4;cursor:default}._3Ut5vG_dialog{width:min(560px,92vw)}._3Ut5vG_dialogScroll{max-height:70vh;overflow-y:auto}._3Ut5vG_dialogFields{flex-direction:column;gap:12px;display:flex}._3Ut5vG_field{flex-direction:column;gap:4px;display:flex}._3Ut5vG_fieldLabel{color:var(--dsw-alias-text-secondary);font-size:12px}._3Ut5vG_input{box-sizing:border-box;border:1px solid var(--dsw-alias-divider,#8080804d);background:var(--dsw-alias-surface-primary);width:100%;color:var(--dsw-alias-text-primary);border-radius:6px;padding:6px 8px;font-size:13px}._3Ut5vG_select{cursor:pointer}._3Ut5vG_modelRow{grid-template-columns:1fr 1fr;gap:8px;display:grid}._3Ut5vG_editorBlock{border:1px solid var(--dsw-alias-divider,#80808033);border-radius:8px;flex-direction:column;gap:8px;padding:10px;display:flex}._3Ut5vG_blockTitle{margin:0;font-size:13px;font-weight:600}._3Ut5vG_paramsHint{color:var(--dsw-alias-text-secondary);margin:0;font-size:12px}._3Ut5vG_paramRow{grid-template-columns:1fr 1fr 28px;align-items:end;gap:8px;display:grid}._3Ut5vG_paramRowBlocked{opacity:.6}._3Ut5vG_paramBlocked{color:var(--dsw-alias-state-error-primary);margin:0;font-size:11px}._3Ut5vG_addParam{border:1px dashed var(--dsw-alias-divider,#8080804d);color:var(--dsw-alias-text-secondary);cursor:pointer;background:0 0;border-radius:6px;align-self:flex-start;align-items:center;gap:4px;padding:4px 10px;font-size:12px;display:inline-flex}._3Ut5vG_customNote{color:var(--dsw-alias-text-tertiary);margin:0;font-size:12px}._3Ut5vG_error{color:var(--dsw-alias-state-error-primary);margin:0;font-size:12px}._3Ut5vG_deleteDialog{width:min(440px,92vw)}._3Ut5vG_deleteConfirm{background:var(--dsw-alias-state-error-primary)}";
+		const css$1 = "._3Ut5vG_section{flex-direction:column;gap:12px;display:flex}._3Ut5vG_title{margin:0;font-size:16px;font-weight:600;line-height:1.4}._3Ut5vG_intro{color:var(--dsw-alias-text-secondary);margin:0;font-size:13px;line-height:1.6}._3Ut5vG_cards{flex-direction:column;gap:10px;margin:0;padding:0;list-style:none;display:flex}._3Ut5vG_card{border:1px solid var(--dsw-alias-divider,#80808033);background:var(--dsw-alias-surface-primary);border-radius:8px;flex-direction:column;gap:8px;padding:12px 14px;display:flex}._3Ut5vG_cardBroken{border-color:var(--dsw-alias-state-error-primary)}._3Ut5vG_cardHead{align-items:center;gap:8px;display:flex}._3Ut5vG_cardName{text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:600;overflow:hidden}._3Ut5vG_defaultBadge{color:var(--dsw-alias-state-warning-primary,#b45309);background:var(--dsw-alias-state-warning-soft,#b453091f);white-space:nowrap;border-radius:6px;align-items:center;gap:4px;padding:2px 6px;font-size:12px;display:inline-flex}._3Ut5vG_brokenBadge{color:var(--dsw-alias-state-error-primary);background:var(--dsw-alias-state-error-soft,#dc26261f);white-space:nowrap;border-radius:6px;padding:2px 6px;font-size:12px}._3Ut5vG_cardModel{align-items:center;gap:8px;font-size:13px;display:flex}._3Ut5vG_cardModelValue{color:var(--dsw-alias-text-primary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}._3Ut5vG_paramSummary{color:var(--dsw-alias-text-tertiary);font-size:12px}._3Ut5vG_cardFoot{align-items:center;gap:4px;display:flex}._3Ut5vG_iconButton{width:28px;height:28px;color:var(--dsw-alias-text-secondary);cursor:pointer;background:0 0;border:none;border-radius:6px;justify-content:center;align-items:center;padding:0;display:inline-flex}._3Ut5vG_iconButton:hover:not(:disabled){background:var(--dsw-alias-surface-hover,#8080801a)}._3Ut5vG_iconButton:disabled{opacity:.4;cursor:default}._3Ut5vG_iconDanger{color:var(--dsw-alias-state-error-primary)}._3Ut5vG_creatorButton{border:1px dashed var(--dsw-alias-divider,#8080804d);color:var(--dsw-alias-text-primary);cursor:pointer;background:0 0;border-radius:8px;align-self:flex-start;align-items:center;gap:6px;padding:6px 12px;font-size:13px;display:inline-flex}._3Ut5vG_creatorButton:disabled{opacity:.4;cursor:default}._3Ut5vG_dialog{width:min(560px,92vw)}._3Ut5vG_dialogScroll{max-height:70vh;overflow-y:auto}._3Ut5vG_dialogFields{flex-direction:column;gap:12px;display:flex}._3Ut5vG_field{flex-direction:column;gap:4px;display:flex}._3Ut5vG_fieldLabel{color:var(--dsw-alias-text-secondary);font-size:12px}._3Ut5vG_input{box-sizing:border-box;border:1px solid var(--dsw-alias-divider,#8080804d);background:var(--dsw-alias-surface-primary);width:100%;color:var(--dsw-alias-text-primary);border-radius:6px;padding:6px 8px;font-size:13px}._3Ut5vG_select{cursor:pointer}._3Ut5vG_modelRow{grid-template-columns:1fr 1fr;gap:8px;display:grid}._3Ut5vG_editorBlock{border:1px solid var(--dsw-alias-divider,#80808033);border-radius:8px;flex-direction:column;gap:8px;padding:10px;display:flex}._3Ut5vG_blockTitle{margin:0;font-size:13px;font-weight:600}._3Ut5vG_paramsHint{color:var(--dsw-alias-text-secondary);margin:0;font-size:12px}._3Ut5vG_paramRow{grid-template-columns:1fr 1fr 28px;align-items:end;gap:8px;display:grid}._3Ut5vG_addParam{border:1px dashed var(--dsw-alias-divider,#8080804d);color:var(--dsw-alias-text-secondary);cursor:pointer;background:0 0;border-radius:6px;align-self:flex-start;align-items:center;gap:4px;padding:4px 10px;font-size:12px;display:inline-flex}._3Ut5vG_customNote{color:var(--dsw-alias-text-tertiary);margin:0;font-size:12px}._3Ut5vG_error{color:var(--dsw-alias-state-error-primary);margin:0;font-size:12px}._3Ut5vG_deleteDialog{width:min(440px,92vw)}._3Ut5vG_deleteConfirm{background:var(--dsw-alias-state-error-primary)}";
 		const tagId$1 = "dsh-harness-model-plan-bundle/ModelPlanSection.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$1) + "]") === null) {
 			const tag = document.createElement("style");
@@ -425,42 +409,40 @@ window.__ModuleLoader__.load({
 			document.head.appendChild(tag);
 		}
 		var ModelPlanSection_module_css_default = {
-			"cardModelValue": "_3Ut5vG_cardModelValue",
+			"paramsHint": "_3Ut5vG_paramsHint",
+			"title": "_3Ut5vG_title",
+			"cardFoot": "_3Ut5vG_cardFoot",
 			"blockTitle": "_3Ut5vG_blockTitle",
-			"paramRow": "_3Ut5vG_paramRow",
-			"editorBlock": "_3Ut5vG_editorBlock",
+			"customNote": "_3Ut5vG_customNote",
+			"modelRow": "_3Ut5vG_modelRow",
+			"cardModel": "_3Ut5vG_cardModel",
+			"select": "_3Ut5vG_select",
+			"cardName": "_3Ut5vG_cardName",
 			"cards": "_3Ut5vG_cards",
 			"creatorButton": "_3Ut5vG_creatorButton",
-			"cardFoot": "_3Ut5vG_cardFoot",
-			"field": "_3Ut5vG_field",
-			"input": "_3Ut5vG_input",
-			"paramBlocked": "_3Ut5vG_paramBlocked",
-			"addParam": "_3Ut5vG_addParam",
-			"cardName": "_3Ut5vG_cardName",
-			"deleteDialog": "_3Ut5vG_deleteDialog",
-			"iconButton": "_3Ut5vG_iconButton",
-			"paramSummary": "_3Ut5vG_paramSummary",
-			"title": "_3Ut5vG_title",
-			"intro": "_3Ut5vG_intro",
-			"paramsHint": "_3Ut5vG_paramsHint",
-			"cardModel": "_3Ut5vG_cardModel",
-			"section": "_3Ut5vG_section",
-			"brokenBadge": "_3Ut5vG_brokenBadge",
-			"fieldLabel": "_3Ut5vG_fieldLabel",
-			"defaultBadge": "_3Ut5vG_defaultBadge",
-			"customNote": "_3Ut5vG_customNote",
 			"error": "_3Ut5vG_error",
-			"deleteConfirm": "_3Ut5vG_deleteConfirm",
-			"card": "_3Ut5vG_card",
-			"dialog": "_3Ut5vG_dialog",
-			"paramRowBlocked": "_3Ut5vG_paramRowBlocked",
-			"cardBroken": "_3Ut5vG_cardBroken",
+			"paramSummary": "_3Ut5vG_paramSummary",
+			"paramRow": "_3Ut5vG_paramRow",
+			"input": "_3Ut5vG_input",
+			"intro": "_3Ut5vG_intro",
 			"iconDanger": "_3Ut5vG_iconDanger",
 			"dialogFields": "_3Ut5vG_dialogFields",
+			"card": "_3Ut5vG_card",
+			"cardHead": "_3Ut5vG_cardHead",
+			"iconButton": "_3Ut5vG_iconButton",
 			"dialogScroll": "_3Ut5vG_dialogScroll",
-			"modelRow": "_3Ut5vG_modelRow",
-			"select": "_3Ut5vG_select",
-			"cardHead": "_3Ut5vG_cardHead"
+			"fieldLabel": "_3Ut5vG_fieldLabel",
+			"deleteConfirm": "_3Ut5vG_deleteConfirm",
+			"defaultBadge": "_3Ut5vG_defaultBadge",
+			"brokenBadge": "_3Ut5vG_brokenBadge",
+			"cardModelValue": "_3Ut5vG_cardModelValue",
+			"dialog": "_3Ut5vG_dialog",
+			"editorBlock": "_3Ut5vG_editorBlock",
+			"addParam": "_3Ut5vG_addParam",
+			"deleteDialog": "_3Ut5vG_deleteDialog",
+			"field": "_3Ut5vG_field",
+			"cardBroken": "_3Ut5vG_cardBroken",
+			"section": "_3Ut5vG_section"
 		};
 		//#endregion
 		//#region lib/types/ui/ModelPlanSection.js
@@ -470,20 +452,15 @@ window.__ModuleLoader__.load({
 		* pick, and a params bag) and delete with confirmation.
 		*
 		* The model pick reads the session-independent host catalog (`llm.models`):
-		* provider-grouped, with each exact route's reasoning metadata. `reasoningEffort`
-		* renders as a dropdown sourced from the selected model's efforts when that
-		* model exposes them. The params bag is an array of editable key/value rows —
+		* provider-grouped. The params bag is an array of editable key/value rows —
 		* every key can be deleted, re-valued, its spelling edited inline, and new
-		* key=value rows appended. A note reminds the user that custom keys pass
-		* through into the request body without implying provider support.
+		* key=value rows appended. Every row is a plain key + value input: the bag is
+		* passed through to the LLM request verbatim, so the editor judges nothing
+		* about a key's meaning or capability. A note reminds the user that the params
+		* pass through into the request body.
 		*
 		* A shipped (system) plan is read-only: it cannot be edited or deleted.
 		*/
-		/** The `reasoningEffort` bag row's dropdown choices for the selected model. */
-		function reasoningChoices(reasoning) {
-			if (reasoning === void 0) return [];
-			return [...reasoning.defaultEffort === void 0 ? [""] : [], ...reasoning.efforts.map((effort) => effort.id)];
-		}
 		/** One plan card: name, model, param summary, default badge, broken marker, and row controls. */
 		function PlanCard(props) {
 			const { row, t, custom, onEdit, onSetDefault, onDelete } = props;
@@ -571,13 +548,11 @@ window.__ModuleLoader__.load({
 				]
 			});
 		}
-		/** One params-bag row: key + value (value is a typed JSON scalar). */
+		/** One params-bag row: a plain key + value input (value is a typed JSON scalar). */
 		function ParamRow(props) {
-			const { param, index, reasoningEffortOptions, reasoningUnsupported, t, onKey, onValue, onRemove } = props;
-			const isReasoningEffort = param.key === "reasoningEffort";
-			const blocked = isReasoningEffort && reasoningUnsupported;
+			const { param, index, t, onKey, onValue, onRemove } = props;
 			return (0, react_jsx_runtime.jsxs)("div", {
-				className: `${ModelPlanSection_module_css_default.paramRow} ${blocked ? ModelPlanSection_module_css_default.paramRowBlocked : ""}`,
+				className: ModelPlanSection_module_css_default.paramRow,
 				children: [
 					(0, react_jsx_runtime.jsxs)("div", {
 						className: ModelPlanSection_module_css_default.field,
@@ -593,32 +568,15 @@ window.__ModuleLoader__.load({
 					}),
 					(0, react_jsx_runtime.jsxs)("div", {
 						className: ModelPlanSection_module_css_default.field,
-						children: [
-							(0, react_jsx_runtime.jsx)("span", {
-								className: ModelPlanSection_module_css_default.fieldLabel,
-								children: t("paramValueLabel")
-							}),
-							isReasoningEffort && reasoningEffortOptions.length > 0 ? (0, react_jsx_runtime.jsx)("select", {
-								className: `${ModelPlanSection_module_css_default.input} ${ModelPlanSection_module_css_default.select}`,
-								value: param.value,
-								disabled: blocked,
-								onChange: (e) => onValue(index, e.target.value),
-								children: reasoningEffortOptions.map((effort) => (0, react_jsx_runtime.jsx)("option", {
-									value: JSON.stringify(effort),
-									children: effort === "" ? t("reasoningProviderDefault") : effort
-								}, effort))
-							}) : (0, react_jsx_runtime.jsx)("input", {
-								className: ModelPlanSection_module_css_default.input,
-								value: param.value,
-								disabled: blocked,
-								placeholder: t("paramValuePlaceholder"),
-								onChange: (e) => onValue(index, e.target.value)
-							}),
-							blocked ? (0, react_jsx_runtime.jsx)("p", {
-								className: ModelPlanSection_module_css_default.paramBlocked,
-								children: t("reasoningUnavailable")
-							}) : null
-						]
+						children: [(0, react_jsx_runtime.jsx)("span", {
+							className: ModelPlanSection_module_css_default.fieldLabel,
+							children: t("paramValueLabel")
+						}), (0, react_jsx_runtime.jsx)("input", {
+							className: ModelPlanSection_module_css_default.input,
+							value: param.value,
+							placeholder: t("paramValuePlaceholder"),
+							onChange: (e) => onValue(index, e.target.value)
+						})]
 					}),
 					(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 						label: t("removeParam"),
@@ -636,12 +594,9 @@ window.__ModuleLoader__.load({
 		}
 		/** The create/edit dialog: identifier, provider-grouped model pick, and the params bag editor. */
 		function PlanDialog(props) {
-			const { draft, creating, catalog, rows, t, setDialogId, setDialogProvider, setDialogModel, setParamKey, setParamValue, setReasoningEffort, addParam, removeParam, confirm, cancel } = props;
+			const { draft, creating, catalog, rows, t, setDialogId, setDialogProvider, setDialogModel, setParamKey, setParamValue, addParam, removeParam, confirm, cancel } = props;
 			const group = catalog.groups.find((g) => g.id === draft.provider);
-			const model = group?.models.find((m) => m.id === draft.model);
-			const reasoningOptions = reasoningChoices(model?.reasoning);
-			const reasoningUnsupported = model !== void 0 && (model.reasoning?.efforts.length ?? 0) === 0;
-			const blocker = planBlocker(draft, creating, rows, { reasoningEffort: model === void 0 ? null : !reasoningUnsupported });
+			const blocker = planBlocker(draft, creating, rows);
 			const message = draft.error ?? (blocker === void 0 ? null : t(blocker));
 			const catalogFailed = catalog.status === "error";
 			const modelSelectable = catalog.status === "ready" && catalog.groups.length > 0;
@@ -731,11 +686,9 @@ window.__ModuleLoader__.load({
 								draft.params.map((param, index) => (0, react_jsx_runtime.jsx)(ParamRow, {
 									param,
 									index,
-									reasoningEffortOptions: reasoningOptions,
-									reasoningUnsupported,
 									t,
 									onKey: setParamKey,
-									onValue: param.key === "reasoningEffort" ? (_i, v) => setReasoningEffort(v) : setParamValue,
+									onValue: setParamValue,
 									onRemove: removeParam
 								}, `${index}-${param.key}`)),
 								(0, react_jsx_runtime.jsxs)("button", {
@@ -824,7 +777,6 @@ window.__ModuleLoader__.load({
 						setDialogModel: props.setDialogModel,
 						setParamKey: props.setParamKey,
 						setParamValue: props.setParamValue,
-						setReasoningEffort: props.setReasoningEffort,
 						addParam: props.addParam,
 						removeParam: props.removeParam,
 						confirm: () => void (dialog.creating ? props.confirmCreate() : props.confirmEdit()),
@@ -1056,31 +1008,31 @@ window.__ModuleLoader__.load({
 			document.head.appendChild(tag);
 		}
 		var ModelPlanChip_module_css_default = {
-			"clearButton": "wp_f9q_clearButton",
-			"overrideTitle": "wp_f9q_overrideTitle",
-			"empty": "wp_f9q_empty",
-			"override": "wp_f9q_override",
-			"error": "wp_f9q_error",
 			"optionDefault": "wp_f9q_optionDefault",
-			"menu": "wp_f9q_menu",
-			"applyButton": "wp_f9q_applyButton",
-			"option": "wp_f9q_option",
-			"root": "wp_f9q_root",
-			"emptyHint": "wp_f9q_emptyHint",
-			"chip": "wp_f9q_chip",
-			"optionBrokenTag": "wp_f9q_optionBrokenTag",
-			"optionModel": "wp_f9q_optionModel",
-			"overrideRow": "wp_f9q_overrideRow",
 			"overrideKey": "wp_f9q_overrideKey",
-			"selected": "wp_f9q_selected",
-			"optionBroken": "wp_f9q_optionBroken",
-			"optionName": "wp_f9q_optionName",
-			"input": "wp_f9q_input",
+			"option": "wp_f9q_option",
+			"override": "wp_f9q_override",
+			"overrideHint": "wp_f9q_overrideHint",
+			"empty": "wp_f9q_empty",
+			"error": "wp_f9q_error",
+			"menu": "wp_f9q_menu",
 			"optionMain": "wp_f9q_optionMain",
-			"rejected": "wp_f9q_rejected",
-			"chevron": "wp_f9q_chevron",
+			"optionModel": "wp_f9q_optionModel",
+			"emptyHint": "wp_f9q_emptyHint",
+			"optionBroken": "wp_f9q_optionBroken",
+			"root": "wp_f9q_root",
+			"chip": "wp_f9q_chip",
+			"input": "wp_f9q_input",
+			"applyButton": "wp_f9q_applyButton",
 			"plans": "wp_f9q_plans",
-			"overrideHint": "wp_f9q_overrideHint"
+			"overrideRow": "wp_f9q_overrideRow",
+			"clearButton": "wp_f9q_clearButton",
+			"rejected": "wp_f9q_rejected",
+			"selected": "wp_f9q_selected",
+			"overrideTitle": "wp_f9q_overrideTitle",
+			"optionBrokenTag": "wp_f9q_optionBrokenTag",
+			"optionName": "wp_f9q_optionName",
+			"chevron": "wp_f9q_chevron"
 		};
 		//#endregion
 		//#region lib/types/ui/ModelPlanChip.js
@@ -1356,15 +1308,8 @@ window.__ModuleLoader__.load({
 			paramValuePlaceholder: "A JSON scalar, e.g. 0.7 or \"high\"",
 			removeParam: "Remove",
 			temperatureKey: "Temperature",
-			maxTokensKey: "Max tokens",
-			stopKey: "Stop",
-			reasoningEffortKey: "Reasoning effort",
-			reasoningProviderDefault: "Provider default",
-			paramsEmpty: "No params — the model's defaults apply.",
 			keyRequired: "Give every param a key.",
 			valueInvalid: "The value must be a valid JSON scalar.",
-			reasoningUnavailable: "This model does not support a reasoning effort.",
-			reasoningUnsupported: "This model does not support a reasoning effort; remove the value to save.",
 			providerDefaultBadge: "Default",
 			brokenBadge: "Failed to load",
 			setDefault: "Set default",
@@ -1426,15 +1371,8 @@ window.__ModuleLoader__.load({
 			paramValuePlaceholder: "合法的 JSON 标量，如 0.7 或 \"high\"",
 			removeParam: "移除",
 			temperatureKey: "温度",
-			maxTokensKey: "最大 tokens",
-			stopKey: "停止词",
-			reasoningEffortKey: "推理档位",
-			reasoningProviderDefault: "跟随服务商默认",
-			paramsEmpty: "没有参数——使用型号默认值。",
 			keyRequired: "请为每个参数填写键。",
 			valueInvalid: "值必须是合法的 JSON 标量。",
-			reasoningUnavailable: "该型号不支持思考档。",
-			reasoningUnsupported: "该型号不支持思考档；请删除该值后再保存。",
 			providerDefaultBadge: "默认",
 			brokenBadge: "加载失败",
 			setDefault: "设为默认",
@@ -1548,9 +1486,6 @@ window.__ModuleLoader__.load({
 				},
 				removeParam: (index) => {
 					section.removeParam(index);
-				},
-				setReasoningEffort: (effort) => {
-					section.setReasoningEffort(effort);
 				},
 				confirmCreate: () => section.confirmCreate(),
 				confirmEdit: () => section.confirmEdit(),

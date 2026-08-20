@@ -1,93 +1,105 @@
 /**
  * Model-plan merge interceptor: the precedence (session overrides > plan params
- * > official base), the two sealed channels (known keys → native fields, other
- * keys → `extra`), and zero intervention when a session binds no plan.
+ * > official base), the verbatim passthrough channel (every bag key lands on
+ * `LlmCallConfig.extra` — the native route is never touched by plan params),
+ * and zero intervention when a session binds no plan.
  */
 
 import { describe, expect, it, vi } from 'vitest'
 import type { LlmCallConfig } from '@deepseek-ai/dsh-llm'
-import { createMergeHandler, mergePlanConfig, KNOWN_KEYS } from '../src/merge.ts'
+import { createMergeHandler, mergePlanConfig } from '../src/merge.ts'
 
 /** A canonical official base config (what `next()` resolves). */
 function base(): LlmCallConfig {
   return { provider: 'official', model: 'default-model', temperature: 0.7 }
 }
 
-describe('KNOWN_KEYS', () => {
-  it('routes the exact native fields onto LlmCallConfig', () => {
-    expect([...KNOWN_KEYS].sort()).toEqual(['maxTokens', 'reasoningEffort', 'stop', 'temperature'])
-  })
-})
-
 describe('mergePlanConfig', () => {
-  it('layers plan params over the official base', () => {
+  it('lays every plan param onto extra verbatim (native route untouched)', () => {
     const { config, warnedExtra } = mergePlanConfig(
       base(),
-      { provider: 'venus', model: 'deepseek-v3', params: { temperature: 0.3, reasoningEffort: 'high' } },
+      { provider: 'venus', model: 'deepseek-v3', params: { temperature: 0.3, reasoningEffort: 'high', top_p: 0.8 } },
       {},
     )
     expect(config.provider).toBe('venus')
     expect(config.model).toBe('deepseek-v3')
-    expect(config.temperature).toBe(0.3)
-    expect(config.reasoningEffort).toBe('high')
-    expect(warnedExtra).toEqual([])
-    expect(config.extra).toBeUndefined()
+    // The official base's own native temperature survives (plan params never
+    // touch native fields); the whole bag rides on extra untouched.
+    expect(config.temperature).toBe(0.7)
+    expect(config.extra).toEqual({ temperature: 0.3, reasoningEffort: 'high', top_p: 0.8 })
+    expect(warnedExtra).toEqual(['temperature', 'reasoningEffort', 'top_p'])
   })
 
-  it('session overrides win over plan params and the base', () => {
+  it('session overrides win over plan params and never touch native fields', () => {
     const { config } = mergePlanConfig(
       base(),
-      { provider: 'venus', model: 'm', params: { temperature: 0.3, maxTokens: 1000 } },
+      { provider: 'venus', model: 'm', params: { temperature: 0.3, max_tokens: 1000 } },
       { temperature: 0.9 },
     )
-    expect(config.temperature).toBe(0.9) // override beats plan
-    expect(config.maxTokens).toBe(1000) // plan still applies
+    // Both plan param and override ride on extra; the override wins the key.
+    expect(config.extra).toEqual({ temperature: 0.9, max_tokens: 1000 })
+    // The official base's native temperature is untouched by the bag.
+    expect(config.temperature).toBe(0.7)
   })
 
-  it('splits known keys onto native fields and other keys onto extra', () => {
+  it('routes the whole bag onto extra with no known-key/native split', () => {
     const { config, warnedExtra } = mergePlanConfig(
       base(),
-      { provider: 'p', model: 'm', params: { temperature: 0.2, topP: 0.9, custom: { nested: 1 } } },
+      { provider: 'p', model: 'm', params: { temperature: 0.2, top_p: 0.9, custom: { nested: 1 } } },
       {},
     )
-    expect(config.temperature).toBe(0.2)
-    expect(config.extra).toEqual({ topP: 0.9, custom: { nested: 1 } })
-    expect(warnedExtra).toEqual(['topP', 'custom'])
+    expect(config.extra).toEqual({ temperature: 0.2, top_p: 0.9, custom: { nested: 1 } })
+    expect(warnedExtra).toEqual(['temperature', 'top_p', 'custom'])
   })
 
-  it('applies a plan-provided reasoningEffort onto the native field', () => {
+  it('omits extra when the merged bag is empty', () => {
     const { config } = mergePlanConfig(
       base(),
-      { provider: 'p', model: 'm', params: { reasoningEffort: 'medium' } },
+      { provider: 'p', model: 'm', params: {} },
       {},
     )
-    expect(config.reasoningEffort).toBe('medium')
+    expect(config.extra).toBeUndefined()
+    expect(config.temperature).toBe(0.7)
   })
 
   it('discards an inherited reasoningEffort when the plan declares none (official withoutInheritedEffort)', () => {
     // base carries an inherited effort (e.g. the seat's default "high" written by
     // the official model-selection layer); the plan takes over provider/model but
-    // declares no reasoningEffort, so the inherited band must be voided — this is
-    // what prevents a provider whose adapter rejects reasoningEffort from failing.
+    // declares no reasoningEffort in its bag, so the inherited band must be voided —
+    // this is what prevents a provider whose adapter rejects reasoningEffort from failing.
     const inherited: LlmCallConfig = {
       provider: 'official', model: 'default-model', temperature: 0.7,
       reasoningEffort: 'high',
     }
     const { config, warnedExtra } = mergePlanConfig(
       inherited,
-      { provider: 'tencent', model: 'deepseek-v4-flash', params: { temperature: 1 } },
+      { provider: 'tencent', model: 'deepseek-v4-flash', params: { top_p: 0.8 } },
       {},
     )
     expect(config.provider).toBe('tencent')
     expect(config.model).toBe('deepseek-v4-flash')
     expect('reasoningEffort' in config).toBe(false)
-    expect(config.temperature).toBe(1)
-    expect(warnedExtra).toEqual([])
+    expect(config.extra).toEqual({ top_p: 0.8 })
+    expect(warnedExtra).toEqual(['top_p'])
   })
 
-  it('keeps a session-override reasoningEffort even when the plan declares none', () => {
-    // The merged bag (plan + overrides) DOES declare an effort via the override, so
-    // it must win over the inherited one rather than be discarded.
+  it('keeps an inherited reasoningEffort when the merged bag explicitly declares one', () => {
+    const inherited: LlmCallConfig = {
+      provider: 'official', model: 'default-model', temperature: 0.7,
+      reasoningEffort: 'high',
+    }
+    const { config } = mergePlanConfig(
+      inherited,
+      { provider: 'tencent', model: 'deepseek-v4-flash', params: { reasoningEffort: 'medium' } },
+      {},
+    )
+    // Declared in the bag, so the inherited effort survives and the bag value
+    // rides through extra verbatim (the adapter maps it if it honours the key).
+    expect('reasoningEffort' in config).toBe(true)
+    expect(config.extra).toEqual({ reasoningEffort: 'medium' })
+  })
+
+  it('keeps an inherited reasoningEffort when a session override declares one', () => {
     const inherited: LlmCallConfig = {
       provider: 'official', model: 'default-model', temperature: 0.7,
       reasoningEffort: 'high',
@@ -97,40 +109,29 @@ describe('mergePlanConfig', () => {
       { provider: 'tencent', model: 'deepseek-v4-flash', params: {} },
       { reasoningEffort: 'off' },
     )
-    expect(config.reasoningEffort).toBe('off')
+    // The merged bag (plan + overrides) DOES declare an effort via the override,
+    // so the inherited one survives and the override rides through extra.
+    expect('reasoningEffort' in config).toBe(true)
+    expect(config.extra).toEqual({ reasoningEffort: 'off' })
   })
 
-  it('leaves the inherited reasoningEffort untouched when the plan declares one (declared wins)', () => {
-    const inherited: LlmCallConfig = {
-      provider: 'official', model: 'default-model', temperature: 0.7,
-      reasoningEffort: 'high',
-    }
-    const { config } = mergePlanConfig(
-      inherited,
-      { provider: 'p', model: 'm', params: { reasoningEffort: 'medium' } },
-      {},
-    )
-    expect(config.reasoningEffort).toBe('medium')
-  })
-
-  it('applies a session override of a non-known key onto extra', () => {
+  it('applies a session override of any key onto extra', () => {
     const { config, warnedExtra } = mergePlanConfig(
       base(),
       { provider: 'p', model: 'm', params: {} },
-      { topK: 5 },
+      { top_k: 5 },
     )
-    expect(config.extra).toEqual({ topK: 5 })
-    expect(warnedExtra).toEqual(['topK'])
+    expect(config.extra).toEqual({ top_k: 5 })
+    expect(warnedExtra).toEqual(['top_k'])
   })
 
   it('merges plan and override bags with the override winning a duplicate key', () => {
     const { config } = mergePlanConfig(
       base(),
-      { provider: 'p', model: 'm', params: { topP: 0.5, temperature: 0.1 } },
-      { topP: 0.8 },
+      { provider: 'p', model: 'm', params: { top_p: 0.5, max_tokens: 2000 } },
+      { top_p: 0.8 },
     )
-    expect(config.extra).toEqual({ topP: 0.8 })
-    expect(config.temperature).toBe(0.1)
+    expect(config.extra).toEqual({ top_p: 0.8, max_tokens: 2000 })
   })
 })
 
@@ -172,8 +173,8 @@ describe('createMergeHandler', () => {
     const result = await handler({ agent: { session: { events: [] } } }, async () => base())
     expect(result.provider).toBe('venus')
     expect(result.model).toBe('default-model')
-    expect(result.temperature).toBe(0.4)
-    expect(warn).not.toHaveBeenCalled()
+    expect((result as { extra?: Record<string, unknown> }).extra).toEqual({ temperature: 0.4 })
+    expect(warn).toHaveBeenCalled()
   })
 
   it('runs zero intervention when the default plan is unusable', async () => {
@@ -207,7 +208,7 @@ describe('createMergeHandler', () => {
     }))
     const result = await handler({ agent: { session: { events: [] } } }, async () => base())
     expect(result.model).toBe('bound')
-    expect(result.temperature).toBe(0.2)
+    expect((result as { extra?: Record<string, unknown> }).extra).toEqual({ temperature: 0.2 })
     expect(resolveDefaultPlan).not.toHaveBeenCalled()
   })
 
@@ -219,16 +220,16 @@ describe('createMergeHandler', () => {
     const result = await handler({ agent: { session: { events: [] } } }, async () => base())
     expect(result.provider).toBe('venus')
     expect(result.model).toBe('deepseek-v3')
-    expect(result.temperature).toBe(0.3)
+    expect((result as { extra?: Record<string, unknown> }).extra).toEqual({ temperature: 0.3 })
   })
 
-  it('warns when a bag carries a non-known key (never silently dropped)', async () => {
+  it('warns when the bag is non-empty (never silently dropped)', async () => {
     const handler = createMergeHandler(deps({
       selectionOf: vi.fn(() => ({ planId: 'flash', overrides: {} })),
       resolvePlan: vi.fn(async () => ({ provider: 'p', model: 'm', params: { custom: 'x' } })),
     }))
     const result = await handler({ agent: { session: { events: [] } } }, async () => base())
-    expect(result.extra).toEqual({ custom: 'x' })
+    expect((result as { extra?: Record<string, unknown> }).extra).toEqual({ custom: 'x' })
     expect(warn).toHaveBeenCalled()
     const message = warn.mock.calls[0]?.[0] as string
     expect(message).toContain('custom')

@@ -1,0 +1,22 @@
+# The dsh-harness-llm-deepseek-extra-bundle patch: mounts the Harness-owned
+# DeepSeek chat-completions adapter as a host row under a distinct id. This
+# bundle is a drop-in copy of the official @deepseek-ai/dsh-llm-deepseek adapter
+# with one capability added: the `LlmCallConfig.extra` passthrough bag
+# (model-plan custom params such as `top_p` / `max_tokens`) is spread into the
+# wire request top level by serialize.ts. The official adapter drops `extra`
+# entirely (its serialize.ts never reads it), so a model-plan bound to the
+# DeepSeek official route can never push provider-specific keys through.
+#
+# The plugin keeps the official `export const name = 'llm-deepseek'`, so the
+# user-settings section namespace `llm-deepseek` (which supplies the deepseek
+# official provider route) feeds the replacement exactly as it did the official
+# one — only the composition row id is distinct.
+#
+# Disabling the official `llm-deepseek` row is a PROFILE-layer concern (the
+# profile's own cordis.patch.yml carries the `- id: llm-deepseek / disabled: true`
+# override, since a later layer wins per row). This patch only inserts the
+# replacement row.
+
+- insert:
+    - id: llm-deepseek-extra
+      name: 'dsh-harness-llm-deepseek-extra-bundle'

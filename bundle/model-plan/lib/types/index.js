@@ -17,7 +17,7 @@ import { currentPlanSelection, planLocked } from "./selection.js";
 import { PlanLockedError, UnknownPlanError, } from "./types.js";
 export { PLAN_FILE, discoverPlans, scanRoot, USER_PLAN_DIR } from "./discovery.js";
 export { InvalidPlanIdError, PlanExistsError, PlanNotWritableError, PlanRouteInvalidError, createPlan, deletePlan, setPlanDefault, updatePlan, writableRoot, } from "./authoring.js";
-export { KNOWN_KEYS, createMergeHandler, mergePlanConfig } from "./merge.js";
+export { createMergeHandler, mergePlanConfig } from "./merge.js";
 export { currentPlanSelection, planLocked, NO_PLAN_SELECTION } from "./selection.js";
 export { PLAN_ID, PlanBrokenError, PlanLockedError, UnknownPlanError } from "./types.js";
 /**

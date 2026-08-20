@@ -1,0 +1,60 @@
+{
+  "name": "dsh-harness-llm-deepseek-extra-bundle",
+  "description": "Harness-owned replacement adapter bundle for the official @deepseek-ai/dsh-llm-deepseek (换件): a drop-in copy of the official DeepSeek chat-completions adapter that additionally forwards the `LlmCallConfig.extra` passthrough bag into the wire request top level — the one capability the official adapter lacks (model-plan custom params such as `top_p` otherwise die in the adapter layer). Pure host package — `cordis.patch.yml` (declared by `dsh.bundle.patch`) is composed by the profile, which disables the official llm-deepseek row and inserts this one under a distinct id.",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts",
+    "cordis.patch.yml"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "eventsource-parser": "^3.1.0",
+    "@deepseek-ai/schemastery": "3.18.1-rc.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.1-rc.4",
+    "@deepseek-ai/dsh-anonymous-user-id": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-credentials": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-invariants": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-launch-environment": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-llm": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-settings": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-timeout": "0.1.0-rc.7"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.1-rc.4",
+    "@deepseek-ai/dsh-anonymous-user-id": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-attachment": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-credentials": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-invariants": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-launch-environment": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-llm": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-settings": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-timeout": "0.1.0-rc.7",
+    "@deepseek-ai/schemastery": "3.18.1-rc.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

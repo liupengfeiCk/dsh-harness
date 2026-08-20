@@ -10,16 +10,16 @@
  *
  * The params bag is edited as an array of `{ key, value }` rows: every key can
  * be deleted, its value re-typed, its spelling edited inline, and arbitrary
- * new key=value rows appended. The three familiar keys (temperature / maxTokens
- * / reasoningEffort) are pre-seeded with friendly labels, and
- * `reasoningEffort` renders as a dropdown sourced from the selected model's
- * reasoning metadata when that model exposes any. Validation rejects an empty
- * key and a value that is not a legal JSON scalar (the wire's JSON-value
- * vocabulary: string / number / boolean / null / array / object).
+ * new key=value rows appended. Every row is a plain key + value input — the bag
+ * is passed through to the LLM request verbatim, so the editor judges nothing
+ * about a key's meaning or capability. Three common wire names (temperature /
+ * max_tokens / top_p) are pre-seeded blank. Validation rejects an empty key and
+ * a value that is not a legal JSON scalar (the wire's JSON-value vocabulary:
+ * string / number / boolean / null / array / object).
  */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client';
-/** The familiar params pre-seeded into the bag editor. */
-export const KNOWN_KEYS = ['temperature', 'reasoningEffort', 'maxTokens'];
+/** The common wire names pre-seeded into the bag editor (blank, all removable). */
+export const KNOWN_KEYS = ['temperature', 'max_tokens', 'top_p'];
 /** A plan id may be named by, mirroring the host's own rule (id = file name). */
 const PLAN_ID = /^[a-z0-9][a-z0-9-]*$/;
 const INITIAL = {
@@ -58,7 +58,7 @@ export function isJsonValue(text) {
         return false;
     }
 }
-export function planBlocker(draft, creating, rows, ability = { reasoningEffort: null }) {
+export function planBlocker(draft, creating, rows) {
     if (creating) {
         if (draft.id === '')
             return 'idRequired';
@@ -74,13 +74,6 @@ export function planBlocker(draft, creating, rows, ability = { reasoningEffort: 
             return 'keyRequired';
         if (!isJsonValue(param.value))
             return 'valueInvalid';
-        // Capability gate: a well-known key the selected route cannot honour is a
-        // real (typed) value is refused here so the user hears about it in the
-        // editor instead of at request time.
-        if (param.value.trim() !== '') {
-            if (param.key === 'reasoningEffort' && ability.reasoningEffort === false)
-                return 'reasoningUnsupported';
-        }
     }
     return undefined;
 }
@@ -228,19 +221,6 @@ export class ModelPlanSectionController {
         if (dialog === null)
             return;
         this.patchDialog({ params: dialog.params.filter((_, i) => i !== index), error: null });
-    }
-    /** Set the draft's `reasoningEffort` value through the dropdown. */
-    setReasoningEffort(effort) {
-        const { dialog } = this.store.getSnapshot();
-        if (dialog === null)
-            return;
-        const row = dialog.params.find(param => param.key === 'reasoningEffort');
-        if (row === undefined)
-            return;
-        this.patchDialog({
-            params: dialog.params.map(param => param.key === 'reasoningEffort' ? { ...param, value: effort } : param),
-            error: null,
-        });
     }
     /** Submit the create or edit (the draft's own `creating` decides), then re-read. */
     async confirmSave() {

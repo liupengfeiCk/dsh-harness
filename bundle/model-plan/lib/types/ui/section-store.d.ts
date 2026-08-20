@@ -10,17 +10,17 @@
  *
  * The params bag is edited as an array of `{ key, value }` rows: every key can
  * be deleted, its value re-typed, its spelling edited inline, and arbitrary
- * new key=value rows appended. The three familiar keys (temperature / maxTokens
- * / reasoningEffort) are pre-seeded with friendly labels, and
- * `reasoningEffort` renders as a dropdown sourced from the selected model's
- * reasoning metadata when that model exposes any. Validation rejects an empty
- * key and a value that is not a legal JSON scalar (the wire's JSON-value
- * vocabulary: string / number / boolean / null / array / object).
+ * new key=value rows appended. Every row is a plain key + value input — the bag
+ * is passed through to the LLM request verbatim, so the editor judges nothing
+ * about a key's meaning or capability. Three common wire names (temperature /
+ * max_tokens / top_p) are pre-seeded blank. Validation rejects an empty key and
+ * a value that is not a legal JSON scalar (the wire's JSON-value vocabulary:
+ * string / number / boolean / null / array / object).
  */
 import { type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client';
 import type { ModelPlanWire } from './wire-client.ts';
-/** The familiar params pre-seeded into the bag editor. */
-export declare const KNOWN_KEYS: readonly ["temperature", "reasoningEffort", "maxTokens"];
+/** The common wire names pre-seeded into the bag editor (blank, all removable). */
+export declare const KNOWN_KEYS: readonly ["temperature", "max_tokens", "top_p"];
 /** One staged params-bag row: the key plus the value in typed (string) form. */
 export interface ParamDraft {
     /** The param key (editable inline; any spelling). */
@@ -76,22 +76,6 @@ export interface ModelPlanSectionState {
     deleting: boolean;
 }
 /**
- * The capability face of the currently selected model/route, as far as the
- * editor can tell. Each field is `null` when no model is selected yet (the
- * capability is undetermined and the editor stays permissive); `true`/`false`
- * once a model is selected.
- *
- * `reasoningEffort` sources from the official model directory's per-route
- * reasoning metadata (the exact field the reasoning dropdown already reads),
- * so it needs no local copy. Adapter-parameter capabilities the official
- * surface does not expose (e.g. whether a route honours `stop`) are layered in
- * here from the architecture map in `capability.ts`.
- */
-export interface PlanAbility {
-    /** Whether the selected model exposes reasoning efforts. */
-    reasoningEffort: boolean | null;
-}
-/**
  * Whether a text is a legal JSON scalar per the wire's JSON-value vocabulary.
  * Any text `JSON.parse` accepts is a legal JSON value; the empty string is not.
  */
@@ -101,8 +85,8 @@ export declare function isJsonValue(text: string): boolean;
  * When creating, the id is checked for emptiness, then legality, then a clash
  * against the roster (a duplicate id is refused before the host does).
  */
-export type PlanBlockerKey = 'idRequired' | 'idInvalid' | 'idTaken' | 'modelRequired' | 'keyRequired' | 'valueInvalid' | 'reasoningUnsupported';
-export declare function planBlocker(draft: PlanDraft, creating: boolean, rows: readonly PlanRow[], ability?: PlanAbility): PlanBlockerKey | undefined;
+export type PlanBlockerKey = 'idRequired' | 'idInvalid' | 'idTaken' | 'modelRequired' | 'keyRequired' | 'valueInvalid';
+export declare function planBlocker(draft: PlanDraft, creating: boolean, rows: readonly PlanRow[]): PlanBlockerKey | undefined;
 /**
  * Read the roster and drive the create/edit dialog, set-default, and delete.
  */
@@ -139,8 +123,6 @@ export declare class ModelPlanSectionController {
     addParam(): void;
     /** Remove one params-bag row. */
     removeParam(index: number): void;
-    /** Set the draft's `reasoningEffort` value through the dropdown. */
-    setReasoningEffort(effort: string): void;
     /** Submit the create or edit (the draft's own `creating` decides), then re-read. */
     confirmSave(): Promise<void>;
     /** Submit the dialog (create or edit, decided by the draft). */

@@ -60,7 +60,6 @@ export function apply(ctx) {
         setParamValue: (index, value) => { section.setParamValue(index, value); },
         addParam: () => { section.addParam(); },
         removeParam: (index) => { section.removeParam(index); },
-        setReasoningEffort: (effort) => { section.setReasoningEffort(effort); },
         confirmCreate: () => section.confirmCreate(),
         confirmEdit: () => section.confirmEdit(),
         setDefault: (id) => { void section.setDefault(id); },
