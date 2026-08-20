@@ -10,8 +10,8 @@
  *
  * The params bag is edited as an array of `{ key, value }` rows: every key can
  * be deleted, its value re-typed, its spelling edited inline, and arbitrary
- * new key=value rows appended. The four familiar keys (temperature / maxTokens
- * / stop / reasoningEffort) are pre-seeded with friendly labels, and
+ * new key=value rows appended. The three familiar keys (temperature / maxTokens
+ * / reasoningEffort) are pre-seeded with friendly labels, and
  * `reasoningEffort` renders as a dropdown sourced from the selected model's
  * reasoning metadata when that model exposes any. Validation rejects an empty
  * key and a value that is not a legal JSON scalar (the wire's JSON-value
@@ -22,7 +22,7 @@ import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client
 import type { ModelPlanWire, WireParams, WirePlanEntry } from './wire-client.ts'
 
 /** The familiar params pre-seeded into the bag editor. */
-export const KNOWN_KEYS = ['temperature', 'reasoningEffort', 'maxTokens', 'stop'] as const
+export const KNOWN_KEYS = ['temperature', 'reasoningEffort', 'maxTokens'] as const
 
 /** A plan id may be named by, mirroring the host's own rule (id = file name). */
 const PLAN_ID = /^[a-z0-9][a-z0-9-]*$/

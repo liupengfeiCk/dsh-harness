@@ -10,8 +10,8 @@
  *
  * The params bag is edited as an array of `{ key, value }` rows: every key can
  * be deleted, its value re-typed, its spelling edited inline, and arbitrary
- * new key=value rows appended. The four familiar keys (temperature / maxTokens
- * / stop / reasoningEffort) are pre-seeded with friendly labels, and
+ * new key=value rows appended. The three familiar keys (temperature / maxTokens
+ * / reasoningEffort) are pre-seeded with friendly labels, and
  * `reasoningEffort` renders as a dropdown sourced from the selected model's
  * reasoning metadata when that model exposes any. Validation rejects an empty
  * key and a value that is not a legal JSON scalar (the wire's JSON-value
@@ -20,7 +20,7 @@
 import { type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client';
 import type { ModelPlanWire } from './wire-client.ts';
 /** The familiar params pre-seeded into the bag editor. */
-export declare const KNOWN_KEYS: readonly ["temperature", "reasoningEffort", "maxTokens", "stop"];
+export declare const KNOWN_KEYS: readonly ["temperature", "reasoningEffort", "maxTokens"];
 /** One staged params-bag row: the key plus the value in typed (string) form. */
 export interface ParamDraft {
     /** The param key (editable inline; any spelling). */
