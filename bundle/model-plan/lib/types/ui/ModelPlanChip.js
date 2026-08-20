@@ -18,13 +18,16 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
  * started session disable the trigger.
  */
 import { useEffect, useRef, useState } from 'react';
-import { IconChevronDownOutline14, IconWarningOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconChevronDownOutline14, IconPlusOutline16, IconTrashOutline16, IconWarningOutline16, Tooltip, } from '@deepseek-ai/dsh-client-ui-primitives';
 import css from './ModelPlanChip.module.css';
 /** The trigger's current label: the bound plan's name, else the default, else a prompt. */
 function triggerLabel(state, t) {
+    const overrideCount = Object.keys(state.overrides).length;
     const bound = state.options.find(option => option.id === state.planId);
-    if (bound !== undefined)
-        return `${t('seatPrefix')}${bound.id}`;
+    if (bound !== undefined) {
+        const base = `${t('seatPrefix')}${bound.id}`;
+        return overrideCount > 0 ? `${base} · ${overrideCount}` : base;
+    }
     const fallback = state.options.find(option => option.isDefault);
     return `${t('seatPrefix')}${fallback?.id ?? t('seatEmpty')}`;
 }
@@ -33,10 +36,9 @@ function triggerLabel(state, t) {
  * @param props - composed slot props.
  * @returns the chip trigger and, while open, the plan menu.
  */
-export function ModelPlanChip({ locked, useModelPlanChip, t, load, select }) {
+export function ModelPlanChip({ locked, useModelPlanChip, t, load, select, beginOverrideDraft, setOverrideKey, setOverrideValue, addOverrideRow, removeOverrideRow, overrideBlocker, applyOverrides, clearOverrides, }) {
     const state = useModelPlanChip(snapshot => snapshot);
     const [open, setOpen] = useState(false);
-    const [overrideTemp, setOverrideTemp] = useState('');
     const rootRef = useRef(null);
     const triggerRef = useRef(null);
     useEffect(() => {
@@ -72,32 +74,33 @@ export function ModelPlanChip({ locked, useModelPlanChip, t, load, select }) {
             return;
         setOpen(false);
     };
-    const applyOverride = () => {
-        if (state.planId === undefined)
-            return;
-        if (overrideTemp.trim() === '') {
-            void select(state.planId, {});
-        }
-        else {
-            const parsed = Number(overrideTemp);
-            if (!Number.isNaN(parsed))
-                void select(state.planId, { temperature: parsed });
-        }
-        setOverrideTemp('');
-    };
+    const overrideCount = Object.keys(state.overrides).length;
+    const blocker = state.planId === undefined || state.busy ? null : overrideBlocker();
+    const overrideMessage = state.overrideError === 'key'
+        ? t('keyRequired')
+        : state.overrideError === 'value'
+            ? t('valueInvalid')
+            : null;
     return (_jsxs("div", { ref: rootRef, className: css.root, onBlur: onBlur, children: [_jsx(Tooltip, { label: state.locked ? t('seatLocked') : (state.error ?? t('seatHint')), side: "top", delayMs: state.locked ? 0 : 500, children: _jsxs("button", { ref: triggerRef, type: "button", className: css.chip, "aria-haspopup": "menu", "aria-expanded": open, "aria-label": t('seatSelectAria'), title: label, disabled: disabled, onKeyDown: onTriggerKeyDown, onClick: () => {
                         // Re-read the roster each time the menu opens so a plan authored
-                        // in Settings shows up here without a reload.
-                        if (!open)
+                        // in Settings shows up here without a reload, and seed the override
+                        // editor from the current session overrides so they are always
+                        // visible and editable.
+                        if (!open) {
                             void load();
+                            beginOverrideDraft();
+                        }
                         setOpen(value => !value);
                     }, children: [label, _jsx(IconChevronDownOutline14, { className: css.chevron })] }) }), open && !disabled && (_jsxs("div", { className: css.menu, role: "menu", "aria-label": t('seatSelect'), children: [state.status === 'error' && _jsx("div", { className: css.error, children: t('error') }), _jsx("div", { className: css.plans, children: state.options.length === 0
                             ? (_jsxs("div", { className: css.empty, children: [_jsx("div", { children: t('noPlans') }), _jsx("div", { className: css.emptyHint, children: t('noPlansHint') })] }))
                             : state.options.map(option => {
                                 const selected = option.id === state.planId;
                                 const broken = option.broken !== undefined;
-                                return (_jsxs("button", { type: "button", role: "menuitemradio", "aria-checked": selected, className: `${css.option} ${selected ? css.selected : ''} ${broken ? css.optionBroken : ''}`, disabled: state.busy, onClick: () => { void select(option.id); }, children: [_jsxs("span", { className: css.optionMain, children: [_jsx("span", { className: css.optionName, children: option.id }), option.isDefault && _jsx("span", { className: css.optionDefault, children: t('seatDefaultPlan') }), broken && _jsx("span", { className: css.optionBrokenTag, children: t('brokenPlan') })] }), _jsxs("span", { className: css.optionModel, children: [option.provider, "/", option.model, " \u00B7 ", option.paramCount, " ", t('paramCount')] })] }, option.id));
-                            }) }), _jsxs("div", { className: css.override, children: [_jsx("span", { className: css.overrideTitle, children: t('seatOverrides') }), _jsx("span", { className: css.overrideHint, children: t('seatOverrideHint') }), _jsxs("div", { className: css.overrideRow, children: [_jsx("label", { className: css.overrideKey, children: t('temperatureKey') }), _jsx("input", { className: css.input, type: "number", step: "0.1", value: overrideTemp, placeholder: t('paramValuePlaceholder'), onChange: e => setOverrideTemp(e.target.value) }), _jsx("button", { type: "button", className: css.applyButton, disabled: state.planId === undefined, onClick: applyOverride, children: t('save') })] }), state.overrides !== undefined && Object.keys(state.overrides).length > 0 ? (_jsx("button", { type: "button", className: css.clearButton, onClick: () => { if (state.planId !== undefined)
-                                    void select(state.planId, {}); }, children: t('seatClearOverrides') })) : null] }), state.locked ? (_jsxs("div", { className: css.rejected, children: [_jsx(IconWarningOutline16, {}), t('seatSelectRejected')] })) : null] }))] }));
+                                return (_jsxs("button", { type: "button", role: "menuitemradio", "aria-checked": selected, className: `${css.option} ${selected ? css.selected : ''} ${broken ? css.optionBroken : ''}`, disabled: state.busy, 
+                                    // A plan switch keeps the current session overrides (they
+                                    // ride above whichever plan is bound), so live overrides
+                                    // survive changing plans.
+                                    onClick: () => { void select(option.id); }, children: [_jsxs("span", { className: css.optionMain, children: [_jsx("span", { className: css.optionName, children: option.id }), option.isDefault && _jsx("span", { className: css.optionDefault, children: t('seatDefaultPlan') }), broken && _jsx("span", { className: css.optionBrokenTag, children: t('brokenPlan') })] }), _jsxs("span", { className: css.optionModel, children: [option.provider, "/", option.model, " \u00B7 ", option.paramCount, " ", t('paramCount')] })] }, option.id));
+                            }) }), _jsxs("div", { className: css.override, children: [_jsxs("div", { className: css.overrideHead, children: [_jsx("span", { className: css.overrideTitle, children: t('seatOverrides') }), overrideCount > 0 ? _jsx("span", { className: css.overrideCount, children: overrideCount }) : null] }), _jsx("span", { className: css.overrideHint, children: t('seatOverrideHint') }), _jsxs("div", { className: css.overrideTable, children: [_jsxs("div", { className: css.overrideCols, children: [_jsx("span", { className: css.overrideColKey, children: t('paramKeyLabel') }), _jsx("span", { className: css.overrideColValue, children: t('paramValueLabel') }), _jsx("span", { className: css.overrideColRemove })] }), state.overrideDraft.map((row, index) => (_jsxs("div", { className: css.overrideRow, children: [_jsx("input", { className: css.input, value: row.key, placeholder: t('paramKeyPlaceholder'), onChange: e => setOverrideKey(index, e.target.value) }), _jsx("input", { className: css.input, value: row.value, placeholder: t('paramValuePlaceholder'), onChange: e => setOverrideValue(index, e.target.value) }), _jsx("button", { type: "button", className: css.removeRowButton, "aria-label": t('removeParam'), title: t('removeParam'), onClick: () => removeOverrideRow(index), children: _jsx(IconTrashOutline16, {}) })] }, `${index}-${row.key}`)))] }), _jsxs("button", { type: "button", className: css.addOverride, onClick: addOverrideRow, children: [_jsx(IconPlusOutline16, {}), t('addParam')] }), overrideMessage !== null ? _jsx("span", { className: css.overrideError, children: overrideMessage }) : null, _jsxs("div", { className: css.overrideActions, children: [_jsx("button", { type: "button", className: css.applyButton, disabled: state.planId === undefined || state.busy || blocker !== null, onClick: () => { void applyOverrides(); }, children: t('save') }), overrideCount > 0 ? (_jsx("button", { type: "button", className: css.clearButton, disabled: state.busy, onClick: () => { void clearOverrides(); }, children: t('seatClearOverrides') })) : null] })] }), state.locked ? (_jsxs("div", { className: css.rejected, children: [_jsx(IconWarningOutline16, {}), t('seatSelectRejected')] })) : null] }))] }));
 }
 //# sourceMappingURL=ModelPlanChip.js.map

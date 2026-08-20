@@ -133,6 +133,31 @@ describe('mergePlanConfig', () => {
     )
     expect(config.extra).toEqual({ top_p: 0.8, max_tokens: 2000 })
   })
+
+  it('carries an arbitrary-key session override bag onto extra verbatim', () => {
+    // A session may override ANY key, not just temperature — the bag rides the
+    // same verbatim extra channel as the plan params, un-judged.
+    const { config, warnedExtra } = mergePlanConfig(
+      base(),
+      { provider: 'p', model: 'm', params: { temperature: 0.3 } },
+      { top_p: 0.9, reasoningEffort: 'low', custom_flag: true },
+    )
+    expect(config.extra).toEqual({
+      temperature: 0.3, top_p: 0.9, reasoningEffort: 'low', custom_flag: true,
+    })
+    expect(warnedExtra).toEqual(['temperature', 'top_p', 'reasoningEffort', 'custom_flag'])
+  })
+
+  it('an override still wins when the plan declares the same key (priority holds across a plan switch)', () => {
+    // The acceptance case: plan declares temperature=1, the session overrides
+    // temperature=0.5 — 0.5 must win, whichever plan is bound.
+    const { config } = mergePlanConfig(
+      base(),
+      { provider: 'p', model: 'm', params: { temperature: 1 } },
+      { temperature: 0.5 },
+    )
+    expect(config.extra).toEqual({ temperature: 0.5 })
+  })
 })
 
 describe('createMergeHandler', () => {

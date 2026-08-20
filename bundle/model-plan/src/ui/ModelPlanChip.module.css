@@ -1,6 +1,10 @@
 .root {
   position: relative;
   display: inline-flex;
+  /* Establish a stacking context so the open menu (z-index below) floats above
+     the composer's own chrome (e.g. the session stats bar) instead of the menu
+     rows overlapping text that renders behind it. */
+  z-index: 30;
 }
 
 .chip {
@@ -127,12 +131,22 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* The menu's lower half: session overrides as a compact key=value table,
+   visually aligned with the settings dialog's params editor but sized for the
+   popup. The plans list above it does one thing (bind a plan); this panel is
+   separated by a divider so the two concerns never blur. */
 .override {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-top: 8px;
+  gap: 6px;
+  padding-top: 10px;
   border-top: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, 0.2));
+}
+
+.overrideHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .overrideTitle {
@@ -141,26 +155,54 @@
   color: var(--dsw-alias-text-secondary);
 }
 
+.overrideCount {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dsw-alias-state-primary, rgba(59, 130, 246, 0.9));
+  background: var(--dsw-alias-state-primary-soft, rgba(59, 130, 246, 0.12));
+  padding: 0 5px;
+  border-radius: 8px;
+}
+
 .overrideHint {
   font-size: 11px;
   color: var(--dsw-alias-text-tertiary);
 }
 
-.overrideRow {
+/* The compact key=value table: two editable columns + a remove column. */
+.overrideTable {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.overrideCols {
+  display: grid;
+  grid-template-columns: 1fr 1fr 24px;
   gap: 6px;
 }
 
-.overrideKey {
-  font-size: 12px;
-  color: var(--dsw-alias-text-secondary);
-  flex-shrink: 0;
+.overrideColKey,
+.overrideColValue {
+  font-size: 11px;
+  color: var(--dsw-alias-text-tertiary);
+}
+
+.overrideColRemove {
+  width: 24px;
+}
+
+.overrideRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 24px;
+  gap: 6px;
+  align-items: center;
 }
 
 .input {
-  flex: 1;
+  width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   padding: 4px 6px;
   border: 1px solid var(--dsw-alias-divider, rgba(128, 128, 128, 0.3));
   border-radius: 6px;
@@ -169,9 +211,53 @@
   font-size: 12px;
 }
 
+.removeRowButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dsw-alias-text-tertiary);
+  cursor: pointer;
+}
+
+.removeRowButton:hover:not(:disabled) {
+  background: var(--dsw-alias-surface-hover, rgba(128, 128, 128, 0.1));
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.addOverride {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 3px 8px;
+  border: 1px dashed var(--dsw-alias-divider, rgba(128, 128, 128, 0.3));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.overrideError {
+  font-size: 11px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.overrideActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .applyButton {
   flex-shrink: 0;
-  padding: 4px 10px;
+  padding: 4px 12px;
   border: none;
   border-radius: 6px;
   background: var(--dsw-alias-state-primary, rgba(59, 130, 246, 0.9));
@@ -186,13 +272,17 @@
 }
 
 .clearButton {
-  align-self: flex-start;
-  padding: 2px 4px;
+  padding: 4px 6px;
   border: none;
   background: transparent;
   color: var(--dsw-alias-state-error-primary);
   font-size: 12px;
   cursor: pointer;
+}
+
+.clearButton:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .rejected {

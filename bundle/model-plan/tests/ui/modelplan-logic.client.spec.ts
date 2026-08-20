@@ -195,4 +195,48 @@ describe('the composer-seat chip controller', () => {
     expect(state.locked).toBe(true)
     expect(state.error).toContain('session started')
   })
+
+  it('seeds the override editor from the current session overrides', async () => {
+    const wire = fakeWire({ readSelection: async () => ok({ planId: 'flash', overrides: { temperature: 0.5 } }) })
+    const controller = new ModelPlanChipController(wire, 's1')
+    await controller.load()
+    const state = controller.store.getSnapshot()
+    expect(state.overrides).toEqual({ temperature: 0.5 })
+    expect(state.overrideDraft).toEqual([{ key: 'temperature', value: '0.5' }])
+  })
+
+  it('carries the current overrides when binding a different plan (a switch never drops them)', async () => {
+    const wire = fakeWire({ readSelection: async () => ok({ planId: 'flash', overrides: { temperature: 0.5 } }) })
+    const controller = new ModelPlanChipController(wire, 's1')
+    await controller.load()
+    // Picking another plan without an explicit overrides arg keeps temperature: 0.5.
+    await controller.select('other')
+    expect(wire.calls.select.at(-1)).toEqual({ sessionId: 's1', planId: 'other', overrides: { temperature: 0.5 } })
+    expect(controller.store.getSnapshot().overrides).toEqual({ temperature: 0.5 })
+  })
+
+  it('applies a staged arbitrary-key override bag through the wire', async () => {
+    const wire = fakeWire()
+    const controller = new ModelPlanChipController(wire, 's1')
+    await controller.load()
+    controller.beginOverrideDraft()
+    controller.setOverrideKey(0, 'temperature')
+    controller.setOverrideValue(0, '0.5')
+    controller.addOverrideRow()
+    controller.setOverrideKey(1, 'top_p')
+    controller.setOverrideValue(1, '0.9')
+    await controller.applyOverrides()
+    expect(wire.calls.select.at(-1)).toEqual({
+      sessionId: 's1', planId: 'flash', overrides: { temperature: 0.5, top_p: 0.9 },
+    })
+  })
+
+  it('clears every session override on clearOverrides', async () => {
+    const wire = fakeWire({ readSelection: async () => ok({ planId: 'flash', overrides: { temperature: 0.5 } }) })
+    const controller = new ModelPlanChipController(wire, 's1')
+    await controller.load()
+    await controller.clearOverrides()
+    expect(wire.calls.select.at(-1)).toEqual({ sessionId: 's1', planId: 'flash' })
+    expect(controller.store.getSnapshot().overrides).toEqual({})
+  })
 })

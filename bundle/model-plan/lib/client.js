@@ -409,40 +409,40 @@ window.__ModuleLoader__.load({
 			document.head.appendChild(tag);
 		}
 		var ModelPlanSection_module_css_default = {
-			"paramsHint": "_3Ut5vG_paramsHint",
-			"title": "_3Ut5vG_title",
-			"cardFoot": "_3Ut5vG_cardFoot",
 			"blockTitle": "_3Ut5vG_blockTitle",
-			"customNote": "_3Ut5vG_customNote",
-			"modelRow": "_3Ut5vG_modelRow",
-			"cardModel": "_3Ut5vG_cardModel",
-			"select": "_3Ut5vG_select",
-			"cardName": "_3Ut5vG_cardName",
-			"cards": "_3Ut5vG_cards",
+			"cardFoot": "_3Ut5vG_cardFoot",
 			"creatorButton": "_3Ut5vG_creatorButton",
-			"error": "_3Ut5vG_error",
-			"paramSummary": "_3Ut5vG_paramSummary",
-			"paramRow": "_3Ut5vG_paramRow",
-			"input": "_3Ut5vG_input",
-			"intro": "_3Ut5vG_intro",
-			"iconDanger": "_3Ut5vG_iconDanger",
-			"dialogFields": "_3Ut5vG_dialogFields",
-			"card": "_3Ut5vG_card",
-			"cardHead": "_3Ut5vG_cardHead",
-			"iconButton": "_3Ut5vG_iconButton",
-			"dialogScroll": "_3Ut5vG_dialogScroll",
-			"fieldLabel": "_3Ut5vG_fieldLabel",
-			"deleteConfirm": "_3Ut5vG_deleteConfirm",
-			"defaultBadge": "_3Ut5vG_defaultBadge",
-			"brokenBadge": "_3Ut5vG_brokenBadge",
 			"cardModelValue": "_3Ut5vG_cardModelValue",
-			"dialog": "_3Ut5vG_dialog",
-			"editorBlock": "_3Ut5vG_editorBlock",
-			"addParam": "_3Ut5vG_addParam",
-			"deleteDialog": "_3Ut5vG_deleteDialog",
-			"field": "_3Ut5vG_field",
+			"intro": "_3Ut5vG_intro",
+			"section": "_3Ut5vG_section",
+			"card": "_3Ut5vG_card",
+			"dialogScroll": "_3Ut5vG_dialogScroll",
+			"paramSummary": "_3Ut5vG_paramSummary",
+			"cardHead": "_3Ut5vG_cardHead",
 			"cardBroken": "_3Ut5vG_cardBroken",
-			"section": "_3Ut5vG_section"
+			"modelRow": "_3Ut5vG_modelRow",
+			"iconDanger": "_3Ut5vG_iconDanger",
+			"customNote": "_3Ut5vG_customNote",
+			"input": "_3Ut5vG_input",
+			"error": "_3Ut5vG_error",
+			"iconButton": "_3Ut5vG_iconButton",
+			"dialog": "_3Ut5vG_dialog",
+			"cardModel": "_3Ut5vG_cardModel",
+			"cardName": "_3Ut5vG_cardName",
+			"paramsHint": "_3Ut5vG_paramsHint",
+			"paramRow": "_3Ut5vG_paramRow",
+			"fieldLabel": "_3Ut5vG_fieldLabel",
+			"brokenBadge": "_3Ut5vG_brokenBadge",
+			"addParam": "_3Ut5vG_addParam",
+			"dialogFields": "_3Ut5vG_dialogFields",
+			"title": "_3Ut5vG_title",
+			"cards": "_3Ut5vG_cards",
+			"select": "_3Ut5vG_select",
+			"deleteDialog": "_3Ut5vG_deleteDialog",
+			"deleteConfirm": "_3Ut5vG_deleteConfirm",
+			"field": "_3Ut5vG_field",
+			"defaultBadge": "_3Ut5vG_defaultBadge",
+			"editorBlock": "_3Ut5vG_editorBlock"
 		};
 		//#endregion
 		//#region lib/types/ui/ModelPlanSection.js
@@ -875,6 +875,8 @@ window.__ModuleLoader__.load({
 			status: "idle",
 			planId: void 0,
 			overrides: {},
+			overrideDraft: [],
+			overrideError: null,
 			options: [],
 			busy: false,
 			error: null,
@@ -883,6 +885,47 @@ window.__ModuleLoader__.load({
 		/** The failure message of a rejected wire call. */
 		function messageOf(error) {
 			return error instanceof Error ? error.message : String(error);
+		}
+		/** The common wire names pre-seeded into the override editor (blank, all removable). */
+		const KNOWN_KEYS$1 = [
+			"temperature",
+			"max_tokens",
+			"top_p"
+		];
+		/**
+		* Whether a text is a legal JSON scalar per the wire's JSON-value vocabulary
+		* (string / number / boolean / null / array / object). The empty string is not.
+		* Mirrors the settings section's own check so both surfaces agree.
+		*/
+		function isJsonValue$1(text) {
+			if (text.trim() === "") return false;
+			try {
+				JSON.parse(text);
+				return true;
+			} catch {
+				return false;
+			}
+		}
+		/** Map an overrides record onto editable draft rows (familiar-key order first). */
+		function overridesToDraft(overrides) {
+			const entries = Object.entries(overrides);
+			if (entries.length === 0) return [{
+				key: "",
+				value: ""
+			}];
+			return [...KNOWN_KEYS$1.filter((key) => entries.some(([k]) => k === key)), ...entries.map(([k]) => k).filter((k) => !KNOWN_KEYS$1.includes(k))].map((key) => ({
+				key,
+				value: JSON.stringify(overrides[key])
+			}));
+		}
+		/** Parse the typed override rows back onto a JSON-value params record. */
+		function draftToOverrides(rows) {
+			const bag = {};
+			for (const row of rows) {
+				if (row.key.trim() === "" || !isJsonValue$1(row.value)) continue;
+				bag[row.key] = JSON.parse(row.value);
+			}
+			return bag;
 		}
 		/** Map a wire plan onto a chip menu option. */
 		function planToOption(plan) {
@@ -943,6 +986,8 @@ window.__ModuleLoader__.load({
 						status: "ready",
 						planId: selectionResult.value.planId,
 						overrides: selectionResult.value.overrides,
+						overrideDraft: overridesToDraft(selectionResult.value.overrides),
+						overrideError: null,
 						options: rosterResult.value.plans.map(planToOption),
 						error: null,
 						locked: false
@@ -958,19 +1003,27 @@ window.__ModuleLoader__.load({
 			* Bind the session to one plan, optionally with session-level overrides.
 			* A rejected pick (a started session) rolls the binding back and marks the
 			* failure as a lock so the chip can explain it.
+			*
+			* When `overrides` is omitted the CURRENT session overrides are carried over
+			* to the new plan (a plan switch never drops the user's live overrides — they
+			* ride above whichever plan is bound), so "换方案后覆盖仍在且优先级高于方案参数"
+			* holds. Pass an explicit `{}` to clear them.
 			*/
 			async select(planId, overrides) {
-				if (this.store.getSnapshot().busy) return;
+				const before = this.store.getSnapshot();
+				if (before.busy) return;
+				const effective = overrides ?? before.overrides;
 				this.set({
 					busy: true,
 					error: null,
-					locked: false
+					locked: false,
+					overrideError: null
 				});
 				try {
 					const result = await this.plans.select({
 						sessionId: this.sessionId,
 						planId,
-						...overrides === void 0 || Object.keys(overrides).length === 0 ? {} : { overrides }
+						...Object.keys(effective).length === 0 ? {} : { overrides: effective }
 					});
 					if (!result.ok) {
 						const locked = result.error.code === "model-plan-locked";
@@ -985,6 +1038,8 @@ window.__ModuleLoader__.load({
 						busy: false,
 						planId: result.value.planId,
 						overrides: result.value.overrides,
+						overrideDraft: overridesToDraft(result.value.overrides),
+						overrideError: null,
 						error: null,
 						locked: false
 					});
@@ -995,10 +1050,84 @@ window.__ModuleLoader__.load({
 					});
 				}
 			}
+			/**
+			* Seed the override editor from the current session overrides (an empty bag
+			* yields one blank row to type into). Called when the menu opens so the
+			* active overrides are always visible and editable.
+			*/
+			beginOverrideDraft() {
+				const { overrides, busy } = this.store.getSnapshot();
+				if (busy) return;
+				this.set({
+					overrideDraft: overridesToDraft(overrides),
+					overrideError: null
+				});
+			}
+			/** Set one override row's key (editable inline). */
+			setOverrideKey(index, key) {
+				this.patchOverrideDraft((rows) => rows.map((row, i) => i === index ? {
+					...row,
+					key
+				} : row));
+			}
+			/** Set one override row's value (typed string form). */
+			setOverrideValue(index, value) {
+				this.patchOverrideDraft((rows) => rows.map((row, i) => i === index ? {
+					...row,
+					value
+				} : row));
+			}
+			/** Append an empty override row. */
+			addOverrideRow() {
+				this.patchOverrideDraft((rows) => [...rows, {
+					key: "",
+					value: ""
+				}]);
+			}
+			/** Remove one override row. */
+			removeOverrideRow(index) {
+				this.patchOverrideDraft((rows) => rows.filter((_, i) => i !== index));
+			}
+			/** The first blocker preventing the override draft from saving, as a reason, or null. */
+			overrideBlocker() {
+				for (const row of this.store.getSnapshot().overrideDraft) {
+					if (row.key.trim() === "") return "key";
+					if (!isJsonValue$1(row.value)) return "value";
+				}
+				return null;
+			}
+			/**
+			* Save the staged override rows as this session's overrides bag, then
+			* refresh the selection. The bag rides above the bound plan's params on the
+			* next request (merge: session overrides > plan params).
+			*/
+			async applyOverrides() {
+				const { planId, busy } = this.store.getSnapshot();
+				if (planId === void 0 || busy) return;
+				const blocker = this.overrideBlocker();
+				if (blocker !== null) {
+					this.set({ overrideError: blocker === "key" ? "key" : "value" });
+					return;
+				}
+				await this.select(planId, draftToOverrides(this.store.getSnapshot().overrideDraft));
+			}
+			/** Clear every session override, returning the session to its pure plan params. */
+			async clearOverrides() {
+				const { planId, busy } = this.store.getSnapshot();
+				if (planId === void 0 || busy) return;
+				await this.select(planId, {});
+			}
+			/** Patch the staged override rows, clearing the last save error. */
+			patchOverrideDraft(update) {
+				this.set({
+					overrideDraft: update(this.store.getSnapshot().overrideDraft),
+					overrideError: null
+				});
+			}
 		};
 		//#endregion
 		//#region \0dsh-css:bundle/model-plan/src/ui/ModelPlanChip.module.css.mjs
-		const css = ".wp_f9q_root{display:inline-flex;position:relative}.wp_f9q_chip{border:1px solid var(--dsw-alias-divider,#8080804d);background:var(--dsw-alias-surface-primary);max-width:220px;color:var(--dsw-alias-text-primary);cursor:pointer;text-overflow:ellipsis;white-space:nowrap;border-radius:6px;align-items:center;gap:4px;padding:4px 8px;font-size:13px;display:inline-flex;overflow:hidden}.wp_f9q_chip:hover:not(:disabled){background:var(--dsw-alias-surface-hover,#80808014)}.wp_f9q_chip:disabled{opacity:.6;cursor:default}.wp_f9q_chevron{color:var(--dsw-alias-text-secondary);flex-shrink:0}.wp_f9q_menu{z-index:50;background:var(--dsw-alias-surface-primary);border:1px solid var(--dsw-alias-divider,#80808040);border-radius:8px;flex-direction:column;gap:8px;min-width:260px;max-width:340px;padding:8px;display:flex;position:absolute;top:calc(100% + 4px);right:0;box-shadow:0 6px 20px #0000002e}.wp_f9q_plans{flex-direction:column;gap:4px;max-height:40vh;display:flex;overflow-y:auto}.wp_f9q_option{color:var(--dsw-alias-text-primary);text-align:left;cursor:pointer;background:0 0;border:none;border-radius:6px;flex-direction:column;gap:2px;padding:6px 8px;display:flex}.wp_f9q_option:hover:not(:disabled){background:var(--dsw-alias-surface-hover,#8080801a)}.wp_f9q_option:disabled{opacity:.6;cursor:default}.wp_f9q_selected{background:var(--dsw-alias-surface-hover,#80808024)}.wp_f9q_optionBroken{opacity:.6}.wp_f9q_optionMain{align-items:center;gap:6px;font-size:13px;font-weight:500;display:flex}.wp_f9q_optionName{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.wp_f9q_optionDefault{color:var(--dsw-alias-state-warning-primary,#b45309);background:var(--dsw-alias-state-warning-soft,#b453091f);border-radius:4px;flex-shrink:0;padding:0 4px;font-size:11px}.wp_f9q_optionBrokenTag{color:var(--dsw-alias-state-error-primary);background:var(--dsw-alias-state-error-soft,#dc26261f);border-radius:4px;flex-shrink:0;padding:0 4px;font-size:11px}.wp_f9q_optionModel{color:var(--dsw-alias-text-secondary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}.wp_f9q_override{border-top:1px solid var(--dsw-alias-divider,#80808033);flex-direction:column;gap:4px;padding-top:8px;display:flex}.wp_f9q_overrideTitle{color:var(--dsw-alias-text-secondary);font-size:12px;font-weight:600}.wp_f9q_overrideHint{color:var(--dsw-alias-text-tertiary);font-size:11px}.wp_f9q_overrideRow{align-items:center;gap:6px;display:flex}.wp_f9q_overrideKey{color:var(--dsw-alias-text-secondary);flex-shrink:0;font-size:12px}.wp_f9q_input{border:1px solid var(--dsw-alias-divider,#8080804d);background:var(--dsw-alias-surface-primary);min-width:0;color:var(--dsw-alias-text-primary);border-radius:6px;flex:1;padding:4px 6px;font-size:12px}.wp_f9q_applyButton{background:var(--dsw-alias-state-primary,#3b82f6e6);color:#fff;cursor:pointer;border:none;border-radius:6px;flex-shrink:0;padding:4px 10px;font-size:12px}.wp_f9q_applyButton:disabled{opacity:.5;cursor:default}.wp_f9q_clearButton{color:var(--dsw-alias-state-error-primary);cursor:pointer;background:0 0;border:none;align-self:flex-start;padding:2px 4px;font-size:12px}.wp_f9q_rejected{color:var(--dsw-alias-state-error-primary);align-items:center;gap:6px;font-size:12px;display:flex}.wp_f9q_error{color:var(--dsw-alias-state-error-primary);font-size:12px}.wp_f9q_empty{color:var(--dsw-alias-text-tertiary);flex-direction:column;gap:2px;padding:4px 8px;font-size:12px;display:flex}.wp_f9q_emptyHint{color:var(--dsw-alias-text-tertiary);font-size:11px}";
+		const css = ".wp_f9q_root{z-index:30;display:inline-flex;position:relative}.wp_f9q_chip{border:1px solid var(--dsw-alias-divider,#8080804d);background:var(--dsw-alias-surface-primary);max-width:220px;color:var(--dsw-alias-text-primary);cursor:pointer;text-overflow:ellipsis;white-space:nowrap;border-radius:6px;align-items:center;gap:4px;padding:4px 8px;font-size:13px;display:inline-flex;overflow:hidden}.wp_f9q_chip:hover:not(:disabled){background:var(--dsw-alias-surface-hover,#80808014)}.wp_f9q_chip:disabled{opacity:.6;cursor:default}.wp_f9q_chevron{color:var(--dsw-alias-text-secondary);flex-shrink:0}.wp_f9q_menu{z-index:50;background:var(--dsw-alias-surface-primary);border:1px solid var(--dsw-alias-divider,#80808040);border-radius:8px;flex-direction:column;gap:8px;min-width:260px;max-width:340px;padding:8px;display:flex;position:absolute;top:calc(100% + 4px);right:0;box-shadow:0 6px 20px #0000002e}.wp_f9q_plans{flex-direction:column;gap:4px;max-height:40vh;display:flex;overflow-y:auto}.wp_f9q_option{color:var(--dsw-alias-text-primary);text-align:left;cursor:pointer;background:0 0;border:none;border-radius:6px;flex-direction:column;gap:2px;padding:6px 8px;display:flex}.wp_f9q_option:hover:not(:disabled){background:var(--dsw-alias-surface-hover,#8080801a)}.wp_f9q_option:disabled{opacity:.6;cursor:default}.wp_f9q_selected{background:var(--dsw-alias-surface-hover,#80808024)}.wp_f9q_optionBroken{opacity:.6}.wp_f9q_optionMain{align-items:center;gap:6px;font-size:13px;font-weight:500;display:flex}.wp_f9q_optionName{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.wp_f9q_optionDefault{color:var(--dsw-alias-state-warning-primary,#b45309);background:var(--dsw-alias-state-warning-soft,#b453091f);border-radius:4px;flex-shrink:0;padding:0 4px;font-size:11px}.wp_f9q_optionBrokenTag{color:var(--dsw-alias-state-error-primary);background:var(--dsw-alias-state-error-soft,#dc26261f);border-radius:4px;flex-shrink:0;padding:0 4px;font-size:11px}.wp_f9q_optionModel{color:var(--dsw-alias-text-secondary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}.wp_f9q_override{border-top:1px solid var(--dsw-alias-divider,#80808033);flex-direction:column;gap:6px;padding-top:10px;display:flex}.wp_f9q_overrideHead{align-items:center;gap:6px;display:flex}.wp_f9q_overrideTitle{color:var(--dsw-alias-text-secondary);font-size:12px;font-weight:600}.wp_f9q_overrideCount{color:var(--dsw-alias-state-primary,#3b82f6e6);background:var(--dsw-alias-state-primary-soft,#3b82f61f);border-radius:8px;padding:0 5px;font-size:11px;font-weight:500}.wp_f9q_overrideHint{color:var(--dsw-alias-text-tertiary);font-size:11px}.wp_f9q_overrideTable{flex-direction:column;gap:4px;display:flex}.wp_f9q_overrideCols{grid-template-columns:1fr 1fr 24px;gap:6px;display:grid}.wp_f9q_overrideColKey,.wp_f9q_overrideColValue{color:var(--dsw-alias-text-tertiary);font-size:11px}.wp_f9q_overrideColRemove{width:24px}.wp_f9q_overrideRow{grid-template-columns:1fr 1fr 24px;align-items:center;gap:6px;display:grid}.wp_f9q_input{box-sizing:border-box;border:1px solid var(--dsw-alias-divider,#8080804d);background:var(--dsw-alias-surface-primary);width:100%;min-width:0;color:var(--dsw-alias-text-primary);border-radius:6px;padding:4px 6px;font-size:12px}.wp_f9q_removeRowButton{width:24px;height:24px;color:var(--dsw-alias-text-tertiary);cursor:pointer;background:0 0;border:none;border-radius:5px;justify-content:center;align-items:center;padding:0;display:inline-flex}.wp_f9q_removeRowButton:hover:not(:disabled){background:var(--dsw-alias-surface-hover,#8080801a);color:var(--dsw-alias-state-error-primary)}.wp_f9q_addOverride{border:1px dashed var(--dsw-alias-divider,#8080804d);color:var(--dsw-alias-text-secondary);cursor:pointer;background:0 0;border-radius:6px;align-self:flex-start;align-items:center;gap:4px;padding:3px 8px;font-size:12px;display:inline-flex}.wp_f9q_overrideError{color:var(--dsw-alias-state-error-primary);font-size:11px}.wp_f9q_overrideActions{align-items:center;gap:8px;display:flex}.wp_f9q_applyButton{background:var(--dsw-alias-state-primary,#3b82f6e6);color:#fff;cursor:pointer;border:none;border-radius:6px;flex-shrink:0;padding:4px 12px;font-size:12px}.wp_f9q_applyButton:disabled{opacity:.5;cursor:default}.wp_f9q_clearButton{color:var(--dsw-alias-state-error-primary);cursor:pointer;background:0 0;border:none;padding:4px 6px;font-size:12px}.wp_f9q_clearButton:disabled{opacity:.5;cursor:default}.wp_f9q_rejected{color:var(--dsw-alias-state-error-primary);align-items:center;gap:6px;font-size:12px;display:flex}.wp_f9q_error{color:var(--dsw-alias-state-error-primary);font-size:12px}.wp_f9q_empty{color:var(--dsw-alias-text-tertiary);flex-direction:column;gap:2px;padding:4px 8px;font-size:12px;display:flex}.wp_f9q_emptyHint{color:var(--dsw-alias-text-tertiary);font-size:11px}";
 		const tagId = "dsh-harness-model-plan-bundle/ModelPlanChip.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
@@ -1008,31 +1137,41 @@ window.__ModuleLoader__.load({
 			document.head.appendChild(tag);
 		}
 		var ModelPlanChip_module_css_default = {
-			"optionDefault": "wp_f9q_optionDefault",
-			"overrideKey": "wp_f9q_overrideKey",
-			"option": "wp_f9q_option",
-			"override": "wp_f9q_override",
-			"overrideHint": "wp_f9q_overrideHint",
-			"empty": "wp_f9q_empty",
+			"overrideColValue": "wp_f9q_overrideColValue",
 			"error": "wp_f9q_error",
+			"optionModel": "wp_f9q_optionModel",
+			"overrideRow": "wp_f9q_overrideRow",
+			"emptyHint": "wp_f9q_emptyHint",
+			"addOverride": "wp_f9q_addOverride",
+			"overrideHead": "wp_f9q_overrideHead",
+			"root": "wp_f9q_root",
+			"chevron": "wp_f9q_chevron",
+			"overrideTitle": "wp_f9q_overrideTitle",
+			"rejected": "wp_f9q_rejected",
+			"plans": "wp_f9q_plans",
+			"optionDefault": "wp_f9q_optionDefault",
+			"overrideActions": "wp_f9q_overrideActions",
+			"overrideColKey": "wp_f9q_overrideColKey",
+			"option": "wp_f9q_option",
+			"removeRowButton": "wp_f9q_removeRowButton",
+			"chip": "wp_f9q_chip",
+			"overrideCount": "wp_f9q_overrideCount",
+			"applyButton": "wp_f9q_applyButton",
+			"optionBroken": "wp_f9q_optionBroken",
+			"overrideHint": "wp_f9q_overrideHint",
 			"menu": "wp_f9q_menu",
 			"optionMain": "wp_f9q_optionMain",
-			"optionModel": "wp_f9q_optionModel",
-			"emptyHint": "wp_f9q_emptyHint",
-			"optionBroken": "wp_f9q_optionBroken",
-			"root": "wp_f9q_root",
-			"chip": "wp_f9q_chip",
-			"input": "wp_f9q_input",
-			"applyButton": "wp_f9q_applyButton",
-			"plans": "wp_f9q_plans",
-			"overrideRow": "wp_f9q_overrideRow",
-			"clearButton": "wp_f9q_clearButton",
-			"rejected": "wp_f9q_rejected",
-			"selected": "wp_f9q_selected",
-			"overrideTitle": "wp_f9q_overrideTitle",
+			"overrideTable": "wp_f9q_overrideTable",
+			"override": "wp_f9q_override",
+			"empty": "wp_f9q_empty",
+			"overrideCols": "wp_f9q_overrideCols",
+			"overrideColRemove": "wp_f9q_overrideColRemove",
 			"optionBrokenTag": "wp_f9q_optionBrokenTag",
+			"overrideError": "wp_f9q_overrideError",
+			"input": "wp_f9q_input",
 			"optionName": "wp_f9q_optionName",
-			"chevron": "wp_f9q_chevron"
+			"selected": "wp_f9q_selected",
+			"clearButton": "wp_f9q_clearButton"
 		};
 		//#endregion
 		//#region lib/types/ui/ModelPlanChip.js
@@ -1056,8 +1195,12 @@ window.__ModuleLoader__.load({
 		*/
 		/** The trigger's current label: the bound plan's name, else the default, else a prompt. */
 		function triggerLabel(state, t) {
+			const overrideCount = Object.keys(state.overrides).length;
 			const bound = state.options.find((option) => option.id === state.planId);
-			if (bound !== void 0) return `${t("seatPrefix")}${bound.id}`;
+			if (bound !== void 0) {
+				const base = `${t("seatPrefix")}${bound.id}`;
+				return overrideCount > 0 ? `${base} · ${overrideCount}` : base;
+			}
 			const fallback = state.options.find((option) => option.isDefault);
 			return `${t("seatPrefix")}${fallback?.id ?? t("seatEmpty")}`;
 		}
@@ -1066,10 +1209,9 @@ window.__ModuleLoader__.load({
 		* @param props - composed slot props.
 		* @returns the chip trigger and, while open, the plan menu.
 		*/
-		function ModelPlanChip({ locked, useModelPlanChip, t, load, select }) {
+		function ModelPlanChip({ locked, useModelPlanChip, t, load, select, beginOverrideDraft, setOverrideKey, setOverrideValue, addOverrideRow, removeOverrideRow, overrideBlocker, applyOverrides, clearOverrides }) {
 			const state = useModelPlanChip((snapshot) => snapshot);
 			const [open, setOpen] = (0, react.useState)(false);
-			const [overrideTemp, setOverrideTemp] = (0, react.useState)("");
 			const rootRef = (0, react.useRef)(null);
 			const triggerRef = (0, react.useRef)(null);
 			(0, react.useEffect)(() => {
@@ -1097,15 +1239,9 @@ window.__ModuleLoader__.load({
 				if (event.relatedTarget instanceof Node && rootRef.current?.contains(event.relatedTarget)) return;
 				setOpen(false);
 			};
-			const applyOverride = () => {
-				if (state.planId === void 0) return;
-				if (overrideTemp.trim() === "") select(state.planId, {});
-				else {
-					const parsed = Number(overrideTemp);
-					if (!Number.isNaN(parsed)) select(state.planId, { temperature: parsed });
-				}
-				setOverrideTemp("");
-			};
+			const overrideCount = Object.keys(state.overrides).length;
+			const blocker = state.planId === void 0 || state.busy ? null : overrideBlocker();
+			const overrideMessage = state.overrideError === "key" ? t("keyRequired") : state.overrideError === "value" ? t("valueInvalid") : null;
 			return (0, react_jsx_runtime.jsxs)("div", {
 				ref: rootRef,
 				className: ModelPlanChip_module_css_default.root,
@@ -1125,7 +1261,10 @@ window.__ModuleLoader__.load({
 						disabled,
 						onKeyDown: onTriggerKeyDown,
 						onClick: () => {
-							if (!open) load();
+							if (!open) {
+								load();
+								beginOverrideDraft();
+							}
 							setOpen((value) => !value);
 						},
 						children: [label, (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutline14, { className: ModelPlanChip_module_css_default.chevron })]
@@ -1193,46 +1332,91 @@ window.__ModuleLoader__.load({
 						(0, react_jsx_runtime.jsxs)("div", {
 							className: ModelPlanChip_module_css_default.override,
 							children: [
-								(0, react_jsx_runtime.jsx)("span", {
-									className: ModelPlanChip_module_css_default.overrideTitle,
-									children: t("seatOverrides")
+								(0, react_jsx_runtime.jsxs)("div", {
+									className: ModelPlanChip_module_css_default.overrideHead,
+									children: [(0, react_jsx_runtime.jsx)("span", {
+										className: ModelPlanChip_module_css_default.overrideTitle,
+										children: t("seatOverrides")
+									}), overrideCount > 0 ? (0, react_jsx_runtime.jsx)("span", {
+										className: ModelPlanChip_module_css_default.overrideCount,
+										children: overrideCount
+									}) : null]
 								}),
 								(0, react_jsx_runtime.jsx)("span", {
 									className: ModelPlanChip_module_css_default.overrideHint,
 									children: t("seatOverrideHint")
 								}),
 								(0, react_jsx_runtime.jsxs)("div", {
-									className: ModelPlanChip_module_css_default.overrideRow,
-									children: [
-										(0, react_jsx_runtime.jsx)("label", {
-											className: ModelPlanChip_module_css_default.overrideKey,
-											children: t("temperatureKey")
-										}),
-										(0, react_jsx_runtime.jsx)("input", {
-											className: ModelPlanChip_module_css_default.input,
-											type: "number",
-											step: "0.1",
-											value: overrideTemp,
-											placeholder: t("paramValuePlaceholder"),
-											onChange: (e) => setOverrideTemp(e.target.value)
-										}),
-										(0, react_jsx_runtime.jsx)("button", {
-											type: "button",
-											className: ModelPlanChip_module_css_default.applyButton,
-											disabled: state.planId === void 0,
-											onClick: applyOverride,
-											children: t("save")
-										})
-									]
+									className: ModelPlanChip_module_css_default.overrideTable,
+									children: [(0, react_jsx_runtime.jsxs)("div", {
+										className: ModelPlanChip_module_css_default.overrideCols,
+										children: [
+											(0, react_jsx_runtime.jsx)("span", {
+												className: ModelPlanChip_module_css_default.overrideColKey,
+												children: t("paramKeyLabel")
+											}),
+											(0, react_jsx_runtime.jsx)("span", {
+												className: ModelPlanChip_module_css_default.overrideColValue,
+												children: t("paramValueLabel")
+											}),
+											(0, react_jsx_runtime.jsx)("span", { className: ModelPlanChip_module_css_default.overrideColRemove })
+										]
+									}), state.overrideDraft.map((row, index) => (0, react_jsx_runtime.jsxs)("div", {
+										className: ModelPlanChip_module_css_default.overrideRow,
+										children: [
+											(0, react_jsx_runtime.jsx)("input", {
+												className: ModelPlanChip_module_css_default.input,
+												value: row.key,
+												placeholder: t("paramKeyPlaceholder"),
+												onChange: (e) => setOverrideKey(index, e.target.value)
+											}),
+											(0, react_jsx_runtime.jsx)("input", {
+												className: ModelPlanChip_module_css_default.input,
+												value: row.value,
+												placeholder: t("paramValuePlaceholder"),
+												onChange: (e) => setOverrideValue(index, e.target.value)
+											}),
+											(0, react_jsx_runtime.jsx)("button", {
+												type: "button",
+												className: ModelPlanChip_module_css_default.removeRowButton,
+												"aria-label": t("removeParam"),
+												title: t("removeParam"),
+												onClick: () => removeOverrideRow(index),
+												children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconTrashOutline16, {})
+											})
+										]
+									}, `${index}-${row.key}`))]
 								}),
-								state.overrides !== void 0 && Object.keys(state.overrides).length > 0 ? (0, react_jsx_runtime.jsx)("button", {
+								(0, react_jsx_runtime.jsxs)("button", {
 									type: "button",
-									className: ModelPlanChip_module_css_default.clearButton,
-									onClick: () => {
-										if (state.planId !== void 0) select(state.planId, {});
-									},
-									children: t("seatClearOverrides")
-								}) : null
+									className: ModelPlanChip_module_css_default.addOverride,
+									onClick: addOverrideRow,
+									children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, {}), t("addParam")]
+								}),
+								overrideMessage !== null ? (0, react_jsx_runtime.jsx)("span", {
+									className: ModelPlanChip_module_css_default.overrideError,
+									children: overrideMessage
+								}) : null,
+								(0, react_jsx_runtime.jsxs)("div", {
+									className: ModelPlanChip_module_css_default.overrideActions,
+									children: [(0, react_jsx_runtime.jsx)("button", {
+										type: "button",
+										className: ModelPlanChip_module_css_default.applyButton,
+										disabled: state.planId === void 0 || state.busy || blocker !== null,
+										onClick: () => {
+											applyOverrides();
+										},
+										children: t("save")
+									}), overrideCount > 0 ? (0, react_jsx_runtime.jsx)("button", {
+										type: "button",
+										className: ModelPlanChip_module_css_default.clearButton,
+										disabled: state.busy,
+										onClick: () => {
+											clearOverrides();
+										},
+										children: t("seatClearOverrides")
+									}) : null]
+								})
 							]
 						}),
 						state.locked ? (0, react_jsx_runtime.jsxs)("div", {
@@ -1514,7 +1698,15 @@ window.__ModuleLoader__.load({
 					return {
 						hooks: { modelPlanChip: chip.store },
 						load: () => chip.load(),
-						select: (planId, overrides) => chip.select(planId, overrides)
+						select: (planId, overrides) => chip.select(planId, overrides),
+						beginOverrideDraft: () => chip.beginOverrideDraft(),
+						setOverrideKey: (index, key) => chip.setOverrideKey(index, key),
+						setOverrideValue: (index, value) => chip.setOverrideValue(index, value),
+						addOverrideRow: () => chip.addOverrideRow(),
+						removeOverrideRow: (index) => chip.removeOverrideRow(index),
+						overrideBlocker: () => chip.overrideBlocker(),
+						applyOverrides: () => chip.applyOverrides(),
+						clearOverrides: () => chip.clearOverrides()
 					};
 				}
 			}, ModelPlanChip));

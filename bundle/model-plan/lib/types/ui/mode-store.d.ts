@@ -25,6 +25,17 @@ export interface ChipOption {
     /** Why the plan cannot be used, absent when it can. */
     broken?: string;
 }
+/**
+ * One staged session-override row: the key plus the value in typed (string)
+ * form. Mirrors the settings dialog's `ParamDraft` so both surfaces share the
+ * same key=value editing language; values parse to JSON on save.
+ */
+export interface OverrideDraft {
+    /** The param key (editable inline; any spelling). */
+    key: string;
+    /** The param value in typed string form, parsed to JSON on save. */
+    value: string;
+}
 /** Chip snapshot. */
 export interface ModelPlanChipState {
     status: 'idle' | 'loading' | 'ready' | 'error';
@@ -32,6 +43,10 @@ export interface ModelPlanChipState {
     planId: string | undefined;
     /** Session-level temporary overrides riding above the plan's own params. */
     overrides: WireParams;
+    /** The staged override rows currently being edited in the menu. */
+    overrideDraft: readonly OverrideDraft[];
+    /** The last override-save failure; cleared by the next edit. */
+    overrideError: string | null;
     /** Every plan the deployment supplies, for the menu. */
     options: readonly ChipOption[];
     /** Whether a select is in flight. */
@@ -41,6 +56,14 @@ export interface ModelPlanChipState {
     /** Whether the last failure was a lock (a started session rejected the pick). */
     locked: boolean;
 }
+/** The common wire names pre-seeded into the override editor (blank, all removable). */
+export declare const KNOWN_KEYS: readonly ["temperature", "max_tokens", "top_p"];
+/**
+ * Whether a text is a legal JSON scalar per the wire's JSON-value vocabulary
+ * (string / number / boolean / null / array / object). The empty string is not.
+ * Mirrors the settings section's own check so both surfaces agree.
+ */
+export declare function isJsonValue(text: string): boolean;
 /**
  * The composer model seat's plan-binding controller. One per session, created
  * on the slot's session-scoped inject.
@@ -58,7 +81,38 @@ export declare class ModelPlanChipController {
      * Bind the session to one plan, optionally with session-level overrides.
      * A rejected pick (a started session) rolls the binding back and marks the
      * failure as a lock so the chip can explain it.
+     *
+     * When `overrides` is omitted the CURRENT session overrides are carried over
+     * to the new plan (a plan switch never drops the user's live overrides — they
+     * ride above whichever plan is bound), so "换方案后覆盖仍在且优先级高于方案参数"
+     * holds. Pass an explicit `{}` to clear them.
      */
     select(planId: string, overrides?: WireParams): Promise<void>;
+    /**
+     * Seed the override editor from the current session overrides (an empty bag
+     * yields one blank row to type into). Called when the menu opens so the
+     * active overrides are always visible and editable.
+     */
+    beginOverrideDraft(): void;
+    /** Set one override row's key (editable inline). */
+    setOverrideKey(index: number, key: string): void;
+    /** Set one override row's value (typed string form). */
+    setOverrideValue(index: number, value: string): void;
+    /** Append an empty override row. */
+    addOverrideRow(): void;
+    /** Remove one override row. */
+    removeOverrideRow(index: number): void;
+    /** The first blocker preventing the override draft from saving, as a reason, or null. */
+    overrideBlocker(): 'key' | 'value' | null;
+    /**
+     * Save the staged override rows as this session's overrides bag, then
+     * refresh the selection. The bag rides above the bound plan's params on the
+     * next request (merge: session overrides > plan params).
+     */
+    applyOverrides(): Promise<void>;
+    /** Clear every session override, returning the session to its pure plan params. */
+    clearOverrides(): Promise<void>;
+    /** Patch the staged override rows, clearing the last save error. */
+    private patchOverrideDraft;
 }
 //# sourceMappingURL=mode-store.d.ts.map

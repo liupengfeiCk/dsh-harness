@@ -30,6 +30,22 @@ export interface ModelPlanChipInjected {
     load: () => Promise<void>;
     /** Bind the session to one plan (optionally with session-level overrides). */
     select: (planId: string, overrides?: Record<string, unknown>) => Promise<void>;
+    /** Seed the override editor from the current session overrides when the menu opens. */
+    beginOverrideDraft: () => void;
+    /** Set one staged override row's key. */
+    setOverrideKey: (index: number, key: string) => void;
+    /** Set one staged override row's value. */
+    setOverrideValue: (index: number, value: string) => void;
+    /** Append an empty override row. */
+    addOverrideRow: () => void;
+    /** Remove one override row. */
+    removeOverrideRow: (index: number) => void;
+    /** The reason the staged overrides cannot save, or null. */
+    overrideBlocker: () => 'key' | 'value' | null;
+    /** Save the staged overrides as this session's overrides bag. */
+    applyOverrides: () => Promise<void>;
+    /** Clear every session override. */
+    clearOverrides: () => Promise<void>;
 }
 /** Full component props: the model-seat owner share + session kit + locale + injected face. */
 export type ModelPlanChipProps = PropsRuntime<'conversation.input.model'> & PropsLocale<'settings.modelPlan'> & InjectFace<ModelPlanChipInjected>;
@@ -44,5 +60,5 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
  * @param props - composed slot props.
  * @returns the chip trigger and, while open, the plan menu.
  */
-export declare function ModelPlanChip({ locked, useModelPlanChip, t, load, select }: ModelPlanChipProps): import("react").JSX.Element;
+export declare function ModelPlanChip({ locked, useModelPlanChip, t, load, select, beginOverrideDraft, setOverrideKey, setOverrideValue, addOverrideRow, removeOverrideRow, overrideBlocker, applyOverrides, clearOverrides, }: ModelPlanChipProps): import("react").JSX.Element;
 //# sourceMappingURL=ModelPlanChip.d.ts.map

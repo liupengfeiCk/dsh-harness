@@ -94,6 +94,14 @@ export function apply(ctx) {
                 hooks: { modelPlanChip: chip.store },
                 load: () => chip.load(),
                 select: (planId, overrides) => chip.select(planId, overrides),
+                beginOverrideDraft: () => chip.beginOverrideDraft(),
+                setOverrideKey: (index, key) => chip.setOverrideKey(index, key),
+                setOverrideValue: (index, value) => chip.setOverrideValue(index, value),
+                addOverrideRow: () => chip.addOverrideRow(),
+                removeOverrideRow: index => chip.removeOverrideRow(index),
+                overrideBlocker: () => chip.overrideBlocker(),
+                applyOverrides: () => chip.applyOverrides(),
+                clearOverrides: () => chip.clearOverrides(),
             };
         },
     }, ModelPlanChip));

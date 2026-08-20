@@ -19,7 +19,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { FocusEvent, KeyboardEvent } from 'react'
-import { IconChevronDownOutline14, IconWarningOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconChevronDownOutline14, IconPlusOutline16, IconTrashOutline16, IconWarningOutline16, Tooltip,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the ui-conversation SlotMap merge (`conversation.input.model`).
@@ -38,6 +40,22 @@ export interface ModelPlanChipInjected {
   load: () => Promise<void>
   /** Bind the session to one plan (optionally with session-level overrides). */
   select: (planId: string, overrides?: Record<string, unknown>) => Promise<void>
+  /** Seed the override editor from the current session overrides when the menu opens. */
+  beginOverrideDraft: () => void
+  /** Set one staged override row's key. */
+  setOverrideKey: (index: number, key: string) => void
+  /** Set one staged override row's value. */
+  setOverrideValue: (index: number, value: string) => void
+  /** Append an empty override row. */
+  addOverrideRow: () => void
+  /** Remove one override row. */
+  removeOverrideRow: (index: number) => void
+  /** The reason the staged overrides cannot save, or null. */
+  overrideBlocker: () => 'key' | 'value' | null
+  /** Save the staged overrides as this session's overrides bag. */
+  applyOverrides: () => Promise<void>
+  /** Clear every session override. */
+  clearOverrides: () => Promise<void>
 }
 
 /** Full component props: the model-seat owner share + session kit + locale + injected face. */
@@ -55,8 +73,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /** The trigger's current label: the bound plan's name, else the default, else a prompt. */
 function triggerLabel(state: ModelPlanChipState, t: (key: ModelPlanKey) => string): string {
+  const overrideCount = Object.keys(state.overrides).length
   const bound = state.options.find(option => option.id === state.planId)
-  if (bound !== undefined) return `${t('seatPrefix')}${bound.id}`
+  if (bound !== undefined) {
+    const base = `${t('seatPrefix')}${bound.id}`
+    return overrideCount > 0 ? `${base} · ${overrideCount}` : base
+  }
   const fallback = state.options.find(option => option.isDefault)
   return `${t('seatPrefix')}${fallback?.id ?? t('seatEmpty')}`
 }
@@ -66,10 +88,13 @@ function triggerLabel(state: ModelPlanChipState, t: (key: ModelPlanKey) => strin
  * @param props - composed slot props.
  * @returns the chip trigger and, while open, the plan menu.
  */
-export function ModelPlanChip({ locked, useModelPlanChip, t, load, select }: ModelPlanChipProps) {
+export function ModelPlanChip({
+  locked, useModelPlanChip, t, load, select, beginOverrideDraft,
+  setOverrideKey, setOverrideValue, addOverrideRow, removeOverrideRow,
+  overrideBlocker, applyOverrides, clearOverrides,
+}: ModelPlanChipProps) {
   const state = useModelPlanChip(snapshot => snapshot)
   const [open, setOpen] = useState(false)
-  const [overrideTemp, setOverrideTemp] = useState('')
   const rootRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
 
@@ -107,16 +132,13 @@ export function ModelPlanChip({ locked, useModelPlanChip, t, load, select }: Mod
     setOpen(false)
   }
 
-  const applyOverride = (): void => {
-    if (state.planId === undefined) return
-    if (overrideTemp.trim() === '') {
-      void select(state.planId, {})
-    } else {
-      const parsed = Number(overrideTemp)
-      if (!Number.isNaN(parsed)) void select(state.planId, { temperature: parsed })
-    }
-    setOverrideTemp('')
-  }
+  const overrideCount = Object.keys(state.overrides).length
+  const blocker = state.planId === undefined || state.busy ? null : overrideBlocker()
+  const overrideMessage = state.overrideError === 'key'
+    ? t('keyRequired')
+    : state.overrideError === 'value'
+      ? t('valueInvalid')
+      : null
 
   return (
     <div ref={rootRef} className={css.root} onBlur={onBlur}>
@@ -137,8 +159,13 @@ export function ModelPlanChip({ locked, useModelPlanChip, t, load, select }: Mod
           onKeyDown={onTriggerKeyDown}
           onClick={() => {
             // Re-read the roster each time the menu opens so a plan authored
-            // in Settings shows up here without a reload.
-            if (!open) void load()
+            // in Settings shows up here without a reload, and seed the override
+            // editor from the current session overrides so they are always
+            // visible and editable.
+            if (!open) {
+              void load()
+              beginOverrideDraft()
+            }
             setOpen(value => !value)
           }}
         >
@@ -168,6 +195,9 @@ export function ModelPlanChip({ locked, useModelPlanChip, t, load, select }: Mod
                     aria-checked={selected}
                     className={`${css.option} ${selected ? css.selected : ''} ${broken ? css.optionBroken : ''}`}
                     disabled={state.busy}
+                    // A plan switch keeps the current session overrides (they
+                    // ride above whichever plan is bound), so live overrides
+                    // survive changing plans.
                     onClick={() => { void select(option.id) }}
                   >
                     <span className={css.optionMain}>
@@ -183,31 +213,68 @@ export function ModelPlanChip({ locked, useModelPlanChip, t, load, select }: Mod
               })}
           </div>
           <div className={css.override}>
-            <span className={css.overrideTitle}>{t('seatOverrides')}</span>
-            <span className={css.overrideHint}>{t('seatOverrideHint')}</span>
-            <div className={css.overrideRow}>
-              <label className={css.overrideKey}>{t('temperatureKey')}</label>
-              <input
-                className={css.input}
-                type="number"
-                step="0.1"
-                value={overrideTemp}
-                placeholder={t('paramValuePlaceholder')}
-                onChange={e => setOverrideTemp(e.target.value)}
-              />
-              <button type="button" className={css.applyButton} disabled={state.planId === undefined} onClick={applyOverride}>
-                {t('save')}
-              </button>
+            <div className={css.overrideHead}>
+              <span className={css.overrideTitle}>{t('seatOverrides')}</span>
+              {overrideCount > 0 ? <span className={css.overrideCount}>{overrideCount}</span> : null}
             </div>
-            {state.overrides !== undefined && Object.keys(state.overrides).length > 0 ? (
+            <span className={css.overrideHint}>{t('seatOverrideHint')}</span>
+            <div className={css.overrideTable}>
+              <div className={css.overrideCols}>
+                <span className={css.overrideColKey}>{t('paramKeyLabel')}</span>
+                <span className={css.overrideColValue}>{t('paramValueLabel')}</span>
+                <span className={css.overrideColRemove} />
+              </div>
+              {state.overrideDraft.map((row, index) => (
+                <div key={`${index}-${row.key}`} className={css.overrideRow}>
+                  <input
+                    className={css.input}
+                    value={row.key}
+                    placeholder={t('paramKeyPlaceholder')}
+                    onChange={e => setOverrideKey(index, e.target.value)}
+                  />
+                  <input
+                    className={css.input}
+                    value={row.value}
+                    placeholder={t('paramValuePlaceholder')}
+                    onChange={e => setOverrideValue(index, e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className={css.removeRowButton}
+                    aria-label={t('removeParam')}
+                    title={t('removeParam')}
+                    onClick={() => removeOverrideRow(index)}
+                  >
+                    <IconTrashOutline16 />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button" className={css.addOverride} onClick={addOverrideRow}>
+              <IconPlusOutline16 />
+              {t('addParam')}
+            </button>
+            {overrideMessage !== null ? <span className={css.overrideError}>{overrideMessage}</span> : null}
+            <div className={css.overrideActions}>
               <button
                 type="button"
-                className={css.clearButton}
-                onClick={() => { if (state.planId !== undefined) void select(state.planId, {}) }}
+                className={css.applyButton}
+                disabled={state.planId === undefined || state.busy || blocker !== null}
+                onClick={() => { void applyOverrides() }}
               >
-                {t('seatClearOverrides')}
+                {t('save')}
               </button>
-            ) : null}
+              {overrideCount > 0 ? (
+                <button
+                  type="button"
+                  className={css.clearButton}
+                  disabled={state.busy}
+                  onClick={() => { void clearOverrides() }}
+                >
+                  {t('seatClearOverrides')}
+                </button>
+              ) : null}
+            </div>
           </div>
           {state.locked ? (
             <div className={css.rejected}>
