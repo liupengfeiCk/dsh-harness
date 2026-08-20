@@ -21,9 +21,6 @@ import { SubagentPresetSection } from './SubagentPresetSection.tsx'
 import { createSubagentPresetWire } from './wire-client.ts'
 import type { PlanListWire } from './section-store.ts'
 import { en, zh } from './locales.ts'
-// The independent "团队" (编制表) settings section rides the same single
-// browser client entry, so both sections ship in one client bundle.
-import { apply as applyTeamSection } from '../ui-team/index.ts'
 
 /**
  * The model-plan management channel, served by the model-plan bundle's Host
