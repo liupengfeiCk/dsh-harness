@@ -1,0 +1,22 @@
+# The dsh-harness-llm-pi-ai-extra-bundle patch: mounts the Harness-owned
+# pi-ai-backed adapter as a host row under a distinct id. This bundle is a
+# drop-in copy of the official @deepseek-ai/dsh-llm-pi-ai adapter with one
+# capability added: the `LlmCallConfig.extra` passthrough bag (model-plan
+# custom params such as `top_p`) is forwarded into the wire request top level
+# via pi-ai's sanctioned onPayload hook. The official adapter drops `extra`
+# entirely (its adapter.ts has no reference to it), so a model-plan bound to a
+# pi-ai provider route can never push provider-specific keys through.
+#
+# The plugin keeps the official `export const name = 'llm-pi-ai'`, so the
+# user-settings section namespace `llm-pi-ai` (which supplies the tencent and
+# other provider routes) feeds the replacement exactly as it did the official
+# one — only the composition row id is distinct.
+#
+# Disabling the official `llm-pi-ai` row is a PROFILE-layer concern (the
+# profile's own cordis.patch.yml carries the `- id: llm-pi-ai / disabled: true`
+# override, since a later layer wins per row). This patch only inserts the
+# replacement row.
+
+- insert:
+    - id: llm-pi-ai-extra
+      name: 'dsh-harness-llm-pi-ai-extra-bundle'
