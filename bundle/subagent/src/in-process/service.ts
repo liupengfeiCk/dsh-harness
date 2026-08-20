@@ -62,6 +62,7 @@ import {
   listChildren as listSubagentChildren,
   listDescendants as listSubagentDescendants,
 } from './upstream/list-children.ts'
+import { snapshotHarnessOneShotSubagentDescriptor } from './descriptor.ts'
 import type { SubagentDescendantListEntry, SubagentListEntry } from './upstream/list-children.ts'
 import SubagentActivationSetupRegistry from './upstream/activation-setup-registry.ts'
 import type { ContinuableSetupContribution } from './upstream/activation-setup-registry.ts'
@@ -351,7 +352,22 @@ export class HarnessSubagentRuntime extends Service {
     // read it through the harness request type. An absent field (a non-tool
     // caller, or no named subagent) is simply undefined.
     const harnessRequest = request as HarnessSubagentStartRequest
-    const resolved: HarnessResolvedSubagentStartRequest = { ...harnessRequest, descriptor }
+    // A one-shot team-role child carries its `team`/`role` identity in the
+    // harness descriptor so the delegation execution gate can fold the caller's
+    // level (rule 3). A plain one-shot child is unchanged.
+    const resolved: HarnessResolvedSubagentStartRequest = harnessRequest.team !== undefined
+      || harnessRequest.role !== undefined
+      ? {
+          ...harnessRequest,
+          descriptor: snapshotHarnessOneShotSubagentDescriptor({
+            mode: 'one-shot',
+            provider: name,
+            ...descriptor.label !== undefined ? { label: descriptor.label } : {},
+            ...harnessRequest.team !== undefined ? { team: harnessRequest.team } : {},
+            ...harnessRequest.role !== undefined ? { role: harnessRequest.role } : {},
+          }),
+        }
+      : { ...harnessRequest, descriptor }
     return observeRun(this.emitLifecycle, name, request.parent, await provider.start(resolved))
   }
 

@@ -16,6 +16,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import yaml from 'js-yaml';
+import { ROLE_LEVEL_DEFAULT } from "./types.js";
 /** The file that makes a directory a team. */
 export const TEAM_FILE = 'team.yml';
 /** A non-empty trimmed string, or undefined for anything else. */
@@ -32,6 +33,21 @@ function flag(value) {
 /** Parse a role's memory policy, defaulting to `one-shot`. */
 function memory(value) {
     return value === 'persistent' ? 'persistent' : 'one-shot';
+}
+/**
+ * Parse a role's hierarchy level, defaulting to {@link ROLE_LEVEL_DEFAULT}.
+ * @param value - the raw `level` field.
+ * @returns `{ level }` on a valid positive integer, or
+ *   `{ broken }` when the field is present but unusable (the role stays listed
+ *   as broken — a team's other roles remain usable).
+ */
+function roleLevel(value) {
+    if (value === undefined)
+        return { level: ROLE_LEVEL_DEFAULT };
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+        return { broken: 'the role "level" must be a positive integer (1 or higher)' };
+    }
+    return { level: value };
 }
 /**
  * Parse a team file's contents into its team shape. Malformed shape is
@@ -94,6 +110,7 @@ export function parseTeam(id, trust, path, content) {
         const subagent = text(role.subagent);
         const description = text(role.description);
         const prompt = text(role.prompt);
+        const parsedLevel = roleLevel(role.level);
         roles.push({
             id: roleId,
             ...description !== undefined ? { description } : {},
@@ -101,7 +118,13 @@ export function parseTeam(id, trust, path, content) {
             ...subagent === undefined
                 ? { subagent: '', broken: 'the role binds no "subagent" (a subagent id is required)' }
                 : { subagent },
+            // An absent level defaults to 1; an invalid level breaks the role while
+            // the team's other roles stay usable.
+            level: parsedLevel.level ?? ROLE_LEVEL_DEFAULT,
             memory: memory(role.memory),
+            ...parsedLevel.broken !== undefined
+                ? { broken: parsedLevel.broken }
+                : {},
         });
     }
     return { id, trust, path, metadata, roles };

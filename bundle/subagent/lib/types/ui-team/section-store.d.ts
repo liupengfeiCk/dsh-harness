@@ -51,6 +51,11 @@ export interface RoleDraft {
     prompt: string;
     /** The bound subagent: a user-defined subagent id. */
     subagent: string;
+    /**
+     * The role's position in the team hierarchy: a positive integer, default 1.
+     * Level 1 can only be delegated to; level >= 2 may delegate to lower levels.
+     */
+    level: number;
     /** Memory policy: one-shot or persistent. */
     memory: WireRoleMemory;
 }
@@ -106,6 +111,12 @@ export interface DetailDraft {
     title: string;
     /** Display metadata (name/description/enabled). */
     metadata: TeamMetadata;
+    /**
+     * A config-hygiene advisory read from the team detail (e.g. one-shot role at
+     * level >= 2), shown on the dialog so the user sees why a delegation may not
+     * recur. Absent when the team is clean.
+     */
+    warning?: string;
     /** The editable role roster. */
     roles: readonly RoleDraft[];
     /** Whether the save is in flight. */
@@ -211,7 +222,7 @@ export declare class TeamSectionController {
     /** Remove one role row from the team detail (and any open edit on it). */
     removeRole(index: number): void;
     /** Stage one field on the open role edit draft, marking it dirty. */
-    setRoleEditField(field: 'id' | 'description' | 'prompt' | 'subagent' | 'memory', value: string): void;
+    setRoleEditField(field: 'id' | 'description' | 'prompt' | 'subagent' | 'level' | 'memory', value: string): void;
     /**
      * Commit the open role edit: validate, then write back into the roster
      * (replacing the existing row, or trimming the trailing new row). The

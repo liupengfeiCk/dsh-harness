@@ -29,7 +29,7 @@ import {
   InvalidTeamIdError, TeamExistsError, TeamNotWritableError, TeamRoleInvalidError,
   type Teams, type TeamRole,
 } from '../index.ts'
-import { UnknownTeamError } from '../types.ts'
+import { ROLE_LEVEL_DEFAULT, UnknownTeamError } from '../types.ts'
 import { canOpenDirectory, openDirectory } from '../../preset/wire/opener.ts'
 import { wireEndpoints, type WireEndpointName } from './schema.ts'
 
@@ -76,6 +76,10 @@ export async function dispatchTeamPreset(
         return await remove(teams, parse(wireEndpoints.remove.request, payload))
       case 'openLocation':
         return await openLocation(teams, parse(wireEndpoints.openLocation.request, payload), signal)
+      case 'modeSelect':
+        return await modeSelect(teams, parse(wireEndpoints.modeSelect.request, payload))
+      case 'modeRead':
+        return await modeRead(teams, parse(wireEndpoints.modeRead.request, payload))
       default:
         return fail(badEndpointError(endpoint))
     }
@@ -147,6 +151,7 @@ async function list(
       metadata: team.metadata,
       roles: team.roles.map(role => ({
         id: role.id,
+        level: role.level,
         ...role.broken === undefined ? {} : { broken: role.broken },
       })),
       ...team.broken === undefined ? {} : { broken: team.broken },
@@ -177,9 +182,13 @@ async function read(
           ...role.description === undefined ? {} : { description: role.description },
           ...role.prompt === undefined ? {} : { prompt: role.prompt },
           subagent: role.subagent,
+          level: role.level,
           memory: role.memory,
         })),
         ...team.broken === undefined ? {} : { broken: team.broken },
+        // The config-hygiene advisory surfaces on the team detail so the UI
+        // can read it, not just the host log.
+        ...teams.hygieneWarning(team) === undefined ? {} : { warning: teams.hygieneWarning(team) },
       },
     })
   } catch (error) {
@@ -288,6 +297,37 @@ async function openLocation(
   }
 }
 
+async function modeSelect(
+  teams: Teams | undefined,
+  request: EndpointPayload<'modeSelect'>,
+): Promise<RpcResult<unknown>> {
+  if (teams === undefined) return fail(noRoster(''))
+  try {
+    await teams.selectMode(request.sessionId as never, request.mode, request.team)
+    const state = await teams.readMode(request.sessionId as never)
+    return ok({
+      ...state.mode === 'team' && state.team !== undefined ? { mode: state.mode, team: state.team } : { mode: state.mode },
+    })
+  } catch (error) {
+    return fail(modeFailure(request.sessionId, error))
+  }
+}
+
+async function modeRead(
+  teams: Teams | undefined,
+  request: EndpointPayload<'modeRead'>,
+): Promise<RpcResult<unknown>> {
+  if (teams === undefined) return fail(noRoster(request.sessionId))
+  try {
+    const state = await teams.readMode(request.sessionId as never)
+    return ok({
+      ...state.mode === 'team' && state.team !== undefined ? { mode: state.mode, team: state.team } : { mode: state.mode },
+    })
+  } catch (error) {
+    return fail(modeFailure(request.sessionId, error))
+  }
+}
+
 /** Map one staged role onto the registry's `TeamRole` vocabulary. */
 function stagedRole(role: StagedRole): TeamRole {
   return {
@@ -295,6 +335,10 @@ function stagedRole(role: StagedRole): TeamRole {
     ...role.description === undefined ? {} : { description: role.description },
     ...role.prompt === undefined ? {} : { prompt: role.prompt },
     subagent: role.subagent,
+    // A staged role without an explicit level falls back to the default; the
+    // registry refuses levels below 1 (redundant with the schema but kept so
+    // the guard survives even a non-schema caller).
+    level: role.level === undefined ? ROLE_LEVEL_DEFAULT : role.level,
     memory: role.memory,
   }
 }
@@ -390,4 +434,26 @@ function teamFailure(team: string, error: unknown): WireError {
     }
   }
   return { code: 'internal', message: `team "${team}": ${String(error)}`, details: {} }
+}
+
+/** Map one mode-selection failure onto the wire vocabulary. */
+function modeFailure(sessionId: string, error: unknown): WireError {
+  if (error instanceof UnknownTeamError) {
+    return {
+      code: 'team-preset-not-found',
+      message: error.message,
+      details: { team: error.teamId, available: [...error.available] },
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  // A started session cannot change surface — the same blank-window lock the
+  // agent preset carries.
+  if (message.includes('has already started')) {
+    return {
+      code: 'team-mode-locked',
+      message,
+      details: { sessionId },
+    }
+  }
+  return { code: 'internal', message: `session "${sessionId}": ${message}`, details: { sessionId } }
 }

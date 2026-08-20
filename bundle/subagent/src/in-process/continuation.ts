@@ -21,6 +21,9 @@
  *     `subagent` id survives a cold resume (the official `foldSubagentDescriptor`
  *     would reject it as an unknown field);
  *   - `ContinuationHost` is exported so `./service.ts` can build the host.
+ *   - settlement after a wake-up report is skipped entirely (see
+ *     `deliverReport`'s `reportedWaking`), so a persistent role that reports
+ *     then settles notifies the parent exactly once.
  * When the official continuation manager changes upstream, re-sync this file.
  *
  * A continuable child has one durable Session and at most one process-local
@@ -59,7 +62,6 @@ import {
   appendDelegatedPolicyOverrides,
   captureDelegatedPolicyOverrides,
   childSessionMeta,
-  resolveChildAgentOptions,
   resolveChildDepth,
 } from '@deepseek-ai/dsh-subagent'
 import type { DelegatedPolicyOverrides } from '@deepseek-ai/dsh-subagent'
@@ -68,7 +70,7 @@ import {
   snapshotHarnessSubagentDescriptor,
 } from './descriptor.ts'
 import type { HarnessContinuableSubagentDescriptorData, HarnessSubagentDescriptorData } from './descriptor.ts'
-import { setupChildComposition } from './engine.ts'
+import { awaitTeamRoster, harnessChildAgentOptions, resolveParentEffectiveModel, setupChildComposition, waitForTeamCatalogue } from './engine.ts'
 // Official seam pieces, imported from the official package (never copied) per
 // the harness policy; the official package is restored upstream in task 3, and
 // these pieces are unchanged by that restore.
@@ -270,6 +272,18 @@ interface Activation {
    * not exist, so its teardown owes the parent no settlement account.
    */
   announced: boolean
+  /**
+   * Whether this epoch already woke the parent with an explicit report
+   * (`delivery: 'wakeup'`). A wake-up report is the child's self-chosen final
+   * result, so the settlement's finished-notice is redundant and is skipped
+   * entirely in `notifySettlement` — delivering it a second time, whether as a
+   * fresh wake-up or an inject into a busy parent's current turn, would make
+   * the parent answer a second time. A `quiet` report does NOT set this: it
+   * never woke the parent, so the settlement must still wake it once. This is a
+   * harness deviation from the official manager, which always delivers the
+   * settlement regardless of any prior report.
+   */
+  reportedWaking: boolean
   /** Renewed whenever a settlement watcher must re-observe quiescence. */
   poke: PromiseWithResolvers<void>
 }
@@ -291,7 +305,12 @@ interface MaterializeInputs {
     delegatedPolicies: DelegatedPolicyOverrides
   }
   agentOptions: AgentOptions
-  composition: { persona?: string | undefined; toolFilter?: ToolRestriction | undefined; subagent?: string | undefined }
+  composition: {
+    persona?: string | undefined
+    toolFilter?: ToolRestriction | undefined
+    subagent?: string | undefined
+    teamDelegation?: { team: string; provider: string; toolName: string } | undefined
+  }
   signal: AbortSignal
 }
 
@@ -464,8 +483,12 @@ export class SubagentContinuationManager {
     const childDepth = resolveChildDepth(parent, request.maxDepth)
     // Snapshot before any await: invalid descriptor JSON rejects the call
     // before a child exists, and the detached value is what reaches the log.
-    const agentProvider = request.agentOptions?.provider ?? parent.options.provider
-    const agentModel = request.agentOptions?.model ?? parent.options.model
+    // The inherited route is the parent's EFFECTIVE model (its last request
+    // header), not its preset default — a cold resume rebuilds agentOptions
+    // from these fields, so recording the live route keeps resume consistent.
+    const parentEffective = resolveParentEffectiveModel(parent)
+    const agentProvider = request.agentOptions?.provider ?? parentEffective.provider
+    const agentModel = request.agentOptions?.model ?? parentEffective.model
     const descriptor = snapshotHarnessSubagentDescriptor({
       mode: 'continuable',
       provider: spec.provider,
@@ -498,8 +521,13 @@ export class SubagentContinuationManager {
         provider: spec.provider,
         parent,
         create: { seed, meta: childSessionMeta(parent, childDepth, lineageSeedLength), delegatedPolicies },
-        agentOptions: resolveChildAgentOptions(parent, request.agentOptions, childDepth),
-        composition: { persona: request.persona, toolFilter: request.toolFilter, subagent: request.subagent },
+        agentOptions: harnessChildAgentOptions(parent, request.agentOptions, childDepth),
+        composition: {
+          persona: request.persona,
+          toolFilter: request.toolFilter,
+          subagent: request.subagent,
+          teamDelegation: request.teamDelegation,
+        },
         signal: spec.signal,
       })
       return this.submitMaterialized(
@@ -703,6 +731,10 @@ export class SubagentContinuationManager {
     })
     if (delivery === 'wakeup') {
       this.sendWaking(parent, message, () => { this.sendReport(parent, message, delivery) })
+      // A wake-up report is the child's self-chosen final result. When the
+      // child then settles, the settlement's finished-notice is redundant, so
+      // this epoch is marked and `notifySettlement` skips it.
+      activation.reportedWaking = true
     } else {
       this.sendReport(parent, message, delivery)
     }
@@ -967,6 +999,17 @@ export class SubagentContinuationManager {
         'NOT_RESUMABLE',
       )
     }
+    // A team-role child's cold resume re-applies the team tool onto a fresh
+    // scope whose roster closure starts empty; if the `teams` service is not
+    // yet composed, the apply's `refreshRoleCatalogue` returns early and only
+    // the `internal/service` listener would refill it — after the first request
+    // has already rendered, so the authority table toggles in and breaks the
+    // request prefix cache. Wait for `teams` (bounded, fail-soft) before
+    // resolving the composition / materializing, so the resumed child's first
+    // request renders the warm roster. Non-team children skip the wait.
+    if (descriptor.team !== undefined) {
+      await waitForTeamCatalogue(this.ctx, options.signal)
+    }
     let activation: Activation
     try {
       activation = await this.materialize({
@@ -1006,7 +1049,7 @@ export class SubagentContinuationManager {
    */
   private async resolveResumeComposition(
     descriptor: HarnessContinuableSubagentDescriptorData,
-  ): Promise<{ persona?: string | undefined; toolFilter?: ToolRestriction | undefined; subagent?: string | undefined }> {
+  ): Promise<{ persona?: string | undefined; toolFilter?: ToolRestriction | undefined; subagent?: string | undefined; teamDelegation?: { team: string; provider: string; toolName: string } | undefined }> {
     const base = {
       persona: descriptor.persona,
       toolFilter: descriptor.toolFilter,
@@ -1019,11 +1062,19 @@ export class SubagentContinuationManager {
     if (teams === undefined) return base
     try {
       const role = await teams.resolveRoleDefinition(descriptor.team, descriptor.role)
+      // Issuance gate on the cold path (rule 2): a level >= 2 role re-grants the
+      // `team_delegate` tool on resume; a level-1 role (now or after an edit)
+      // never does. The grant is re-derived from the CURRENT role definition, so
+      // a role edited across a resume gets the right tool either way.
+      const teamDelegation = role.level >= 2
+        ? { team: descriptor.team, provider: descriptor.provider, toolName: 'team_delegate' }
+        : undefined
       return {
         ...base.toolFilter !== undefined ? { toolFilter: base.toolFilter } : {},
         // The team's latest definition wins when it carries a subagent.
         ...role.subagent !== '' ? { subagent: role.subagent } : base.subagent !== undefined ? { subagent: base.subagent } : {},
         ...role.prompt !== undefined ? { persona: role.prompt } : base.persona !== undefined ? { persona: base.persona } : {},
+        ...teamDelegation !== undefined ? { teamDelegation } : {},
       }
     } catch {
       return base
@@ -1136,6 +1187,16 @@ export class SubagentContinuationManager {
         setup,
       })
 
+    // A team-role child's fresh scope fills its roster catalogue asynchronously
+    // during setup (the tool apply's `refreshRoleCatalogue` → `teams.list()`).
+    // Settle that fill before the first request so the authority table renders
+    // warm — otherwise it toggles in between the first and second request and
+    // the ~292-byte delta breaks the request prefix cache across a cold resume.
+    // Non-team children skip this. Fail-soft: absent/errored `teams` proceeds.
+    if (inputs.composition.teamDelegation !== undefined) {
+      await awaitTeamRoster(this.ownerCtx, inputs.signal)
+    }
+
     const activation: Activation = {
       childId,
       // The durable lineage, not merely the caller: creation stamps this same
@@ -1150,6 +1211,7 @@ export class SubagentContinuationManager {
       disposal: undefined,
       accepted: new Set(),
       announced: false,
+      reportedWaking: false,
       poke: Promise.withResolvers<void>(),
     }
     // After transfer, any failure must dispose the created handle, remove the
@@ -1544,6 +1606,16 @@ export class SubagentContinuationManager {
         parent.inject(message)
         return
       }
+      // A parent already woken by this child's own wake-up report has processed
+      // the report in its own turn and answered the user once. The report's
+      // contract ("call once before you finish, with a self-contained final
+      // result") makes the settlement's finished-notice redundant, so it is
+      // skipped entirely rather than delivered — a second delivery, whether it
+      // wakes the parent or is injected into a busy parent's current turn, would
+      // make the parent answer a second time. Harness deviation: the official
+      // manager always delivers the settlement here, regardless of a prior
+      // report (see `deliverReport`'s `reportedWaking`).
+      if (activation.reportedWaking) return
       // An idle parent has nothing else to look at, so it gets one ordinary
       // turn. A busy parent is steered instead of woken: `Inbox.claim()` takes
       // the whole next-step batch at one boundary, so several children settling

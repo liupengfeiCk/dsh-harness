@@ -10,6 +10,14 @@
  * `mountPreset` mounts it onto the child. The subagent never enters the
  * agent-preset list.
  *
+ * When the subagent binds a model-plan (its metadata `model` is a plan id),
+ * the child session is pointed at that plan so the model-plan merge
+ * interceptor (registered on every `agent/request`) routes the child's
+ * requests to the plan's provider/model/params. The binding is a log-only
+ * `model-plan/select` event marked `ignorable: true` — the same escape hatch
+ * the model-plan bundle's own select path uses — so a reader without the
+ * feature replays the child on the official route.
+ *
  * The tree is owned by the child's scope, so it unwinds with the child and
  * never touches how a session's agent joins its preset.
  * @module dsh-harness-subagent-bundle/preset/mount

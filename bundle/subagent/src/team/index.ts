@@ -29,6 +29,11 @@ import {
   UnknownTeamError, UnknownTeamRoleError,
   type Config, type Team, type TeamRole, type TeamRoot,
 } from './types.ts'
+import { applyModeRestrictions, currentTeamMode, modeLocked, type TeamMode, type TeamModeState } from './mode.ts'
+// Type-only: `ctx.agents` for applying a session's mode restriction and
+// appending the durable mode event to the live session.
+import type {} from '@deepseek-ai/dsh-agent'
+import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 
 export { TEAM_FILE } from './metadata.ts'
 export { discoverTeams, scanRoot, USER_TEAM_DIR } from './discovery.ts'
@@ -37,11 +42,24 @@ export {
   createTeam, deleteTeam, setTeamEnabled, updateTeam, writableRoot,
 } from './authoring.ts'
 export { TEAM_ID, UnknownTeamError, UnknownTeamRoleError } from './types.ts'
+export {
+  STANDARD_TOOLS, TEAM_TOOL, applyModeRestrictions, currentTeamMode, modeLocked,
+} from './mode.ts'
+export type { TeamMode, TeamModeState } from './mode.ts'
 export type { Config, Team, TeamRole, TeamRoot, TeamTrust, TeamRoleMemory } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
     teams: Teams
+  }
+
+  interface Events {
+    /**
+     * A session's delegation surface was selected or changed. Carries only the
+     * stable folded identity (session id + mode state), never the live Session
+     * — the same notification shape as `agent-preset/selected`.
+     */
+    'subagent-team/mode-selected'(sessionId: string, state: TeamModeState): void
   }
 }
 
@@ -64,11 +82,31 @@ export class Teams extends Service {
   /** The roots discovery actually scans: configured roots, then the harness-home user root. */
   private readonly resolvedRoots: readonly TeamRoot[]
 
+  /**
+   * Live tool-visibility disposers applied for each session's mode, keyed by
+   * session id. A re-selection (standard ⇄ team) releases the previous
+   * restriction before applying the next; entries die with their session.
+   */
+  private readonly modeRestrictions = new Map<string, Array<() => void>>()
+
+  /** Teams whose config-hygiene warning has already been logged, per id. */
+  private readonly warnedHygiene = new Set<string>()
+
   constructor(ctx: Context, public config: Config) {
     super(ctx, 'teams')
     this.resolvedRoots = config.includeUserRoot
       ? [...config.roots, { path: dshHomePath(USER_TEAM_DIR), trust: 'user' }]
       : [...config.roots]
+    // The mode's durable record predates the agent: a blank session may carry
+    // a `subagent-team/mode` event before its agent exists (the pick happens
+    // on the new-conversation screen). When the agent is created, fold that
+    // record and apply its tool restriction — the same window the agent
+    // preset composes in.
+    ctx.on('agent/created', (payload) => {
+      const state = currentTeamMode(payload.agent.session.events)
+      const disposers = applyModeRestrictions(ctx, payload.agent, state)
+      if (disposers.length > 0) this.modeRestrictions.set(payload.agent.session.id, disposers)
+    })
   }
 
   /**
@@ -76,7 +114,19 @@ export class Teams extends Service {
    * @returns the teams, first-root-wins per id.
    */
   async list(): Promise<Team[]> {
-    return await discoverTeams(this.resolvedRoots)
+    const teams = await discoverTeams(this.resolvedRoots)
+    // Config-hygiene advisory (rule 7): a one-shot role at level >= 2 cannot be
+    // delegated to again after one task. Logged once per team, not on every
+    // discovery, so it is verifiable without spamming.
+    for (const team of teams) {
+      if (this.warnedHygiene.has(team.id)) continue
+      const warning = this.hygieneWarning(team)
+      if (warning !== undefined) {
+        this.warnedHygiene.add(team.id)
+        this.ctx.logger.warn(warning)
+      }
+    }
+    return teams
   }
 
   /**
@@ -167,6 +217,26 @@ export class Teams extends Service {
   }
 
   /**
+   * A config-hygiene advisory for one team, or undefined when it is clean.
+   *
+   * Rule 7: a role that is BOTH `one-shot` AND at level >= 2 dissolves after a
+   * single completed task, so it can never be delegated to again — defeating
+   * the point of a delegating role. This is a WARNING, not a refusal: the role
+   * stays usable for a single hop. The advisory is surfaced on the team-detail
+   * wire (so the UI can read it) and logged when the team is discovered.
+   * @param team - the resolved team to inspect.
+   * @returns a human-readable advisory, or undefined when the team is clean.
+   */
+  hygieneWarning(team: Team): string | undefined {
+    if (team.broken !== undefined) return undefined
+    const offenders = team.roles.filter(role => role.broken === undefined && role.memory === 'one-shot' && role.level >= 2)
+    if (offenders.length === 0) return undefined
+    return `team "${team.id}" has one-shot role(s) at level >= 2: [${offenders.map(role => role.id).join(', ')}]. `
+      + 'Such roles dissolve after one completed task, so they cannot be delegated to again — '
+      + 'consider persistent memory so the hierarchy stays usable.'
+  }
+
+  /**
    * The roots this roster scans, which is not `config.roots`: it is every
    * configured root in order, then the harness-home user root unless
    * `includeUserRoot` is false.
@@ -231,6 +301,112 @@ export class Teams extends Service {
    */
   async setEnabled(id: string, enabled: boolean): Promise<void> {
     await setTeamEnabled(this.resolvedRoots, await this.resolve(id), enabled)
+  }
+
+  /**
+   * The session's current delegation surface, folded from its durable log.
+   * @param sessionId - the session to read.
+   * @returns the folded mode state.
+   * @throws when the session has no live agent (the fold needs its event log).
+   */
+  readMode(sessionId: SessionId): TeamModeState {
+    // Read the SESSION, not the agent: the mode record lives in the session's
+    // durable log, and a blank session (the pick happens before the first
+    // message) has no live agent yet. `ctx.get` — dynamic lookup, not a
+    // property read: this service activates inside hot-mounted Include
+    // subtrees where an inject declaration chain is absent, and cordis
+    // refuses bare property access there.
+    const session = this.ctx.get('sessions')?.get(sessionId)
+    if (session === undefined) {
+      throw new Error(`team-presets: no live session "${sessionId}"; cannot read its delegation mode`)
+    }
+    return currentTeamMode(session.events)
+  }
+
+  /**
+   * Select one session's delegation surface.
+   *
+   * Allowed only while the session is blank — no turn has run — because the
+   * tools the model saw were produced under the previous surface and swapping
+   * them would strand logged tool calls; the attempt throws the same
+   * blank-window refusal the agent preset carries. Selecting `team` requires
+   * the named team to exist and be usable (the delegation target must be real
+   * for the surface to be meaningful).
+   *
+   * The durable record is a log-only `subagent-team/mode` event (never in the
+   * model transcript); the tool visibility is derived from it by restricting
+   * the opposite surface's tools on the agent's scope, and the change is
+   * broadcast as `subagent-team/mode-selected`.
+   * @param sessionId - the session to switch.
+   * @param mode - the surface to select.
+   * @param team - the team id to delegate to, required when `mode` is `team`.
+   * @throws when the session has no live agent, has already started, or names
+   * an unknown team.
+   */
+  async selectMode(sessionId: SessionId, mode: TeamMode, team?: string): Promise<void> {
+    // The session, not the agent: the pick lands on the new-conversation
+    // screen where the session exists but its agent does not — exactly like
+    // the official agent-preset select, which composes when the agent is
+    // created. The restriction is applied immediately only when the agent is
+    // already live (a reopened blank session); otherwise the `agent/created`
+    // hook in the constructor applies it from the folded record.
+    const session = this.ctx.get('sessions')?.get(sessionId)
+    if (session === undefined) {
+      throw new Error(`team-presets: no live session "${sessionId}"; cannot change its delegation mode`)
+    }
+    if (modeLocked(session.events)) {
+      throw new Error(`team-presets: session "${sessionId}" has already started; its delegation mode is fixed`)
+    }
+    if (mode === 'team') {
+      if (team === undefined) {
+        throw new Error('team-presets: selecting the team mode requires a team id')
+      }
+      await this.resolve(team)
+    }
+    // Release the previous surface's restriction before applying the next.
+    const previous = this.modeRestrictions.get(sessionId)
+    if (previous !== undefined) {
+      for (const dispose of previous) dispose()
+      this.modeRestrictions.delete(sessionId)
+    }
+    // The durable record is the commit point; the log states what the agent
+    // runs, and the restriction follows it.
+    //
+    // `subagent-team/mode` is a Harness-only event type that no first-party
+    // reader knows, so it must be marked `ignorable: true`: the official
+    // `coordinator.load` rejects any log carrying an unknown event type that is
+    // NOT marked ignorable (see `assertEventsSupported`), which would refuse a
+    // reopened team-mode session. The flag declares that skipping this event
+    // changes nothing about the interpretation of every other event — a reader
+    // without this bundle simply replays the session in its default (standard)
+    // mode. The event is still preserved through a first-party load and the
+    // `currentTeamMode` fold reads it unchanged.
+    //
+    // UPSTREAM-SYNC NOTE (type escape hatch): this harness depends on the npm
+    // published `@deepseek-ai/dsh-session@0.1.0-rc.7`, whose `Session.append`
+    // signature predates the upstream ignorable surface — the official
+    // session-log-version-mechanism note reserves that surface for its first
+    // writer ("`Session.append` gains that surface with its first user"), which
+    // is this bundle. We cannot repoint the harness dependency at the in-repo
+    // package (its `workspace:^` peer graph does not cross the harness
+    // workspace root), so we escape the stale npm types here (compile-time
+    // only): a bundle never constructs a Session, it calls the host instance's
+    // append, and the host is the official CLI running the rebuilt in-repo
+    // session package whose append DOES consume the trailing `ignorable` flag.
+    // So this bound append is asserted to accept it; at runtime the third
+    // argument lands as `ignorable: true` on the event.
+    type AppendWithIgnorable = (type: string, data: Record<string, unknown>, ignorable?: true) => SessionEvent
+    const appendIgnorable = session.append.bind(session) as unknown as AppendWithIgnorable
+    appendIgnorable('subagent-team/mode', mode === 'team'
+      ? { mode, team: team as string }
+      : { mode }, true)
+    const state = currentTeamMode(session.events)
+    const agent = this.ctx.get('agents')?.get(sessionId)
+    if (agent !== undefined) {
+      const disposers = applyModeRestrictions(this.ctx, agent, state)
+      if (disposers.length > 0) this.modeRestrictions.set(sessionId, disposers)
+    }
+    this.ctx.emit('subagent-team/mode-selected', sessionId, state)
   }
 }
 

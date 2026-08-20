@@ -38,6 +38,11 @@ export const en = {
     roleMemoryLabel: 'Memory',
     memoryOneShot: 'One-shot',
     memoryPersistent: 'Persistent',
+    roleLevelLabel: 'Level',
+    roleLevelLabelShort: 'Level',
+    roleLevelPlaceholder: '1',
+    roleLevelHint: 'Level 1 can only be delegated to. Level 2 and above may delegate to lower-level roles on this team.',
+    hygieneWarningLabel: 'Heads-up:',
     rolePromptLabel: 'Prompt',
     rolePromptPlaceholder: 'Who this role is and how it works (multiline)',
     addRole: 'Add role',
@@ -71,6 +76,10 @@ export const en = {
     roleIdRequired: 'Give every role an identifier.',
     roleSubagentRequired: 'Bind every role to a subagent.',
     noDescription: 'No description.',
+    standard: 'Standard',
+    teamPrefix: 'Team: ',
+    modeHint: 'Delegation surface',
+    modeLocked: 'The conversation has started; the delegation surface can no longer be changed.',
 };
 /** Simplified Chinese copy. */
 export const zh = {
@@ -108,6 +117,11 @@ export const zh = {
     roleMemoryLabel: '记忆模式',
     memoryOneShot: '一次性',
     memoryPersistent: '长期',
+    roleLevelLabel: '级别',
+    roleLevelLabelShort: '级别',
+    roleLevelPlaceholder: '1',
+    roleLevelHint: '级别 1 只能被委派。级别 ≥2 可以委派本团队中级别更低的角色。',
+    hygieneWarningLabel: '提示：',
     rolePromptLabel: '提示词',
     rolePromptPlaceholder: '这个角色是谁、该怎么干活（多行）',
     addRole: '添加角色',
@@ -141,5 +155,9 @@ export const zh = {
     roleIdRequired: '请为每个角色填写标识符。',
     roleSubagentRequired: '请为每个角色绑定一个子代理。',
     noDescription: '暂无描述。',
+    standard: '标准',
+    teamPrefix: '团队：',
+    modeHint: '委派方式',
+    modeLocked: '对话已开始，委派方式无法再更改。',
 };
 //# sourceMappingURL=locales.js.map

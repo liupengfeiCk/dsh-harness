@@ -16,17 +16,24 @@
 import { z } from 'zod';
 /** A role's memory policy on the wire, mirroring `TeamRoleMemory`. */
 export const wireRoleMemorySchema = z.union([z.literal('one-shot'), z.literal('persistent')]);
+/**
+ * A role's hierarchy level on the wire: a positive integer, default 1. Level 1
+ * can only be delegated to; level >= 2 may delegate to lower levels.
+ */
+export const wireRoleLevelSchema = z.number().int().min(1);
 /** One role of a team, as carried on read (full) and update/create (staged). */
 export const wireRoleSchema = z.object({
     id: z.string().min(1),
     description: z.string().optional(),
     prompt: z.string().optional(),
     subagent: z.string().min(1),
+    level: wireRoleLevelSchema,
     memory: wireRoleMemorySchema,
 });
 /** A role summary on the roster: enough to render the row and its count. */
 export const wireRoleSummarySchema = z.object({
     id: z.string().min(1),
+    level: wireRoleLevelSchema,
     broken: z.string().optional(),
 });
 /** Display metadata a team may publish (name/description/enabled). */
@@ -50,6 +57,8 @@ export const wireTeamDetailSchema = z.object({
     metadata: wireTeamMetadataSchema,
     roles: z.array(wireRoleSchema),
     broken: z.string().optional(),
+    /** A configuration-hygiene advisory (e.g. one-shot role at level >= 2). */
+    warning: z.string().optional(),
 });
 /** teamPreset.list request payload (no fields). */
 export const wireListRequestSchema = z.object({});
@@ -75,6 +84,9 @@ export const wireStagedRoleSchema = z.object({
     description: z.string().optional(),
     prompt: z.string().optional(),
     subagent: z.string().min(1),
+    // Staged roles carry the level explicitly; an omitted value keeps the
+    // default so older clients remain compatible.
+    level: wireRoleLevelSchema.optional(),
     memory: wireRoleMemorySchema,
 });
 /** teamPreset.create request payload: a new id plus its initial roster. */
@@ -113,6 +125,28 @@ export const wireOpenLocationValueSchema = z.union([
     z.object({ opened: z.literal(true) }),
     z.object({ opened: z.literal(false), path: z.string() }),
 ]);
+/** The session-level delegation surface a session may select. */
+export const wireTeamModeSchema = z.union([z.literal('standard'), z.literal('team')]);
+/** teamPreset.modeSelect request payload: the surface plus an optional team. */
+export const wireModeSelectRequestSchema = z.object({
+    sessionId: z.string().min(1),
+    mode: wireTeamModeSchema,
+    team: z.string().min(1).optional(),
+}).refine(payload => payload.mode !== 'team' || payload.team !== undefined, { message: 'selecting the team mode requires a team id' });
+/** teamPreset.modeSelect response value: the folded state now active. */
+export const wireModeSelectValueSchema = z.object({
+    mode: wireTeamModeSchema,
+    team: z.string().optional(),
+});
+/** teamPreset.modeRead request payload. */
+export const wireModeReadRequestSchema = z.object({
+    sessionId: z.string().min(1),
+});
+/** teamPreset.modeRead response value: the session's current folded state. */
+export const wireModeReadValueSchema = z.object({
+    mode: wireTeamModeSchema,
+    team: z.string().optional(),
+});
 /** The full management surface: endpoint name → request/value schemas. */
 export const wireEndpoints = {
     list: { request: wireListRequestSchema, value: wireListValueSchema },
@@ -121,5 +155,7 @@ export const wireEndpoints = {
     update: { request: wireUpdateRequestSchema, value: wireUpdateValueSchema },
     remove: { request: wireRemoveRequestSchema, value: wireRemoveValueSchema },
     openLocation: { request: wireOpenLocationRequestSchema, value: wireOpenLocationValueSchema },
+    modeSelect: { request: wireModeSelectRequestSchema, value: wireModeSelectValueSchema },
+    modeRead: { request: wireModeReadRequestSchema, value: wireModeReadValueSchema },
 };
 //# sourceMappingURL=schema.js.map

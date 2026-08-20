@@ -22,6 +22,8 @@ export interface WireTeamMetadata {
 /** A role summary on the roster. */
 export interface WireRoleSummary {
     readonly id: string;
+    /** The role's hierarchy level (positive integer, default 1). */
+    readonly level: number;
     readonly broken?: string;
 }
 /** One team roster row. */
@@ -40,6 +42,8 @@ export interface WireRole {
     readonly description?: string;
     readonly prompt?: string;
     readonly subagent: string;
+    /** The role's hierarchy level (positive integer, default 1). */
+    readonly level: number;
     readonly memory: WireRoleMemory;
 }
 /** One fully-read team. */
@@ -49,9 +53,38 @@ export interface WireTeamDetail {
     readonly metadata: WireTeamMetadata;
     readonly roles: readonly WireRole[];
     readonly broken?: string;
+    /** A config-hygiene advisory (e.g. one-shot role at level >= 2). */
+    readonly warning?: string;
+}
+/** The session-level delegation surface a session may select. */
+export type WireTeamMode = 'standard' | 'team';
+/** The session's folded mode state as the wire reports it. */
+export interface WireTeamModeState {
+    readonly mode: WireTeamMode;
+    readonly team?: string;
 }
 /** The browser-side management face over the `/team-preset` channel. */
 export interface TeamPresetWire {
+    /**
+     * Read one session's current delegation surface (`standard` or a team).
+     * @param payload - the session whose mode to read.
+     * @param signal - caller/connection lifetime.
+     */
+    modeRead(payload: {
+        sessionId: string;
+    }, signal?: AbortSignal): Promise<RpcResult<WireTeamModeState>>;
+    /**
+     * Set one session's delegation surface (and its team in team mode). The
+     * host refuses the swap once the session has started, returning
+     * `team-mode-locked`.
+     * @param payload - the session, the target mode, and the team in team mode.
+     * @param signal - caller/connection lifetime.
+     */
+    modeSelect(payload: {
+        sessionId: string;
+        mode: WireTeamMode;
+        team?: string;
+    }, signal?: AbortSignal): Promise<RpcResult<WireTeamModeState>>;
     list(payload: Record<string, never>, signal?: AbortSignal): Promise<RpcResult<{
         teams: readonly WireTeamEntry[];
         authorable: boolean;

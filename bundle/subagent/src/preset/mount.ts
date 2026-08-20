@@ -10,12 +10,22 @@
  * `mountPreset` mounts it onto the child. The subagent never enters the
  * agent-preset list.
  *
+ * When the subagent binds a model-plan (its metadata `model` is a plan id),
+ * the child session is pointed at that plan so the model-plan merge
+ * interceptor (registered on every `agent/request`) routes the child's
+ * requests to the plan's provider/model/params. The binding is a log-only
+ * `model-plan/select` event marked `ignorable: true` — the same escape hatch
+ * the model-plan bundle's own select path uses — so a reader without the
+ * feature replays the child on the official route.
+ *
  * The tree is owned by the child's scope, so it unwinds with the child and
  * never touches how a session's agent joins its preset.
  * @module dsh-harness-subagent-bundle/preset/mount
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import { mountPreset } from '@deepseek-ai/dsh-agent-presets'
 import type { SubagentPreset } from './types.ts'
 
@@ -40,4 +50,38 @@ export async function mountSubagentOnChild(childCtx: Context, subagent: Subagent
     trust: 'user',
     path: subagent.path,
   })
+  // A subagent bound to a model-plan points the child session at that plan so
+  // the model-plan merge interceptor routes the child's requests. The append
+  // is guarded on the child agent's live session being present (a pure
+  // `childCtx` in unit tests has none) and on the subagent actually carrying a
+  // plan id — an unbound subagent stays on the existing inheritance path.
+  const planId = subagent.metadata.model
+  const childAgent = (childCtx as { agent?: unknown }).agent as Agent | undefined
+  if (planId !== undefined && childAgent?.session !== undefined) {
+    appendModelPlanSelect(childAgent.session, planId)
+  }
+}
+
+/**
+ * Append a `model-plan/select` event to a child session, marking it ignorable.
+ *
+ * UPSTREAM-SYNC NOTE (type escape hatch): the published
+ * `@deepseek-ai/dsh-session` `Session.append` signature predates the upstream
+ * `ignorable` surface; the harness depends on the npm package, not the in-repo
+ * session package whose append DOES consume the trailing flag. A bundle never
+ * constructs a Session — it calls the host instance's append, and the host is
+ * the official CLI running the rebuilt in-repo session package. So this bound
+ * append is asserted to accept it (the same `AppendWithIgnorable` escape the
+ * subagent team bundle and the model-plan bundle's own `ModelPlans.select`
+ * use); at runtime the third argument lands as `ignorable: true` on the event.
+ * @param session - the child's live session.
+ * @param planId - the plan id the subagent binds.
+ */
+function appendModelPlanSelect(session: Session, planId: string): void {
+  // The escape is compile-time only, exactly as in team/index.ts: the trailing
+  // `true` is a genuinely optional third argument on the real (rebuilt) host
+  // session, so no runtime value is fabricated or dropped.
+  type AppendWithIgnorable = (type: string, data: Record<string, unknown>, ignorable?: true) => SessionEvent
+  const appendIgnorable = session.append.bind(session) as unknown as AppendWithIgnorable
+  appendIgnorable('model-plan/select', { planId }, true)
 }

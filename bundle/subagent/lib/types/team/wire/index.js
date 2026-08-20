@@ -20,7 +20,7 @@
  */
 import { dirname } from 'node:path';
 import { InvalidTeamIdError, TeamExistsError, TeamNotWritableError, TeamRoleInvalidError, } from "../index.js";
-import { UnknownTeamError } from "../types.js";
+import { ROLE_LEVEL_DEFAULT, UnknownTeamError } from "../types.js";
 import { canOpenDirectory, openDirectory } from "../../preset/wire/opener.js";
 import { wireEndpoints } from "./schema.js";
 /** Absolute logical channel owning the team-management endpoints. */
@@ -52,6 +52,10 @@ export async function dispatchTeamPreset(teams, subagents, endpoint, payload, si
                 return await remove(teams, parse(wireEndpoints.remove.request, payload));
             case 'openLocation':
                 return await openLocation(teams, parse(wireEndpoints.openLocation.request, payload), signal);
+            case 'modeSelect':
+                return await modeSelect(teams, parse(wireEndpoints.modeSelect.request, payload));
+            case 'modeRead':
+                return await modeRead(teams, parse(wireEndpoints.modeRead.request, payload));
             default:
                 return fail(badEndpointError(endpoint));
         }
@@ -104,6 +108,7 @@ async function list(teams, subagents) {
             metadata: team.metadata,
             roles: team.roles.map(role => ({
                 id: role.id,
+                level: role.level,
                 ...role.broken === undefined ? {} : { broken: role.broken },
             })),
             ...team.broken === undefined ? {} : { broken: team.broken },
@@ -131,9 +136,13 @@ async function read(teams, request) {
                     ...role.description === undefined ? {} : { description: role.description },
                     ...role.prompt === undefined ? {} : { prompt: role.prompt },
                     subagent: role.subagent,
+                    level: role.level,
                     memory: role.memory,
                 })),
                 ...team.broken === undefined ? {} : { broken: team.broken },
+                // The config-hygiene advisory surfaces on the team detail so the UI
+                // can read it, not just the host log.
+                ...teams.hygieneWarning(team) === undefined ? {} : { warning: teams.hygieneWarning(team) },
             },
         });
     }
@@ -227,6 +236,33 @@ async function openLocation(teams, request, signal) {
         });
     }
 }
+async function modeSelect(teams, request) {
+    if (teams === undefined)
+        return fail(noRoster(''));
+    try {
+        await teams.selectMode(request.sessionId, request.mode, request.team);
+        const state = await teams.readMode(request.sessionId);
+        return ok({
+            ...state.mode === 'team' && state.team !== undefined ? { mode: state.mode, team: state.team } : { mode: state.mode },
+        });
+    }
+    catch (error) {
+        return fail(modeFailure(request.sessionId, error));
+    }
+}
+async function modeRead(teams, request) {
+    if (teams === undefined)
+        return fail(noRoster(request.sessionId));
+    try {
+        const state = await teams.readMode(request.sessionId);
+        return ok({
+            ...state.mode === 'team' && state.team !== undefined ? { mode: state.mode, team: state.team } : { mode: state.mode },
+        });
+    }
+    catch (error) {
+        return fail(modeFailure(request.sessionId, error));
+    }
+}
 /** Map one staged role onto the registry's `TeamRole` vocabulary. */
 function stagedRole(role) {
     return {
@@ -234,6 +270,10 @@ function stagedRole(role) {
         ...role.description === undefined ? {} : { description: role.description },
         ...role.prompt === undefined ? {} : { prompt: role.prompt },
         subagent: role.subagent,
+        // A staged role without an explicit level falls back to the default; the
+        // registry refuses levels below 1 (redundant with the schema but kept so
+        // the guard survives even a non-schema caller).
+        level: role.level === undefined ? ROLE_LEVEL_DEFAULT : role.level,
         memory: role.memory,
     };
 }
@@ -314,5 +354,26 @@ function teamFailure(team, error) {
         };
     }
     return { code: 'internal', message: `team "${team}": ${String(error)}`, details: {} };
+}
+/** Map one mode-selection failure onto the wire vocabulary. */
+function modeFailure(sessionId, error) {
+    if (error instanceof UnknownTeamError) {
+        return {
+            code: 'team-preset-not-found',
+            message: error.message,
+            details: { team: error.teamId, available: [...error.available] },
+        };
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    // A started session cannot change surface — the same blank-window lock the
+    // agent preset carries.
+    if (message.includes('has already started')) {
+        return {
+            code: 'team-mode-locked',
+            message,
+            details: { sessionId },
+        };
+    }
+    return { code: 'internal', message: `session "${sessionId}": ${message}`, details: { sessionId } };
 }
 //# sourceMappingURL=index.js.map

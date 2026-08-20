@@ -21,7 +21,19 @@ window.__ModuleLoader__.load({
 		*/
 		/** Ids a subagent directory may be named, mirroring the host's own rule. */
 		const SUBAGENT_ID = /^[a-z0-9][a-z0-9-]*$/;
-		const INITIAL$1 = {
+		/**
+		* Extract the plan roster from the model-plan wire's `list` result. A failure
+		* or a non-conforming result yields an empty list — the edit dialog then offers
+		* only "inherit the parent" and stays usable, exactly as an empty deployment
+		* would. This is a defensive read of the RPC seam: subagents depend on the
+		* model-plan bundle at runtime only through this channel, never by type.
+		* @param result - the `RpcResult` the `/model-plan` list call resolved to.
+		* @returns the plan roster entries, empty on failure.
+		*/
+		function plansListEntries(result) {
+			return result.ok ? result.value.plans : [];
+		}
+		const INITIAL$2 = {
 			status: "idle",
 			error: null,
 			authorable: false,
@@ -35,7 +47,7 @@ window.__ModuleLoader__.load({
 			revealedPaths: {}
 		};
 		/** The failure message of a rejected wire call. */
-		function messageOf$1(error) {
+		function messageOf$2(error) {
 			return error instanceof Error ? error.message : String(error);
 		}
 		/** Why this create cannot be submitted yet, as a locale key, or undefined. */
@@ -45,47 +57,30 @@ window.__ModuleLoader__.load({
 			if (rows.some((row) => row.id === draft.id)) return "idTaken";
 		}
 		/**
-		* Map the host's model-catalog groups to the edit dialog's grouped choices,
-		* clipping each model to the id/name pair the picker renders. This drops the
-		* catalog's per-model reasoning metadata, which the subagent override does not
-		* carry yet.
-		* @param groups - the `llm.models` provider groups.
-		* @returns the grouped choices, provider-preferred order preserved.
+		* Map the model-plan wire's roster entries to the edit dialog's plan choices.
+		* A plan's picker copy shows its id plus the provider/model route it pins, so
+		* a person can tell similarly-named plans apart. The plan id is the stored
+		* value; the route is display-only.
+		* @param plans - the model-plan roster entries.
+		* @returns the plan choices for the picker, roster order preserved.
 		*/
-		function modelChoicesFrom(groups) {
-			return groups.map((group) => ({
-				provider: group.id,
-				providerName: group.name,
-				models: group.models.map((model) => ({
-					id: model.id,
-					name: model.name
-				}))
+		function planChoicesFrom(plans) {
+			return plans.filter((plan) => plan.broken === void 0).map((plan) => ({
+				id: plan.id,
+				provider: plan.provider,
+				model: plan.model
 			}));
-		}
-		/** The optgroup-encoded option value for one provider/model pick. */
-		function modelOptionValue(pick) {
-			return `${pick.provider}\u0000${pick.model}`;
-		}
-		/** Decode an optgroup-encoded option value back to provider/model. */
-		function modelOptionDecode(value) {
-			if (value === "") return void 0;
-			const separator = value.indexOf("\0");
-			if (separator === -1) return void 0;
-			const provider = value.slice(0, separator);
-			const model = value.slice(separator + 1);
-			return provider === "" || model === "" ? void 0 : {
-				provider,
-				model
-			};
 		}
 		/** Reads the roster and drives the create, edit, toggle, delete, and location reveals. */
 		var SubagentSectionController = class {
 			api;
+			plans;
 			rosterChanged;
 			/** Page snapshot the renderer subscribes to. */
-			store = (0, _deepseek_ai_dsh_client_runtime_client.createSnapshotStore)(INITIAL$1);
-			constructor(api, rosterChanged = () => {}) {
+			store = (0, _deepseek_ai_dsh_client_runtime_client.createSnapshotStore)(INITIAL$2);
+			constructor(api, plans, rosterChanged = () => {}) {
 				this.api = api;
+				this.plans = plans;
 				this.rosterChanged = rosterChanged;
 			}
 			set(patch) {
@@ -131,7 +126,7 @@ window.__ModuleLoader__.load({
 				} catch (error) {
 					this.set({
 						status: "error",
-						error: messageOf$1(error)
+						error: messageOf$2(error)
 					});
 					return;
 				}
@@ -211,7 +206,7 @@ window.__ModuleLoader__.load({
 				} catch (error) {
 					this.patchCreate({
 						saving: false,
-						error: messageOf$1(error)
+						error: messageOf$2(error)
 					});
 				}
 			}
@@ -230,7 +225,7 @@ window.__ModuleLoader__.load({
 						[id]: path
 					} });
 				} catch (error) {
-					this.set({ error: messageOf$1(error) });
+					this.set({ error: messageOf$2(error) });
 				}
 			}
 			/**
@@ -254,7 +249,7 @@ window.__ModuleLoader__.load({
 					await this.load();
 					this.rosterChanged();
 				} catch (error) {
-					this.set({ error: messageOf$1(error) });
+					this.set({ error: messageOf$2(error) });
 				}
 			}
 			/** Open the read-only viewer over one subagent's composition. */
@@ -276,7 +271,7 @@ window.__ModuleLoader__.load({
 						content: result.value.content
 					} });
 				} catch (error) {
-					this.set({ error: messageOf$1(error) });
+					this.set({ error: messageOf$2(error) });
 				}
 			}
 			/** Close the read-only viewer. */
@@ -291,13 +286,13 @@ window.__ModuleLoader__.load({
 					edit: null
 				});
 				try {
-					const [editableResult, modelsResponse] = await Promise.all([this.api.subagentPresets.readEditable({ subagent: id }), this.api.llm.models({})]);
+					const [editableResult, plansResult] = await Promise.all([this.api.subagentPresets.readEditable({ subagent: id }), this.plans.list({})]);
 					if (!editableResult.ok) {
 						this.set({ error: editableResult.error.message });
 						return;
 					}
 					const value = editableResult.value;
-					const groups = modelsResponse.result.ok ? modelChoicesFrom(modelsResponse.result.value.groups) : [];
+					const plans = planChoicesFrom(plansListEntries(plansResult));
 					this.set({ edit: {
 						id,
 						title: row?.id ?? id,
@@ -310,14 +305,14 @@ window.__ModuleLoader__.load({
 						...value.persona === void 0 ? {} : { persona: value.persona.text },
 						tools: value.tools.map(toolToDraft),
 						catalog: value.catalog.map(catalogToDraft),
-						modelChoices: groups,
+						planChoices: plans,
 						installTools: /* @__PURE__ */ new Set(),
 						removeTools: /* @__PURE__ */ new Set(),
 						saving: false,
 						error: null
 					} });
 				} catch (error) {
-					this.set({ error: messageOf$1(error) });
+					this.set({ error: messageOf$2(error) });
 				}
 			}
 			/** Close the edit dialog, discarding whatever was typed. */
@@ -364,11 +359,11 @@ window.__ModuleLoader__.load({
 					return;
 				}
 				if (scope === "model") {
-					const decoded = modelOptionDecode(String(value));
+					const planId = typeof value === "string" ? value.trim() : "";
 					this.patchEdit({
 						metadata: {
 							...edit.metadata,
-							...decoded === void 0 ? {} : { model: decoded }
+							...planId === "" ? {} : { model: planId }
 						},
 						error: null
 					});
@@ -444,7 +439,7 @@ window.__ModuleLoader__.load({
 				} catch (error) {
 					this.patchEdit({
 						saving: false,
-						error: messageOf$1(error)
+						error: messageOf$2(error)
 					});
 				}
 			}
@@ -481,7 +476,7 @@ window.__ModuleLoader__.load({
 					this.set({
 						deleting: false,
 						pendingDelete: null,
-						error: messageOf$1(error)
+						error: messageOf$2(error)
 					});
 				}
 			}
@@ -514,63 +509,63 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:bundle/subagent/src/ui/SubagentPresetSection.module.css.mjs
-		const css$1 = "._52rPSG_section{max-width:720px;color:var(--dsw-alias-label-primary);flex-direction:column;gap:12px;display:flex}._52rPSG_title{margin:0;font-size:18px;font-weight:600}._52rPSG_intro{color:var(--dsw-alias-label-tertiary);margin:0;font-size:13px}._52rPSG_cards{flex-direction:column;gap:10px;margin:0;padding:0;list-style:none;display:flex}._52rPSG_card{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);border-radius:12px;flex-direction:column;transition:border-color .16s,background .16s;display:flex}._52rPSG_card:hover{border-color:var(--dsw-alias-label-dimmed)}._52rPSG_cardBroken,._52rPSG_cardBroken:hover{border-color:var(--dsw-alias-state-error-primary)}._52rPSG_cardHead{flex-wrap:wrap;align-items:center;gap:8px;padding:12px 16px 0;display:flex}._52rPSG_cardName{font-size:15px;font-weight:600;line-height:1.4}._52rPSG_badge,._52rPSG_brokenBadge{white-space:nowrap;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;line-height:17px}._52rPSG_badge{border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary)}._52rPSG_brokenBadge{background:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-bg-layer-3)}._52rPSG_headSpacer{margin-left:auto}._52rPSG_toggle{appearance:none;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);cursor:pointer;border-radius:999px;flex:none;width:34px;height:20px;transition:background .16s,border-color .16s;position:relative}._52rPSG_toggle:after{content:\"\";background:var(--dsw-alias-label-dimmed);border-radius:50%;width:14px;height:14px;transition:transform .16s,background .16s;position:absolute;top:2px;left:2px}._52rPSG_toggle:checked{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary)}._52rPSG_toggle:checked:after{background:var(--dsw-alias-bg-layer-3);transform:translate(14px)}._52rPSG_toggle:disabled{opacity:.5;cursor:default}._52rPSG_cardDesc{color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere;margin:0;padding:6px 16px 0;font-size:13px;line-height:1.55}._52rPSG_cardId{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-dimmed);padding:6px 16px 0;font-size:11px}._52rPSG_cardFoot{border-top:1px solid var(--dsw-alias-border-l2);justify-content:flex-end;gap:2px;margin-top:8px;padding:6px 10px 8px;display:flex}._52rPSG_iconButton{appearance:none;color:var(--dsw-alias-label-tertiary);cursor:pointer;background:0 0;border:0;border-radius:7px;align-items:center;padding:6px;display:inline-flex;position:relative}._52rPSG_iconButton:disabled{opacity:.4;cursor:default}._52rPSG_iconButton:hover:not(:disabled){background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}._52rPSG_iconButton:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px}._52rPSG_iconDanger:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover-danger);color:var(--dsw-alias-state-error-primary)}._52rPSG_editorBlock{flex-direction:column;gap:10px;padding-top:4px;display:flex}._52rPSG_blockTitle{letter-spacing:.06em;text-transform:uppercase;color:var(--dsw-alias-label-tertiary);margin:0;font-size:12px;font-weight:600}._52rPSG_toolRow{grid-template-columns:34px minmax(0,1fr) auto auto;align-items:center;gap:8px;width:100%;display:grid}._52rPSG_toolState{color:var(--dsw-alias-label-dimmed);border:1px solid var(--dsw-alias-border-l2);white-space:nowrap;border-radius:999px;padding:3px 8px;font-size:11px;line-height:1}._52rPSG_toolId{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-primary);text-overflow:ellipsis;white-space:nowrap;font-size:12px;overflow:hidden}._52rPSG_toolExpr{color:var(--dsw-alias-label-dimmed);white-space:nowrap;font-size:11px}._52rPSG_toolInfo{position:relative}._52rPSG_toolInfoSummary{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);width:20px;height:20px;color:var(--dsw-alias-label-dimmed);user-select:none;border-radius:50%;justify-content:center;align-items:center;font-size:11px;font-weight:600;line-height:1;list-style:none;transition:color .16s,border-color .16s;display:flex}._52rPSG_toolInfoSummary:hover{color:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary)}._52rPSG_toolInfoSummary::marker,._52rPSG_toolInfoSummary::-webkit-details-marker{display:none}._52rPSG_toolInfoBody{z-index:10;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);border-radius:8px;width:min(320px,70vw);padding:10px 12px;position:absolute;top:calc(100% + 6px);right:0;box-shadow:0 4px 16px #0000001f}._52rPSG_toolInfoSpacer{width:20px}._52rPSG_toolDesc{font-size:12px;line-height:1.5}._52rPSG_viewer{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);max-height:420px;font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-secondary);white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;border-radius:10px;margin:0;padding:12px;font-size:12px;line-height:1.5;overflow:auto}._52rPSG_creatorButton{box-sizing:border-box;border:1px dashed var(--dsw-alias-border-l3);height:44px;font:inherit;color:var(--dsw-alias-label-primary);cursor:pointer;background:0 0;border-radius:12px;justify-content:center;align-self:stretch;align-items:center;gap:6px;font-size:14px;line-height:22px;display:flex}._52rPSG_creatorButton:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}._52rPSG_creatorButton:disabled{opacity:.4;cursor:default}._52rPSG_field{flex-direction:column;gap:6px;display:flex}._52rPSG_fieldLabel{color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500}._52rPSG_input{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);font:inherit;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border-radius:10px;padding:9px 12px;font-size:13px}._52rPSG_input:focus{border-color:var(--dsw-alias-brand-primary);outline:none}._52rPSG_textarea{resize:vertical;min-height:96px;font-family:inherit;line-height:1.5}._52rPSG_input::placeholder{color:var(--dsw-alias-label-dimmed)}._52rPSG_select{appearance:none;cursor:pointer}._52rPSG_toggleField{flex-direction:row;justify-content:space-between;align-items:center;gap:8px}._52rPSG_inheritRow{cursor:pointer;align-items:center;gap:10px;display:flex}._52rPSG_inheritLabel{color:var(--dsw-alias-label-primary);font-size:13px}._52rPSG_fieldHint{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:1.5}._52rPSG_dialog{width:min(560px,100%)}._52rPSG_dialogScroll{max-height:min(80vh,640px);overflow:auto}._52rPSG_dialogFields{flex-direction:column;gap:12px;display:flex}._52rPSG_deleteDialog{width:min(480px,100%)}._52rPSG_deleteConfirm:not(:disabled){border-color:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary)}._52rPSG_deleteConfirm:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover-danger)}._52rPSG_error{color:var(--dsw-alias-state-error-primary);margin:0;font-size:12px}._52rPSG_revealedPath{color:var(--dsw-alias-label-tertiary);align-items:baseline;gap:6px;margin:0;padding:0 16px 10px;font-size:11px;display:flex}._52rPSG_revealedPath code{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-secondary);user-select:all;overflow-wrap:anywhere}._52rPSG_revealedPathLabel{white-space:nowrap}";
-		const tagId$1 = "dsh-harness-subagent-bundle/SubagentPresetSection.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$1) + "]") === null) {
+		const css$2 = "._52rPSG_section{max-width:720px;color:var(--dsw-alias-label-primary);flex-direction:column;gap:12px;display:flex}._52rPSG_title{margin:0;font-size:18px;font-weight:600}._52rPSG_intro{color:var(--dsw-alias-label-tertiary);margin:0;font-size:13px}._52rPSG_cards{flex-direction:column;gap:10px;margin:0;padding:0;list-style:none;display:flex}._52rPSG_card{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);border-radius:12px;flex-direction:column;transition:border-color .16s,background .16s;display:flex}._52rPSG_card:hover{border-color:var(--dsw-alias-label-dimmed)}._52rPSG_cardBroken,._52rPSG_cardBroken:hover{border-color:var(--dsw-alias-state-error-primary)}._52rPSG_cardHead{flex-wrap:wrap;align-items:center;gap:8px;padding:12px 16px 0;display:flex}._52rPSG_cardName{font-size:15px;font-weight:600;line-height:1.4}._52rPSG_badge,._52rPSG_brokenBadge{white-space:nowrap;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;line-height:17px}._52rPSG_badge{border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary)}._52rPSG_brokenBadge{background:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-bg-layer-3)}._52rPSG_headSpacer{margin-left:auto}._52rPSG_toggle{appearance:none;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);cursor:pointer;border-radius:999px;flex:none;width:34px;height:20px;transition:background .16s,border-color .16s;position:relative}._52rPSG_toggle:after{content:\"\";background:var(--dsw-alias-label-dimmed);border-radius:50%;width:14px;height:14px;transition:transform .16s,background .16s;position:absolute;top:2px;left:2px}._52rPSG_toggle:checked{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary)}._52rPSG_toggle:checked:after{background:var(--dsw-alias-bg-layer-3);transform:translate(14px)}._52rPSG_toggle:disabled{opacity:.5;cursor:default}._52rPSG_cardDesc{color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere;margin:0;padding:6px 16px 0;font-size:13px;line-height:1.55}._52rPSG_cardId{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-dimmed);padding:6px 16px 0;font-size:11px}._52rPSG_cardFoot{border-top:1px solid var(--dsw-alias-border-l2);justify-content:flex-end;gap:2px;margin-top:8px;padding:6px 10px 8px;display:flex}._52rPSG_iconButton{appearance:none;color:var(--dsw-alias-label-tertiary);cursor:pointer;background:0 0;border:0;border-radius:7px;align-items:center;padding:6px;display:inline-flex;position:relative}._52rPSG_iconButton:disabled{opacity:.4;cursor:default}._52rPSG_iconButton:hover:not(:disabled){background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}._52rPSG_iconButton:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px}._52rPSG_iconDanger:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover-danger);color:var(--dsw-alias-state-error-primary)}._52rPSG_editorBlock{flex-direction:column;gap:10px;padding-top:4px;display:flex}._52rPSG_blockTitle{letter-spacing:.06em;text-transform:uppercase;color:var(--dsw-alias-label-tertiary);margin:0;font-size:12px;font-weight:600}._52rPSG_toolRow{grid-template-columns:34px minmax(0,1fr) auto auto;align-items:center;gap:8px;width:100%;display:grid}._52rPSG_toolState{color:var(--dsw-alias-label-dimmed);border:1px solid var(--dsw-alias-border-l2);white-space:nowrap;border-radius:999px;padding:3px 8px;font-size:11px;line-height:1}._52rPSG_toolId{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-primary);text-overflow:ellipsis;white-space:nowrap;font-size:12px;overflow:hidden}._52rPSG_toolExpr{color:var(--dsw-alias-label-dimmed);white-space:nowrap;font-size:11px}._52rPSG_toolInfo{position:relative}._52rPSG_toolInfoSummary{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);width:20px;height:20px;color:var(--dsw-alias-label-dimmed);user-select:none;border-radius:50%;justify-content:center;align-items:center;font-size:11px;font-weight:600;line-height:1;list-style:none;transition:color .16s,border-color .16s;display:flex}._52rPSG_toolInfoSummary:hover{color:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary)}._52rPSG_toolInfoSummary::marker,._52rPSG_toolInfoSummary::-webkit-details-marker{display:none}._52rPSG_toolInfoBody{z-index:10;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);border-radius:8px;width:min(320px,70vw);padding:10px 12px;position:absolute;top:calc(100% + 6px);right:0;box-shadow:0 4px 16px #0000001f}._52rPSG_toolInfoSpacer{width:20px}._52rPSG_toolDesc{font-size:12px;line-height:1.5}._52rPSG_viewer{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);max-height:420px;font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-secondary);white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;border-radius:10px;margin:0;padding:12px;font-size:12px;line-height:1.5;overflow:auto}._52rPSG_creatorButton{box-sizing:border-box;border:1px dashed var(--dsw-alias-border-l3);height:44px;font:inherit;color:var(--dsw-alias-label-primary);cursor:pointer;background:0 0;border-radius:12px;justify-content:center;align-self:stretch;align-items:center;gap:6px;font-size:14px;line-height:22px;display:flex}._52rPSG_creatorButton:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}._52rPSG_creatorButton:disabled{opacity:.4;cursor:default}._52rPSG_field{flex-direction:column;gap:6px;display:flex}._52rPSG_fieldLabel{color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500}._52rPSG_input{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);font:inherit;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border-radius:10px;padding:9px 12px;font-size:13px}._52rPSG_input:focus{border-color:var(--dsw-alias-brand-primary);outline:none}._52rPSG_textarea{resize:vertical;min-height:96px;font-family:inherit;line-height:1.5}._52rPSG_input::placeholder{color:var(--dsw-alias-label-dimmed)}._52rPSG_select{appearance:none;cursor:pointer}._52rPSG_toggleField{flex-direction:row;justify-content:space-between;align-items:center;gap:8px}._52rPSG_inheritRow{cursor:pointer;align-items:center;gap:10px;display:flex}._52rPSG_inheritLabel{color:var(--dsw-alias-label-primary);font-size:13px}._52rPSG_fieldHint{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:1.5}._52rPSG_dialog{width:min(560px,100%)}._52rPSG_dialogScroll{max-height:min(80vh,640px);overflow:auto}._52rPSG_dialogFields{flex-direction:column;gap:12px;display:flex}._52rPSG_deleteDialog{width:min(480px,100%)}._52rPSG_deleteConfirm:not(:disabled){border-color:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary)}._52rPSG_deleteConfirm:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover-danger)}._52rPSG_error{color:var(--dsw-alias-state-error-primary);margin:0;font-size:12px}._52rPSG_revealedPath{color:var(--dsw-alias-label-tertiary);align-items:baseline;gap:6px;margin:0;padding:0 16px 10px;font-size:11px;display:flex}._52rPSG_revealedPath code{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-secondary);user-select:all;overflow-wrap:anywhere}._52rPSG_revealedPathLabel{white-space:nowrap}";
+		const tagId$2 = "dsh-harness-subagent-bundle/SubagentPresetSection.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$2) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "dsh-harness-subagent-bundle";
-			tag.dataset.pluginCss = tagId$1;
-			tag.textContent = css$1;
+			tag.dataset.pluginCss = tagId$2;
+			tag.textContent = css$2;
 			document.head.appendChild(tag);
 		}
 		var SubagentPresetSection_module_css_default = {
-			"iconDanger": "_52rPSG_iconDanger",
-			"card": "_52rPSG_card",
-			"viewer": "_52rPSG_viewer",
-			"select": "_52rPSG_select",
-			"input": "_52rPSG_input",
-			"headSpacer": "_52rPSG_headSpacer",
-			"toolInfoBody": "_52rPSG_toolInfoBody",
-			"iconButton": "_52rPSG_iconButton",
-			"toolDesc": "_52rPSG_toolDesc",
-			"creatorButton": "_52rPSG_creatorButton",
-			"dialogScroll": "_52rPSG_dialogScroll",
-			"brokenBadge": "_52rPSG_brokenBadge",
-			"inheritLabel": "_52rPSG_inheritLabel",
-			"dialog": "_52rPSG_dialog",
-			"deleteConfirm": "_52rPSG_deleteConfirm",
-			"cardName": "_52rPSG_cardName",
-			"toolState": "_52rPSG_toolState",
-			"revealedPathLabel": "_52rPSG_revealedPathLabel",
-			"cardFoot": "_52rPSG_cardFoot",
-			"blockTitle": "_52rPSG_blockTitle",
-			"title": "_52rPSG_title",
-			"field": "_52rPSG_field",
-			"dialogFields": "_52rPSG_dialogFields",
-			"editorBlock": "_52rPSG_editorBlock",
-			"intro": "_52rPSG_intro",
-			"textarea": "_52rPSG_textarea",
-			"toolRow": "_52rPSG_toolRow",
-			"fieldHint": "_52rPSG_fieldHint",
-			"toggleField": "_52rPSG_toggleField",
-			"toggle": "_52rPSG_toggle",
-			"cardHead": "_52rPSG_cardHead",
-			"cardDesc": "_52rPSG_cardDesc",
 			"error": "_52rPSG_error",
-			"toolInfo": "_52rPSG_toolInfo",
+			"cardBroken": "_52rPSG_cardBroken",
+			"brokenBadge": "_52rPSG_brokenBadge",
+			"iconButton": "_52rPSG_iconButton",
+			"cardFoot": "_52rPSG_cardFoot",
 			"cards": "_52rPSG_cards",
-			"toolExpr": "_52rPSG_toolExpr",
-			"deleteDialog": "_52rPSG_deleteDialog",
-			"toolId": "_52rPSG_toolId",
-			"cardId": "_52rPSG_cardId",
-			"badge": "_52rPSG_badge",
-			"section": "_52rPSG_section",
-			"inheritRow": "_52rPSG_inheritRow",
-			"revealedPath": "_52rPSG_revealedPath",
+			"blockTitle": "_52rPSG_blockTitle",
+			"viewer": "_52rPSG_viewer",
+			"creatorButton": "_52rPSG_creatorButton",
+			"toggle": "_52rPSG_toggle",
+			"toolInfo": "_52rPSG_toolInfo",
+			"fieldHint": "_52rPSG_fieldHint",
+			"revealedPathLabel": "_52rPSG_revealedPathLabel",
+			"intro": "_52rPSG_intro",
+			"cardDesc": "_52rPSG_cardDesc",
+			"input": "_52rPSG_input",
 			"fieldLabel": "_52rPSG_fieldLabel",
+			"iconDanger": "_52rPSG_iconDanger",
+			"title": "_52rPSG_title",
 			"toolInfoSpacer": "_52rPSG_toolInfoSpacer",
-			"toolInfoSummary": "_52rPSG_toolInfoSummary",
-			"cardBroken": "_52rPSG_cardBroken"
+			"inheritLabel": "_52rPSG_inheritLabel",
+			"cardId": "_52rPSG_cardId",
+			"toggleField": "_52rPSG_toggleField",
+			"inheritRow": "_52rPSG_inheritRow",
+			"dialogScroll": "_52rPSG_dialogScroll",
+			"dialogFields": "_52rPSG_dialogFields",
+			"card": "_52rPSG_card",
+			"deleteDialog": "_52rPSG_deleteDialog",
+			"editorBlock": "_52rPSG_editorBlock",
+			"toolRow": "_52rPSG_toolRow",
+			"field": "_52rPSG_field",
+			"toolInfoBody": "_52rPSG_toolInfoBody",
+			"section": "_52rPSG_section",
+			"headSpacer": "_52rPSG_headSpacer",
+			"toolDesc": "_52rPSG_toolDesc",
+			"select": "_52rPSG_select",
+			"cardHead": "_52rPSG_cardHead",
+			"toolId": "_52rPSG_toolId",
+			"toolExpr": "_52rPSG_toolExpr",
+			"deleteConfirm": "_52rPSG_deleteConfirm",
+			"revealedPath": "_52rPSG_revealedPath",
+			"dialog": "_52rPSG_dialog",
+			"cardName": "_52rPSG_cardName",
+			"badge": "_52rPSG_badge",
+			"toolState": "_52rPSG_toolState",
+			"textarea": "_52rPSG_textarea",
+			"toolInfoSummary": "_52rPSG_toolInfoSummary"
 		};
 		//#endregion
 		//#region lib/types/ui/SubagentPresetSection.js
@@ -585,7 +580,7 @@ window.__ModuleLoader__.load({
 		*/
 		/** A one-card row rendering a subagent's identity, mode, Auto Run, and switch. */
 		function SubagentRowView(props) {
-			const { row, t, onToggle, onView, onEdit, onDelete, onOpen, hasDocument, revealedPath } = props;
+			const { row, t, onToggle, onView, onCopy, onEdit, onDelete, onOpen, hasDocument, revealedPath } = props;
 			const custom = row.trust === "user";
 			const broken = row.broken !== void 0;
 			return (0, react_jsx_runtime.jsxs)("li", {
@@ -639,6 +634,17 @@ window.__ModuleLoader__.load({
 									className: SubagentPresetSection_module_css_default.iconButton,
 									onClick: () => onView(row.id),
 									children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconBrowseOutline16, {})
+								})
+							}),
+							(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+								label: t("copy"),
+								side: "top",
+								children: (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									className: SubagentPresetSection_module_css_default.iconButton,
+									disabled: broken,
+									onClick: () => onCopy(row.id),
+									children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCopyOutline16, {})
 								})
 							}),
 							(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
@@ -824,21 +830,15 @@ window.__ModuleLoader__.load({
 								children: t("model")
 							}), (0, react_jsx_runtime.jsxs)("select", {
 								className: `${SubagentPresetSection_module_css_default.input} ${SubagentPresetSection_module_css_default.select}`,
-								value: edit.metadata.model === void 0 ? "" : modelOptionValue(edit.metadata.model),
+								value: edit.metadata.model === void 0 ? "" : edit.metadata.model,
 								onChange: (e) => setEditField("model", "value", e.target.value),
 								children: [(0, react_jsx_runtime.jsx)("option", {
 									value: "",
 									children: t("inheritModel")
-								}), edit.modelChoices.map((group) => (0, react_jsx_runtime.jsx)("optgroup", {
-									label: group.providerName,
-									children: group.models.map((model) => (0, react_jsx_runtime.jsx)("option", {
-										value: modelOptionValue({
-											provider: group.provider,
-											model: model.id
-										}),
-										children: model.name
-									}, `${group.provider}\u0000${model.id}`))
-								}, group.provider))]
+								}), edit.planChoices.map((plan) => (0, react_jsx_runtime.jsx)("option", {
+									value: plan.id,
+									children: `${plan.id} — ${plan.provider}/${plan.model}`
+								}, plan.id))]
 							})]
 						}),
 						(0, react_jsx_runtime.jsxs)("div", {
@@ -1004,6 +1004,7 @@ window.__ModuleLoader__.load({
 							t,
 							onToggle: props.toggle,
 							onView: props.beginView,
+							onCopy: props.beginCreate,
 							onEdit: props.beginEdit,
 							onDelete: props.confirmDelete,
 							onOpen: props.openLocation,
@@ -1011,11 +1012,11 @@ window.__ModuleLoader__.load({
 							revealedPath: state.revealedPaths[row.id]
 						}, row.id))
 					}),
-					(0, react_jsx_runtime.jsxs)("button", {
+					factory === void 0 ? null : (0, react_jsx_runtime.jsxs)("button", {
 						type: "button",
 						className: SubagentPresetSection_module_css_default.creatorButton,
-						disabled: !state.authorable || factory === void 0,
-						onClick: () => factory !== void 0 && props.beginCreate(factory.id),
+						disabled: !state.authorable,
+						onClick: () => props.beginCreate(factory.id),
 						children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutline16, {}), t("create")]
 					}),
 					(0, react_jsx_runtime.jsx)(CreateDialog$1, {
@@ -1113,6 +1114,7 @@ window.__ModuleLoader__.load({
 			createTitle: "Create subagent",
 			createIntro: "The whole subagent is copied on this machine. The identifier becomes its directory name and cannot be changed later; everything else is edited in the subagent's own files.",
 			copyOf: "Copied from",
+			copy: "Copy",
 			delete: "Delete",
 			deleteTitle: "Delete this subagent?",
 			deleteDescription: "The subagent directory is deleted. A delegated child already running on it keeps working; new delegations cannot select it.",
@@ -1168,6 +1170,7 @@ window.__ModuleLoader__.load({
 			createTitle: "创建子代理",
 			createIntro: "整个子代理会在本机复制一份。标识符将成为目录名，事后无法更改；其余内容之后直接在子代理自己的文件里编辑。",
 			copyOf: "复制自",
+			copy: "复制",
 			delete: "删除",
 			deleteTitle: "删除该子代理？",
 			deleteDescription: "子代理目录将被删除。已在其上运行的委派子 Agent 不受影响；新委派将无法再选择它。",
@@ -1228,7 +1231,7 @@ window.__ModuleLoader__.load({
 		*/
 		/** Ids a team directory may be named, mirroring the host's own rule. */
 		const TEAM_ID = /^[a-z0-9][a-z0-9-]*$/;
-		const INITIAL = {
+		const INITIAL$1 = {
 			status: "idle",
 			error: null,
 			authorable: false,
@@ -1241,18 +1244,19 @@ window.__ModuleLoader__.load({
 			deleting: false,
 			revealedPaths: {}
 		};
-		/** A fresh empty role row. */
+		/** A fresh empty role row (default level 1). */
 		function emptyRole() {
 			return {
 				id: "",
 				description: "",
 				prompt: "",
 				subagent: "",
+				level: 1,
 				memory: "one-shot"
 			};
 		}
 		/** The failure message of a rejected wire call. */
-		function messageOf(error) {
+		function messageOf$1(error) {
 			return error instanceof Error ? error.message : String(error);
 		}
 		/** Why this create cannot be submitted yet, as a locale key, or undefined. */
@@ -1282,7 +1286,7 @@ window.__ModuleLoader__.load({
 			api;
 			rosterChanged;
 			/** Page snapshot the renderer subscribes to. */
-			store = (0, _deepseek_ai_dsh_client_runtime_client.createSnapshotStore)(INITIAL);
+			store = (0, _deepseek_ai_dsh_client_runtime_client.createSnapshotStore)(INITIAL$1);
 			constructor(api, rosterChanged = () => {}) {
 				this.api = api;
 				this.rosterChanged = rosterChanged;
@@ -1330,7 +1334,7 @@ window.__ModuleLoader__.load({
 				} catch (error) {
 					this.set({
 						status: "error",
-						error: messageOf(error)
+						error: messageOf$1(error)
 					});
 					return;
 				}
@@ -1451,7 +1455,7 @@ window.__ModuleLoader__.load({
 				} catch (error) {
 					this.patchCreate({
 						saving: false,
-						error: messageOf(error)
+						error: messageOf$1(error)
 					});
 				}
 			}
@@ -1470,7 +1474,7 @@ window.__ModuleLoader__.load({
 						[id]: path
 					} });
 				} catch (error) {
-					this.set({ error: messageOf(error) });
+					this.set({ error: messageOf$1(error) });
 				}
 			}
 			/**
@@ -1490,7 +1494,7 @@ window.__ModuleLoader__.load({
 					await this.load();
 					this.rosterChanged();
 				} catch (error) {
-					this.set({ error: messageOf(error) });
+					this.set({ error: messageOf$1(error) });
 				}
 			}
 			/** Open the edit detail over one team's full role roster. */
@@ -1511,11 +1515,13 @@ window.__ModuleLoader__.load({
 						id,
 						title: team.metadata.name ?? row?.id ?? id,
 						metadata: team.metadata,
+						...team.warning === void 0 ? {} : { warning: team.warning },
 						roles: team.roles.map((role) => ({
 							id: role.id,
 							description: role.description ?? "",
 							prompt: role.prompt ?? "",
 							subagent: role.subagent,
+							level: role.level,
 							memory: role.memory
 						})),
 						saving: false,
@@ -1523,7 +1529,7 @@ window.__ModuleLoader__.load({
 						roleEdit: null
 					} });
 				} catch (error) {
-					this.set({ error: messageOf(error) });
+					this.set({ error: messageOf$1(error) });
 				}
 			}
 			/** Close the edit detail, discarding whatever was typed. */
@@ -1701,7 +1707,7 @@ window.__ModuleLoader__.load({
 				} catch (error) {
 					this.patchDetail({
 						saving: false,
-						error: messageOf(error)
+						error: messageOf$1(error)
 					});
 				}
 			}
@@ -1738,12 +1744,12 @@ window.__ModuleLoader__.load({
 					this.set({
 						deleting: false,
 						pendingDelete: null,
-						error: messageOf(error)
+						error: messageOf$1(error)
 					});
 				}
 			}
 		};
-		/** Patch one staged role field (id/description/prompt/subagent/memory). */
+		/** Patch one staged role field (id/description/prompt/subagent/level/memory). */
 		function patchRole(role, field, value) {
 			if (field === "id") return {
 				...role,
@@ -1761,6 +1767,13 @@ window.__ModuleLoader__.load({
 				...role,
 				subagent: value
 			};
+			if (field === "level") {
+				const parsed = Number.parseInt(value, 10);
+				return {
+					...role,
+					level: Number.isInteger(parsed) && parsed >= 1 ? parsed : 1
+				};
+			}
 			if (field === "memory") return {
 				...role,
 				memory: value === "persistent" ? "persistent" : "one-shot"
@@ -1774,75 +1787,80 @@ window.__ModuleLoader__.load({
 				...role.description === "" ? {} : { description: role.description },
 				...role.prompt === "" ? {} : { prompt: role.prompt },
 				subagent: role.subagent,
+				level: role.level,
 				memory: role.memory
 			};
 		}
 		//#endregion
 		//#region \0dsh-css:bundle/subagent/src/ui-team/TeamSection.module.css.mjs
-		const css = "._56J2oq_section{max-width:720px;color:var(--dsw-alias-label-primary);flex-direction:column;gap:12px;display:flex}._56J2oq_title{margin:0;font-size:18px;font-weight:600}._56J2oq_intro{color:var(--dsw-alias-label-tertiary);margin:0;font-size:13px}._56J2oq_cards{flex-direction:column;gap:10px;margin:0;padding:0;list-style:none;display:flex}._56J2oq_card{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);border-radius:12px;flex-direction:column;transition:border-color .16s,background .16s;display:flex}._56J2oq_card:hover{border-color:var(--dsw-alias-label-dimmed)}._56J2oq_cardBroken,._56J2oq_cardBroken:hover{border-color:var(--dsw-alias-state-error-primary)}._56J2oq_cardHead{flex-wrap:wrap;align-items:center;gap:8px;padding:12px 16px 0;display:flex}._56J2oq_cardName{font-size:15px;font-weight:600;line-height:1.4}._56J2oq_badge,._56J2oq_brokenBadge{white-space:nowrap;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;line-height:17px}._56J2oq_badge{border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary)}._56J2oq_brokenBadge{background:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-bg-layer-3)}._56J2oq_headSpacer{margin-left:auto}._56J2oq_toggle{appearance:none;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);cursor:pointer;border-radius:999px;flex:none;width:34px;height:20px;transition:background .16s,border-color .16s;position:relative}._56J2oq_toggle:after{content:\"\";background:var(--dsw-alias-label-dimmed);border-radius:50%;width:14px;height:14px;transition:transform .16s,background .16s;position:absolute;top:2px;left:2px}._56J2oq_toggle:checked{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary)}._56J2oq_toggle:checked:after{background:var(--dsw-alias-bg-layer-3);transform:translate(14px)}._56J2oq_toggle:disabled{opacity:.5;cursor:default}._56J2oq_cardDesc{color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere;margin:0;padding:6px 16px 0;font-size:13px;line-height:1.55}._56J2oq_cardId{color:var(--dsw-alias-label-dimmed);padding:6px 16px 0;font-size:11px}._56J2oq_roleCount{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace)}._56J2oq_cardFoot{border-top:1px solid var(--dsw-alias-border-l2);justify-content:flex-end;gap:2px;margin-top:8px;padding:6px 10px 8px;display:flex}._56J2oq_iconButton{appearance:none;color:var(--dsw-alias-label-tertiary);cursor:pointer;background:0 0;border:0;border-radius:7px;align-items:center;padding:6px;display:inline-flex;position:relative}._56J2oq_iconButton:disabled{opacity:.4;cursor:default}._56J2oq_iconButton:hover:not(:disabled){background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}._56J2oq_iconButton:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px}._56J2oq_iconDanger:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover-danger);color:var(--dsw-alias-state-error-primary)}._56J2oq_editorBlock{flex-direction:column;gap:10px;padding-top:4px;display:flex}._56J2oq_blockTitle{letter-spacing:.06em;text-transform:uppercase;color:var(--dsw-alias-label-tertiary);margin:0;font-size:12px;font-weight:600}._56J2oq_roleRow{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);border-radius:10px;flex-direction:column;gap:10px;padding:10px 12px;display:flex}._56J2oq_roleGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;display:grid}._56J2oq_roleRowFoot{justify-content:flex-end;display:flex}._56J2oq_removeRole{appearance:none;font:inherit;color:var(--dsw-alias-state-error-primary);cursor:pointer;background:0 0;border:0;border-radius:7px;padding:4px 8px;font-size:12px}._56J2oq_removeRole:hover{background:var(--dsw-alias-interactive-bg-hover-danger)}._56J2oq_addRole{box-sizing:border-box;border:1px dashed var(--dsw-alias-border-l3);height:40px;font:inherit;color:var(--dsw-alias-label-primary);cursor:pointer;background:0 0;border-radius:10px;justify-content:center;align-self:stretch;align-items:center;gap:6px;font-size:13px;display:flex}._56J2oq_addRole:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}._56J2oq_addRole:disabled{opacity:.4;cursor:default}._56J2oq_rolesList{flex-direction:column;gap:6px;margin:0;padding:0;list-style:none;display:flex}._56J2oq_roleListRow{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);border-radius:10px;align-items:stretch;gap:6px;padding:6px 6px 6px 12px;transition:border-color .16s,background .16s;display:flex}._56J2oq_roleListRow:hover{border-color:var(--dsw-alias-label-dimmed)}._56J2oq_roleListMain{appearance:none;min-width:0;font:inherit;text-align:left;color:inherit;cursor:pointer;background:0 0;border:0;border-radius:8px;flex:1;grid-template-columns:minmax(72px,auto) minmax(0,1fr) auto;align-items:center;column-gap:16px;padding:6px 0;display:grid}._56J2oq_roleListMain:disabled{cursor:default}._56J2oq_roleListMain:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px}._56J2oq_roleListId{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-primary);font-size:13px;font-weight:600}._56J2oq_roleListSummary{color:var(--dsw-alias-label-secondary);text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:13px;line-height:1.4;overflow:hidden}._56J2oq_roleListMeta{color:var(--dsw-alias-label-tertiary);white-space:nowrap;align-items:center;gap:12px;font-size:12px;display:flex}._56J2oq_roleListSubagent,._56J2oq_roleListMemory{align-items:center;gap:4px;display:inline-flex}._56J2oq_roleListLabel{color:var(--dsw-alias-label-tertiary)}._56J2oq_roleListSubagentValue{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-secondary)}._56J2oq_roleListMemoryValue{color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:999px;padding:1px 8px;font-size:11px;line-height:17px}._56J2oq_emptyRoles{color:var(--dsw-alias-label-tertiary);margin:0;padding:8px 4px;font-size:12px}._56J2oq_roleEditDialog{width:min(560px,100%)}._56J2oq_roleEditForm{flex-direction:column;gap:14px;display:flex}._56J2oq_roleEditPrompt{min-height:160px}._56J2oq_field{flex-direction:column;gap:6px;display:flex}._56J2oq_fieldLabel{color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500}._56J2oq_input{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);font:inherit;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border-radius:10px;padding:9px 12px;font-size:13px}._56J2oq_input:focus{border-color:var(--dsw-alias-brand-primary);outline:none}._56J2oq_textarea{resize:vertical;min-height:72px;font-family:inherit;line-height:1.5}._56J2oq_input::placeholder{color:var(--dsw-alias-label-dimmed)}._56J2oq_select{appearance:none;cursor:pointer}._56J2oq_creatorButton{box-sizing:border-box;border:1px dashed var(--dsw-alias-border-l3);height:44px;font:inherit;color:var(--dsw-alias-label-primary);cursor:pointer;background:0 0;border-radius:12px;justify-content:center;align-self:stretch;align-items:center;gap:6px;font-size:14px;line-height:22px;display:flex}._56J2oq_creatorButton:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}._56J2oq_creatorButton:disabled{opacity:.4;cursor:default}._56J2oq_dialog{width:min(640px,100%)}._56J2oq_dialogScroll{max-height:min(80vh,640px);overflow:auto}._56J2oq_dialogFields{flex-direction:column;gap:12px;display:flex}._56J2oq_deleteDialog{width:min(480px,100%)}._56J2oq_deleteConfirm:not(:disabled){border-color:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary)}._56J2oq_deleteConfirm:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover-danger)}._56J2oq_error{color:var(--dsw-alias-state-error-primary);margin:0;font-size:12px}._56J2oq_revealedPath{color:var(--dsw-alias-label-tertiary);align-items:baseline;gap:6px;margin:0;padding:0 16px 10px;font-size:11px;display:flex}._56J2oq_revealedPath code{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-secondary);user-select:all;overflow-wrap:anywhere}._56J2oq_revealedPathLabel{white-space:nowrap}";
-		const tagId = "dsh-harness-subagent-bundle/TeamSection.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
+		const css$1 = "._56J2oq_section{max-width:720px;color:var(--dsw-alias-label-primary);flex-direction:column;gap:12px;display:flex}._56J2oq_title{margin:0;font-size:18px;font-weight:600}._56J2oq_intro{color:var(--dsw-alias-label-tertiary);margin:0;font-size:13px}._56J2oq_cards{flex-direction:column;gap:10px;margin:0;padding:0;list-style:none;display:flex}._56J2oq_card{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);border-radius:12px;flex-direction:column;transition:border-color .16s,background .16s;display:flex}._56J2oq_card:hover{border-color:var(--dsw-alias-label-dimmed)}._56J2oq_cardBroken,._56J2oq_cardBroken:hover{border-color:var(--dsw-alias-state-error-primary)}._56J2oq_cardHead{flex-wrap:wrap;align-items:center;gap:8px;padding:12px 16px 0;display:flex}._56J2oq_cardName{font-size:15px;font-weight:600;line-height:1.4}._56J2oq_badge,._56J2oq_brokenBadge{white-space:nowrap;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;line-height:17px}._56J2oq_badge{border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary)}._56J2oq_brokenBadge{background:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-bg-layer-3)}._56J2oq_headSpacer{margin-left:auto}._56J2oq_toggle{appearance:none;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);cursor:pointer;border-radius:999px;flex:none;width:34px;height:20px;transition:background .16s,border-color .16s;position:relative}._56J2oq_toggle:after{content:\"\";background:var(--dsw-alias-label-dimmed);border-radius:50%;width:14px;height:14px;transition:transform .16s,background .16s;position:absolute;top:2px;left:2px}._56J2oq_toggle:checked{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary)}._56J2oq_toggle:checked:after{background:var(--dsw-alias-bg-layer-3);transform:translate(14px)}._56J2oq_toggle:disabled{opacity:.5;cursor:default}._56J2oq_cardDesc{color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere;margin:0;padding:6px 16px 0;font-size:13px;line-height:1.55}._56J2oq_cardId{color:var(--dsw-alias-label-dimmed);padding:6px 16px 0;font-size:11px}._56J2oq_roleCount{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace)}._56J2oq_cardFoot{border-top:1px solid var(--dsw-alias-border-l2);justify-content:flex-end;gap:2px;margin-top:8px;padding:6px 10px 8px;display:flex}._56J2oq_iconButton{appearance:none;color:var(--dsw-alias-label-tertiary);cursor:pointer;background:0 0;border:0;border-radius:7px;align-items:center;padding:6px;display:inline-flex;position:relative}._56J2oq_iconButton:disabled{opacity:.4;cursor:default}._56J2oq_iconButton:hover:not(:disabled){background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}._56J2oq_iconButton:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px}._56J2oq_iconDanger:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover-danger);color:var(--dsw-alias-state-error-primary)}._56J2oq_editorBlock{flex-direction:column;gap:10px;padding-top:4px;display:flex}._56J2oq_blockTitle{letter-spacing:.06em;text-transform:uppercase;color:var(--dsw-alias-label-tertiary);margin:0;font-size:12px;font-weight:600}._56J2oq_roleRow{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);border-radius:10px;flex-direction:column;gap:10px;padding:10px 12px;display:flex}._56J2oq_roleGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;display:grid}._56J2oq_roleRowFoot{justify-content:flex-end;display:flex}._56J2oq_removeRole{appearance:none;font:inherit;color:var(--dsw-alias-state-error-primary);cursor:pointer;background:0 0;border:0;border-radius:7px;padding:4px 8px;font-size:12px}._56J2oq_removeRole:hover{background:var(--dsw-alias-interactive-bg-hover-danger)}._56J2oq_addRole{box-sizing:border-box;border:1px dashed var(--dsw-alias-border-l3);height:40px;font:inherit;color:var(--dsw-alias-label-primary);cursor:pointer;background:0 0;border-radius:10px;justify-content:center;align-self:stretch;align-items:center;gap:6px;font-size:13px;display:flex}._56J2oq_addRole:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}._56J2oq_addRole:disabled{opacity:.4;cursor:default}._56J2oq_rolesList{flex-direction:column;gap:6px;margin:0;padding:0;list-style:none;display:flex}._56J2oq_roleListRow{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);border-radius:10px;align-items:stretch;gap:6px;padding:6px 6px 6px 12px;transition:border-color .16s,background .16s;display:flex}._56J2oq_roleListRow:hover{border-color:var(--dsw-alias-label-dimmed)}._56J2oq_roleListMain{appearance:none;min-width:0;font:inherit;text-align:left;color:inherit;cursor:pointer;background:0 0;border:0;border-radius:8px;flex:1;grid-template-columns:minmax(72px,auto) minmax(0,1fr) auto;align-items:center;column-gap:16px;padding:6px 0;display:grid}._56J2oq_roleListMain:disabled{cursor:default}._56J2oq_roleListMain:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px}._56J2oq_roleListId{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-primary);font-size:13px;font-weight:600}._56J2oq_roleListSummary{color:var(--dsw-alias-label-secondary);text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:13px;line-height:1.4;overflow:hidden}._56J2oq_roleListMeta{color:var(--dsw-alias-label-tertiary);white-space:nowrap;align-items:center;gap:12px;font-size:12px;display:flex}._56J2oq_roleListSubagent,._56J2oq_roleListMemory,._56J2oq_roleListLevel{align-items:center;gap:4px;display:inline-flex}._56J2oq_roleListLabel{color:var(--dsw-alias-label-tertiary)}._56J2oq_roleListSubagentValue{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-secondary)}._56J2oq_roleListMemoryValue{color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:999px;padding:1px 8px;font-size:11px;line-height:17px}._56J2oq_roleListLevelValue{color:var(--dsw-alias-brand-primary);font-weight:600}._56J2oq_emptyRoles{color:var(--dsw-alias-label-tertiary);margin:0;padding:8px 4px;font-size:12px}._56J2oq_roleEditDialog{width:min(560px,100%)}._56J2oq_roleEditForm{flex-direction:column;gap:14px;display:flex}._56J2oq_roleEditPrompt{min-height:160px}._56J2oq_field{flex-direction:column;gap:6px;display:flex}._56J2oq_fieldLabel{color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500}._56J2oq_fieldHint{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:1.5}._56J2oq_hygieneWarning{border:1px solid var(--dsw-alias-state-warning-primary,#d97706);background:var(--dsw-alias-state-warning-bg,color-mix(in srgb, var(--dsw-alias-state-warning-primary,#d97706) 10%, transparent));color:var(--dsw-alias-label-secondary);border-radius:8px;margin:0;padding:8px 10px;font-size:12px;line-height:1.5}._56J2oq_input{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);font:inherit;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border-radius:10px;padding:9px 12px;font-size:13px}._56J2oq_input:focus{border-color:var(--dsw-alias-brand-primary);outline:none}._56J2oq_textarea{resize:vertical;min-height:72px;font-family:inherit;line-height:1.5}._56J2oq_input::placeholder{color:var(--dsw-alias-label-dimmed)}._56J2oq_select{appearance:none;cursor:pointer}._56J2oq_creatorButton{box-sizing:border-box;border:1px dashed var(--dsw-alias-border-l3);height:44px;font:inherit;color:var(--dsw-alias-label-primary);cursor:pointer;background:0 0;border-radius:12px;justify-content:center;align-self:stretch;align-items:center;gap:6px;font-size:14px;line-height:22px;display:flex}._56J2oq_creatorButton:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}._56J2oq_creatorButton:disabled{opacity:.4;cursor:default}._56J2oq_dialog{width:min(640px,100%)}._56J2oq_dialogScroll{max-height:min(80vh,640px);overflow:auto}._56J2oq_dialogFields{flex-direction:column;gap:12px;display:flex}._56J2oq_deleteDialog{width:min(480px,100%)}._56J2oq_deleteConfirm:not(:disabled){border-color:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary)}._56J2oq_deleteConfirm:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover-danger)}._56J2oq_error{color:var(--dsw-alias-state-error-primary);margin:0;font-size:12px}._56J2oq_revealedPath{color:var(--dsw-alias-label-tertiary);align-items:baseline;gap:6px;margin:0;padding:0 16px 10px;font-size:11px;display:flex}._56J2oq_revealedPath code{font-family:var(--dsw-font-mono,ui-monospace, SFMono-Regular, Menlo, monospace);color:var(--dsw-alias-label-secondary);user-select:all;overflow-wrap:anywhere}._56J2oq_revealedPathLabel{white-space:nowrap}";
+		const tagId$1 = "dsh-harness-subagent-bundle/TeamSection.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$1) + "]") === null) {
 			const tag = document.createElement("style");
 			tag.dataset.plugin = "dsh-harness-subagent-bundle";
-			tag.dataset.pluginCss = tagId;
-			tag.textContent = css;
+			tag.dataset.pluginCss = tagId$1;
+			tag.textContent = css$1;
 			document.head.appendChild(tag);
 		}
 		var TeamSection_module_css_default = {
-			"dialogFields": "_56J2oq_dialogFields",
-			"editorBlock": "_56J2oq_editorBlock",
-			"creatorButton": "_56J2oq_creatorButton",
-			"roleListId": "_56J2oq_roleListId",
 			"roleListMemoryValue": "_56J2oq_roleListMemoryValue",
-			"roleEditDialog": "_56J2oq_roleEditDialog",
-			"error": "_56J2oq_error",
-			"iconButton": "_56J2oq_iconButton",
-			"roleListRow": "_56J2oq_roleListRow",
-			"input": "_56J2oq_input",
-			"roleRowFoot": "_56J2oq_roleRowFoot",
-			"dialog": "_56J2oq_dialog",
-			"revealedPath": "_56J2oq_revealedPath",
-			"revealedPathLabel": "_56J2oq_revealedPathLabel",
-			"roleListMeta": "_56J2oq_roleListMeta",
-			"cardBroken": "_56J2oq_cardBroken",
-			"cardFoot": "_56J2oq_cardFoot",
-			"intro": "_56J2oq_intro",
-			"cardHead": "_56J2oq_cardHead",
-			"cardName": "_56J2oq_cardName",
-			"rolesList": "_56J2oq_rolesList",
-			"roleListLabel": "_56J2oq_roleListLabel",
-			"iconDanger": "_56J2oq_iconDanger",
-			"roleCount": "_56J2oq_roleCount",
-			"badge": "_56J2oq_badge",
-			"brokenBadge": "_56J2oq_brokenBadge",
-			"blockTitle": "_56J2oq_blockTitle",
-			"headSpacer": "_56J2oq_headSpacer",
-			"card": "_56J2oq_card",
-			"removeRole": "_56J2oq_removeRole",
-			"addRole": "_56J2oq_addRole",
-			"roleListMemory": "_56J2oq_roleListMemory",
-			"section": "_56J2oq_section",
-			"roleListSubagentValue": "_56J2oq_roleListSubagentValue",
-			"emptyRoles": "_56J2oq_emptyRoles",
-			"title": "_56J2oq_title",
-			"toggle": "_56J2oq_toggle",
-			"roleGrid": "_56J2oq_roleGrid",
 			"roleEditPrompt": "_56J2oq_roleEditPrompt",
-			"field": "_56J2oq_field",
-			"cardDesc": "_56J2oq_cardDesc",
-			"cards": "_56J2oq_cards",
+			"input": "_56J2oq_input",
+			"dialog": "_56J2oq_dialog",
+			"toggle": "_56J2oq_toggle",
+			"roleListMeta": "_56J2oq_roleListMeta",
+			"section": "_56J2oq_section",
+			"creatorButton": "_56J2oq_creatorButton",
+			"roleEditDialog": "_56J2oq_roleEditDialog",
+			"editorBlock": "_56J2oq_editorBlock",
 			"fieldLabel": "_56J2oq_fieldLabel",
-			"textarea": "_56J2oq_textarea",
-			"select": "_56J2oq_select",
-			"roleRow": "_56J2oq_roleRow",
-			"roleListSubagent": "_56J2oq_roleListSubagent",
-			"dialogScroll": "_56J2oq_dialogScroll",
-			"deleteDialog": "_56J2oq_deleteDialog",
-			"cardId": "_56J2oq_cardId",
-			"roleEditForm": "_56J2oq_roleEditForm",
 			"deleteConfirm": "_56J2oq_deleteConfirm",
+			"cardBroken": "_56J2oq_cardBroken",
+			"select": "_56J2oq_select",
+			"iconButton": "_56J2oq_iconButton",
+			"dialogFields": "_56J2oq_dialogFields",
+			"deleteDialog": "_56J2oq_deleteDialog",
+			"intro": "_56J2oq_intro",
+			"roleRow": "_56J2oq_roleRow",
+			"hygieneWarning": "_56J2oq_hygieneWarning",
+			"roleListSubagentValue": "_56J2oq_roleListSubagentValue",
+			"roleListLabel": "_56J2oq_roleListLabel",
 			"roleListMain": "_56J2oq_roleListMain",
-			"roleListSummary": "_56J2oq_roleListSummary"
+			"roleListSummary": "_56J2oq_roleListSummary",
+			"field": "_56J2oq_field",
+			"roleListId": "_56J2oq_roleListId",
+			"emptyRoles": "_56J2oq_emptyRoles",
+			"roleListMemory": "_56J2oq_roleListMemory",
+			"brokenBadge": "_56J2oq_brokenBadge",
+			"roleGrid": "_56J2oq_roleGrid",
+			"cardDesc": "_56J2oq_cardDesc",
+			"revealedPath": "_56J2oq_revealedPath",
+			"cardName": "_56J2oq_cardName",
+			"cards": "_56J2oq_cards",
+			"roleListLevelValue": "_56J2oq_roleListLevelValue",
+			"rolesList": "_56J2oq_rolesList",
+			"removeRole": "_56J2oq_removeRole",
+			"title": "_56J2oq_title",
+			"iconDanger": "_56J2oq_iconDanger",
+			"roleEditForm": "_56J2oq_roleEditForm",
+			"badge": "_56J2oq_badge",
+			"cardFoot": "_56J2oq_cardFoot",
+			"roleCount": "_56J2oq_roleCount",
+			"roleListSubagent": "_56J2oq_roleListSubagent",
+			"roleListLevel": "_56J2oq_roleListLevel",
+			"cardHead": "_56J2oq_cardHead",
+			"headSpacer": "_56J2oq_headSpacer",
+			"blockTitle": "_56J2oq_blockTitle",
+			"fieldHint": "_56J2oq_fieldHint",
+			"roleRowFoot": "_56J2oq_roleRowFoot",
+			"textarea": "_56J2oq_textarea",
+			"dialogScroll": "_56J2oq_dialogScroll",
+			"card": "_56J2oq_card",
+			"roleListRow": "_56J2oq_roleListRow",
+			"revealedPathLabel": "_56J2oq_revealedPathLabel",
+			"error": "_56J2oq_error",
+			"cardId": "_56J2oq_cardId",
+			"addRole": "_56J2oq_addRole"
 		};
 		//#endregion
 		//#region lib/types/ui-team/TeamSection.js
@@ -1884,25 +1902,38 @@ window.__ModuleLoader__.load({
 						}),
 						(0, react_jsx_runtime.jsxs)("span", {
 							className: TeamSection_module_css_default.roleListMeta,
-							children: [(0, react_jsx_runtime.jsxs)("span", {
-								className: TeamSection_module_css_default.roleListSubagent,
-								children: [(0, react_jsx_runtime.jsx)("span", {
-									className: TeamSection_module_css_default.roleListLabel,
-									children: t("roleSubagentLabelShort")
-								}), (0, react_jsx_runtime.jsx)("span", {
-									className: TeamSection_module_css_default.roleListSubagentValue,
-									children: role.subagent === "" ? "—" : role.subagent
-								})]
-							}), (0, react_jsx_runtime.jsxs)("span", {
-								className: TeamSection_module_css_default.roleListMemory,
-								children: [(0, react_jsx_runtime.jsx)("span", {
-									className: TeamSection_module_css_default.roleListLabel,
-									children: t("roleMemoryLabelShort")
-								}), (0, react_jsx_runtime.jsx)("span", {
-									className: TeamSection_module_css_default.roleListMemoryValue,
-									children: role.memory === "persistent" ? t("memoryPersistent") : t("memoryOneShot")
-								})]
-							})]
+							children: [
+								(0, react_jsx_runtime.jsxs)("span", {
+									className: TeamSection_module_css_default.roleListSubagent,
+									children: [(0, react_jsx_runtime.jsx)("span", {
+										className: TeamSection_module_css_default.roleListLabel,
+										children: t("roleSubagentLabelShort")
+									}), (0, react_jsx_runtime.jsx)("span", {
+										className: TeamSection_module_css_default.roleListSubagentValue,
+										children: role.subagent === "" ? "—" : role.subagent
+									})]
+								}),
+								(0, react_jsx_runtime.jsxs)("span", {
+									className: TeamSection_module_css_default.roleListMemory,
+									children: [(0, react_jsx_runtime.jsx)("span", {
+										className: TeamSection_module_css_default.roleListLabel,
+										children: t("roleMemoryLabelShort")
+									}), (0, react_jsx_runtime.jsx)("span", {
+										className: TeamSection_module_css_default.roleListMemoryValue,
+										children: role.memory === "persistent" ? t("memoryPersistent") : t("memoryOneShot")
+									})]
+								}),
+								(0, react_jsx_runtime.jsxs)("span", {
+									className: TeamSection_module_css_default.roleListLevel,
+									children: [(0, react_jsx_runtime.jsx)("span", {
+										className: TeamSection_module_css_default.roleListLabel,
+										children: t("roleLevelLabelShort")
+									}), (0, react_jsx_runtime.jsx)("span", {
+										className: TeamSection_module_css_default.roleListLevelValue,
+										children: role.level
+									})]
+								})
+							]
 						})
 					]
 				}), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
@@ -2187,6 +2218,21 @@ window.__ModuleLoader__.load({
 										children: t("memoryPersistent")
 									})]
 								})]
+							}),
+							(0, react_jsx_runtime.jsxs)("div", {
+								className: TeamSection_module_css_default.field,
+								children: [(0, react_jsx_runtime.jsx)("span", {
+									className: TeamSection_module_css_default.fieldLabel,
+									children: t("roleLevelLabel")
+								}), (0, react_jsx_runtime.jsx)("input", {
+									className: TeamSection_module_css_default.input,
+									type: "number",
+									min: 1,
+									step: 1,
+									value: role.level,
+									placeholder: t("roleLevelPlaceholder"),
+									onChange: (e) => onField(index, "level", e.target.value)
+								})]
 							})
 						]
 					}),
@@ -2265,6 +2311,14 @@ window.__ModuleLoader__.load({
 								onChange: (e) => setDetailDescription(e.target.value)
 							})]
 						}),
+						detail.warning !== void 0 ? (0, react_jsx_runtime.jsxs)("p", {
+							className: TeamSection_module_css_default.hygieneWarning,
+							children: [
+								t("hygieneWarningLabel"),
+								" ",
+								detail.warning
+							]
+						}) : null,
 						(0, react_jsx_runtime.jsxs)("section", {
 							className: TeamSection_module_css_default.editorBlock,
 							children: [
@@ -2395,6 +2449,28 @@ window.__ModuleLoader__.load({
 						}),
 						(0, react_jsx_runtime.jsxs)("div", {
 							className: TeamSection_module_css_default.field,
+							children: [
+								(0, react_jsx_runtime.jsx)("span", {
+									className: TeamSection_module_css_default.fieldLabel,
+									children: t("roleLevelLabel")
+								}),
+								(0, react_jsx_runtime.jsx)("input", {
+									className: TeamSection_module_css_default.input,
+									type: "number",
+									min: 1,
+									step: 1,
+									value: draft.level,
+									placeholder: t("roleLevelPlaceholder"),
+									onChange: (e) => setField("level", e.target.value)
+								}),
+								(0, react_jsx_runtime.jsx)("span", {
+									className: TeamSection_module_css_default.fieldHint,
+									children: t("roleLevelHint")
+								})
+							]
+						}),
+						(0, react_jsx_runtime.jsxs)("div", {
+							className: TeamSection_module_css_default.field,
 							children: [(0, react_jsx_runtime.jsx)("span", {
 								className: TeamSection_module_css_default.fieldLabel,
 								children: t("rolePromptLabel")
@@ -2520,6 +2596,265 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region lib/types/ui-team/mode-store.js
+		/**
+		* Session team-mode chip controller: which delegation surface the CURRENT
+		* session runs — the standard surface or a user-defined team ("编制表").
+		*
+		* Unlike the settings section's roster, the mode is a per-session dimension
+		* and the chip sits on a session's input card, so this controller is created
+		* per session (its `sessionId` feeds every wire call). The choice is only
+		* available before the session starts — once a turn has run the host refuses
+		* the swap — which the chip reflects by disabling itself on a non-blank
+		* session and the host enforces again on `modeSelect` (a `team-mode-locked`
+		* result rolls the optimistic pick back).
+		*
+		* The browser never sees the host's `mode-selected` broadcast (the forwarding
+		* whitelist is owned by the official package), so a pick optimistically flips
+		* the local `current` immediately and reconciles against the host's reply;
+		* a rejected pick reverts to the last accepted state. The durable truth is
+		* the session event the host folds, so a later `modeRead` stays authoritative.
+		* @module dsh-harness-subagent-bundle/ui-team/mode-store
+		*/
+		const INITIAL = {
+			status: "idle",
+			error: null,
+			options: [{
+				id: "standard",
+				name: ""
+			}],
+			current: { mode: "standard" },
+			busy: false
+		};
+		/** The failure message of a rejected wire call. */
+		function messageOf(error) {
+			return error instanceof Error ? error.message : String(error);
+		}
+		/**
+		* Read and drive one session's delegation surface for the input-chip.
+		*/
+		var TeamModeController = class {
+			teamPresets;
+			sessionId;
+			/** Chip snapshot the renderer subscribes to. */
+			store = (0, _deepseek_ai_dsh_client_runtime_client.createSnapshotStore)(INITIAL);
+			/** The mode accepted before the in-flight pick, for a rejected-pick rollback. */
+			lastAccepted = { mode: "standard" };
+			constructor(teamPresets, sessionId) {
+				this.teamPresets = teamPresets;
+				this.sessionId = sessionId;
+			}
+			set(patch) {
+				this.store.set({
+					...this.store.getSnapshot(),
+					...patch
+				});
+			}
+			/**
+			* Read the session's current mode and the available teams. The menu is
+			* standard-first; a team mode whose team no longer exists still renders,
+			* named by its id (the host folds the stored team id).
+			*/
+			async load() {
+				if (this.store.getSnapshot().status === "loading") return;
+				this.set({
+					status: "loading",
+					error: null
+				});
+				let mode;
+				let teams;
+				try {
+					const [modeResult, listResult] = await Promise.all([this.teamPresets.modeRead({ sessionId: this.sessionId }), this.teamPresets.list({})]);
+					if (!modeResult.ok) {
+						this.set({
+							status: "error",
+							error: modeResult.error.message
+						});
+						return;
+					}
+					if (!listResult.ok) {
+						this.set({
+							status: "error",
+							error: listResult.error.message
+						});
+						return;
+					}
+					mode = modeResult.value;
+					teams = listResult.value.teams.map((team) => ({
+						id: team.id,
+						name: team.metadata.name ?? team.id
+					}));
+				} catch (error) {
+					this.set({
+						status: "error",
+						error: messageOf(error)
+					});
+					return;
+				}
+				const current = mode.mode === "team" ? {
+					mode: "team",
+					...mode.team === void 0 ? {} : { team: mode.team }
+				} : { mode: "standard" };
+				this.lastAccepted = current;
+				this.set({
+					status: "ready",
+					error: null,
+					options: [{
+						id: "standard",
+						name: ""
+					}, ...teams.map((team) => ({
+						id: team.id,
+						name: team.name,
+						team: team.id
+					}))],
+					current
+				});
+			}
+			/**
+			* Select a surface for the session. The pick flips the local `current`
+			* immediately (the browser never sees the host's broadcast), then the host
+			* confirms; a `team-mode-locked` rejection — the session already started —
+			* rolls back to the last accepted mode. A team that vanished since load is
+			* left to the host to reject.
+			* @param mode - the target surface.
+			* @param team - the team id in team mode.
+			*/
+			async select(mode, team) {
+				if (this.store.getSnapshot().busy) return;
+				const previous = this.store.getSnapshot().current;
+				const next = mode === "team" ? {
+					mode: "team",
+					...team === void 0 ? {} : { team }
+				} : { mode: "standard" };
+				this.set({
+					current: next,
+					error: null,
+					busy: true
+				});
+				try {
+					const result = await this.teamPresets.modeSelect({
+						sessionId: this.sessionId,
+						mode,
+						...team === void 0 ? {} : { team }
+					});
+					if (!result.ok) {
+						this.set({
+							current: this.lastAccepted,
+							busy: false,
+							error: result.error.message
+						});
+						return;
+					}
+					const accepted = result.value.mode === "team" ? {
+						mode: "team",
+						...result.value.team === void 0 ? {} : { team: result.value.team }
+					} : { mode: "standard" };
+					this.lastAccepted = accepted;
+					this.set({
+						current: accepted,
+						busy: false,
+						error: null
+					});
+				} catch (error) {
+					this.set({
+						current: previous,
+						busy: false,
+						error: messageOf(error)
+					});
+				}
+			}
+		};
+		//#endregion
+		//#region \0dsh-css:bundle/subagent/src/ui-team/TeamModeChip.module.css.mjs
+		const css = ".AN4vpW_chip{max-width:min(100%,200px);min-height:28px;color:var(--dsw-alias-label-secondary);white-space:nowrap;text-overflow:ellipsis;cursor:pointer;background:0 0;border:none;border-radius:16px;align-items:center;gap:4px;padding:0 8px;font-size:13px;font-weight:500;line-height:20px;display:inline-flex;overflow:hidden}.AN4vpW_chip:not(:disabled):hover,.AN4vpW_chip[aria-expanded=true]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}.AN4vpW_chip:disabled{cursor:default;color:var(--dsw-alias-label-quaternary)}.AN4vpW_chevron{color:var(--dsw-alias-label-caption);flex:none}";
+		const tagId = "dsh-harness-subagent-bundle/TeamModeChip.module.css";
+		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
+			const tag = document.createElement("style");
+			tag.dataset.plugin = "dsh-harness-subagent-bundle";
+			tag.dataset.pluginCss = tagId;
+			tag.textContent = css;
+			document.head.appendChild(tag);
+		}
+		var TeamModeChip_module_css_default = {
+			"chevron": "AN4vpW_chevron",
+			"chip": "AN4vpW_chip"
+		};
+		//#endregion
+		//#region lib/types/ui-team/TeamModeChip.js
+		/**
+		* Session team-mode chip: the input-card tool-row control that names the
+		* current delegation surface (standard or a user-defined team) and switches
+		* it before the session starts.
+		*
+		* It registers into `conversation.input.left`, beside the resident chrome
+		* (access mode, plan, attach). The choice is only available before a turn
+		* runs — once the session is non-blank the host refuses the swap, so the
+		* chip disables itself on a started session and explains why on hover. The
+		* menu mirrors the official agent-preset chip: standard first, then every
+		* user-defined team, in roster order. A pick flips the local current
+		* immediately (the browser never sees the host's `mode-selected` broadcast),
+		* and the host's reply reconciles it; a rejection rolls back.
+		*/
+		/**
+		* The current mode's display label: `标准`/`Standard` for the standard
+		* surface, else the team's name prefixed with the team marker.
+		*/
+		function modeLabel(state, t) {
+			if (state.current.mode === "standard") return t("standard");
+			const current = state.options.find((option) => option.team === state.current.team);
+			return `${t("teamPrefix")}${current?.name ?? state.current.team ?? ""}`;
+		}
+		/**
+		* Render the session team-mode chip.
+		* @param props - composed slot props.
+		* @returns the chip and its menu.
+		*/
+		function TeamModeChip({ session, useTeamMode, t, load, select }) {
+			const state = useTeamMode((snapshot) => snapshot);
+			const [open, setOpen] = (0, react.useState)(false);
+			(0, react.useEffect)(() => {
+				if (state.status === "idle") load();
+			}, [state.status, load]);
+			const locked = !session.blank;
+			const disabled = locked || state.busy;
+			const label = modeLabel(state, t);
+			return (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
+				open,
+				onClose: () => {
+					setOpen(false);
+				},
+				items: state.options.map((option) => ({
+					id: option.id,
+					label: option.team === void 0 ? t("standard") : option.name
+				})),
+				selectedId: state.current.mode === "team" && state.current.team !== void 0 ? state.current.team : "standard",
+				onSelect: (id) => {
+					setOpen(false);
+					if (id === "standard") select("standard");
+					else select("team", id);
+				},
+				align: "start",
+				portal: true,
+				anchor: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+					label: locked ? t("modeLocked") : state.error ?? t("modeHint"),
+					side: "top",
+					delayMs: locked ? 0 : 500,
+					children: (0, react_jsx_runtime.jsxs)("button", {
+						type: "button",
+						className: TeamModeChip_module_css_default.chip,
+						"aria-haspopup": "menu",
+						"aria-expanded": open,
+						"aria-label": t("modeHint"),
+						disabled,
+						onClick: () => {
+							setOpen((value) => !value);
+						},
+						children: [label, (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutline14, { className: TeamModeChip_module_css_default.chevron })]
+					})
+				})
+			});
+		}
+		//#endregion
 		//#region lib/types/ui-team/wire-client.js
 		/**
 		* Browser transport for the team-management wire channel.
@@ -2537,6 +2872,8 @@ window.__ModuleLoader__.load({
 		/** Build the management wire face over one connection RPC caller. */
 		function createTeamPresetWire(rpc) {
 			return {
+				modeRead: (payload, signal) => call("modeRead", payload, signal),
+				modeSelect: (payload, signal) => call("modeSelect", payload, signal),
 				list: (payload, signal) => call("list", payload, signal),
 				read: (payload, signal) => call("read", payload, signal),
 				create: (payload, signal) => call("create", payload, signal),
@@ -2586,6 +2923,11 @@ window.__ModuleLoader__.load({
 			roleMemoryLabel: "Memory",
 			memoryOneShot: "One-shot",
 			memoryPersistent: "Persistent",
+			roleLevelLabel: "Level",
+			roleLevelLabelShort: "Level",
+			roleLevelPlaceholder: "1",
+			roleLevelHint: "Level 1 can only be delegated to. Level 2 and above may delegate to lower-level roles on this team.",
+			hygieneWarningLabel: "Heads-up:",
 			rolePromptLabel: "Prompt",
 			rolePromptPlaceholder: "Who this role is and how it works (multiline)",
 			addRole: "Add role",
@@ -2618,7 +2960,11 @@ window.__ModuleLoader__.load({
 			idTaken: "A team with this identifier already exists.",
 			roleIdRequired: "Give every role an identifier.",
 			roleSubagentRequired: "Bind every role to a subagent.",
-			noDescription: "No description."
+			noDescription: "No description.",
+			standard: "Standard",
+			teamPrefix: "Team: ",
+			modeHint: "Delegation surface",
+			modeLocked: "The conversation has started; the delegation surface can no longer be changed."
 		};
 		/** Simplified Chinese copy. */
 		const zh = {
@@ -2654,6 +3000,11 @@ window.__ModuleLoader__.load({
 			roleMemoryLabel: "记忆模式",
 			memoryOneShot: "一次性",
 			memoryPersistent: "长期",
+			roleLevelLabel: "级别",
+			roleLevelLabelShort: "级别",
+			roleLevelPlaceholder: "1",
+			roleLevelHint: "级别 1 只能被委派。级别 ≥2 可以委派本团队中级别更低的角色。",
+			hygieneWarningLabel: "提示：",
 			rolePromptLabel: "提示词",
 			rolePromptPlaceholder: "这个角色是谁、该怎么干活（多行）",
 			addRole: "添加角色",
@@ -2686,7 +3037,11 @@ window.__ModuleLoader__.load({
 			idTaken: "该标识符已被占用。",
 			roleIdRequired: "请为每个角色填写标识符。",
 			roleSubagentRequired: "请为每个角色绑定一个子代理。",
-			noDescription: "暂无描述。"
+			noDescription: "暂无描述。",
+			standard: "标准",
+			teamPrefix: "团队：",
+			modeHint: "委派方式",
+			modeLocked: "对话已开始，委派方式无法再更改。"
 		};
 		//#endregion
 		//#region lib/types/ui-team/index.js
@@ -2711,9 +3066,10 @@ window.__ModuleLoader__.load({
 		*/
 		function apply$1(ctx) {
 			const { api, rpc } = ctx.get("connection");
+			const teamPresets = createTeamPresetWire(rpc);
 			const section = new TeamSectionController({
 				...api,
-				teamPresets: createTeamPresetWire(rpc)
+				teamPresets
 			});
 			ctx.effect(() => ctx.locale.register("settings.subagentTeam", {
 				zh,
@@ -2801,6 +3157,20 @@ window.__ModuleLoader__.load({
 				locale: "settings.subagentTeam",
 				inject: sectionInjected
 			}, TeamSection));
+			ctx.slots.inject("conversation.input.left", () => ctx.slots.register({
+				name: "conversation.input.left",
+				id: "teams-mode",
+				order: 10,
+				locale: "settings.subagentTeam",
+				inject: (sessionId) => {
+					const mode = new TeamModeController(teamPresets, sessionId);
+					return {
+						hooks: { teamMode: mode.store },
+						load: () => mode.load(),
+						select: (modeKey, team) => mode.select(modeKey, team)
+					};
+				}
+			}, TeamModeChip));
 		}
 		//#endregion
 		//#region lib/types/ui/index.js
@@ -2814,6 +3184,13 @@ window.__ModuleLoader__.load({
 		* description, and an enable/disable switch on the row, and drives create,
 		* edit, delete, and open-directory through the host.
 		*/
+		/**
+		* The model-plan management channel, served by the model-plan bundle's Host
+		* half. The subagent surface reads only its `list` endpoint (to feed the edit
+		* dialog's plan picker) and never imports the model-plan bundle's own wire, so
+		* this constant mirrors the one that bundle publishes.
+		*/
+		const MODEL_PLAN_CHANNEL = "/model-plan";
 		/** Required services (cordis fiber inject). */
 		const inject = [
 			"slots",
@@ -2827,10 +3204,11 @@ window.__ModuleLoader__.load({
 		*/
 		function apply(ctx) {
 			const { api, rpc } = ctx.get("connection");
+			const plans = { list: (payload) => rpc.call(MODEL_PLAN_CHANNEL, "list", payload) };
 			const section = new SubagentSectionController({
 				...api,
 				subagentPresets: createSubagentPresetWire(rpc)
-			});
+			}, plans);
 			ctx.effect(() => ctx.locale.register("settings.subagentPreset", {
 				zh: zh$1,
 				en: en$1
@@ -2891,10 +3269,12 @@ window.__ModuleLoader__.load({
 			apply$1(ctx);
 		}
 		//#endregion
+		exports.MODEL_PLAN_CHANNEL = MODEL_PLAN_CHANNEL;
 		exports.SubagentSectionController = SubagentSectionController;
 		exports.apply = apply;
 		exports.createBlocker = createBlocker;
 		exports.inject = inject;
+		exports.plansListEntries = plansListEntries;
 		return module.exports;
 	}
 });

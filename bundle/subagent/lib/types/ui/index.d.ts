@@ -9,8 +9,15 @@
  * edit, delete, and open-directory through the host.
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
-export type { CreateDraft, EditDraft, SubagentRow, SubagentSectionState, } from './section-store.ts';
-export { createBlocker, SubagentSectionController } from './section-store.ts';
+/**
+ * The model-plan management channel, served by the model-plan bundle's Host
+ * half. The subagent surface reads only its `list` endpoint (to feed the edit
+ * dialog's plan picker) and never imports the model-plan bundle's own wire, so
+ * this constant mirrors the one that bundle publishes.
+ */
+export declare const MODEL_PLAN_CHANNEL = "/model-plan";
+export type { CreateDraft, EditDraft, PlanListWire, PlanWireEntry, SubagentRow, SubagentSectionState, } from './section-store.ts';
+export { createBlocker, plansListEntries, SubagentSectionController } from './section-store.ts';
 export type { SubagentSettingsKey } from './locales.ts';
 /** Required services (cordis fiber inject). */
 export declare const inject: string[];

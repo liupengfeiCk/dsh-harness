@@ -15,9 +15,12 @@
  */
 import { TeamSectionController } from "./section-store.js";
 import { TeamSection } from "./TeamSection.js";
+import { TeamModeController } from "./mode-store.js";
+import { TeamModeChip } from "./TeamModeChip.js";
 import { createTeamPresetWire } from "./wire-client.js";
 import { en, zh } from "./locales.js";
 export { createBlocker, detailBlocker, roleBlocker, TeamSectionController } from "./section-store.js";
+export { TeamModeController } from "./mode-store.js";
 /** Required services (cordis fiber inject), shared with the subagent section. */
 export const inject = ['slots', 'locale', 'connection', 'remote'];
 /**
@@ -26,9 +29,10 @@ export const inject = ['slots', 'locale', 'connection', 'remote'];
  */
 export function apply(ctx) {
     const { api, rpc } = ctx.get('connection');
+    const teamPresets = createTeamPresetWire(rpc);
     const section = new TeamSectionController({
         ...api,
-        teamPresets: createTeamPresetWire(rpc),
+        teamPresets,
     });
     ctx.effect(() => ctx.locale.register('settings.subagentTeam', { zh, en }), 'ui-teams: settings section dictionary');
     ctx.effect(() => {
@@ -80,5 +84,23 @@ export function apply(ctx) {
         locale: 'settings.subagentTeam',
         inject: sectionInjected,
     }, TeamSection));
+    // Register the session team-mode chip into the input card's tool row, beside
+    // the resident chrome. Each session gets its own controller (the mode is a
+    // per-session dimension and every wire call carries the session id), created
+    // on the slot's session-scoped inject.
+    ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
+        name: 'conversation.input.left',
+        id: 'teams-mode',
+        order: 10,
+        locale: 'settings.subagentTeam',
+        inject: (sessionId) => {
+            const mode = new TeamModeController(teamPresets, sessionId);
+            return {
+                hooks: { teamMode: mode.store },
+                load: () => mode.load(),
+                select: (modeKey, team) => mode.select(modeKey, team),
+            };
+        },
+    }, TeamModeChip));
 }
 //# sourceMappingURL=index.js.map

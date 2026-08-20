@@ -16,24 +16,49 @@
  * {@link SubagentPresets.mountOnChild}.
  * @module dsh-harness-subagent-bundle/preset
  */
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Service } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import { dshHomePath } from "../home-path.js";
 import { discoverSubagents, USER_SUBAGENT_DIR } from "./discovery.js";
 /**
+ * Resolve this package's own root from the current module's URL, walking up
+ * from the module's directory until a directory containing `package.json` is
+ * found. This locates the package root regardless of how deep the module is
+ * compiled: `src/preset/index.ts` (development) and `lib/types/preset/index.js`
+ * (built install) sit at different depths, so no fixed `../..` count can serve
+ * both. Falls back to the starting directory (whose `factory/` then does not
+ * exist and scans as empty) when no `package.json` is found — a genuine
+ * anomaly, so it is surfaced rather than silent.
+ */
+function resolvePackageRoot(moduleUrl) {
+    let dir = dirname(fileURLToPath(moduleUrl));
+    for (;;) {
+        if (existsSync(join(dir, 'package.json')))
+            return dir;
+        const parent = dirname(dir);
+        if (parent === dir)
+            break;
+        dir = parent;
+    }
+    console.warn('[dsh-harness-subagent-bundle] could not locate package.json above the factory-subagent module; factory/ root unresolved');
+    return dirname(fileURLToPath(moduleUrl));
+}
+/**
  * The shipped factory-subagent root, resolved from this package's own install.
  *
  * A subagent's composition directory ships beside the package source and its
- * compiled `lib/` (sibling directories at the package root), so `../../factory/`
- * resolves to the package's `factory/` directory from BOTH the
- * `src/preset/index.ts` layout (tsx development) and the `lib/types/preset/index.js`
- * layout (built install). The directory is published through this package's
- * `files` list, so the shipped `code-reviewer` subagent rides with the package
- * wherever it is installed — "code ships with the package", no launcher-side
- * root injection required.
+ * compiled `lib/` as a sibling `factory/` directory at the package root. This
+ * is resolved by walking up from the current module to the package root (see
+ * {@link resolvePackageRoot}), so both the `src/preset/index.ts` and
+ * `lib/types/preset/index.js` layouts land on the package's `factory/`. The
+ * directory is published through this package's `files` list, so the shipped
+ * `code-reviewer` subagent rides with the package wherever it is installed —
+ * "code ships with the package", no launcher-side root injection required.
  */
-export const FACTORY_SUBAGENT_ROOT = fileURLToPath(new URL('../../factory/', import.meta.url));
+export const FACTORY_SUBAGENT_ROOT = join(resolvePackageRoot(import.meta.url), 'factory');
 import { applyEdits, discoverToolPackages, readEditableFields, } from "../preset-edit/index.js";
 import { SubagentExistsError, SubagentNotWritableError, createSubagent, deleteSubagent, readComposition, setEnabledField, updateSubagent, writeComposition, writeEnabledOverride, } from "./authoring.js";
 import { mountSubagentOnChild } from "./mount.js";

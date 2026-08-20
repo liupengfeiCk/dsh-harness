@@ -1,8 +1,17 @@
 /**
- * UPSTREAM-SYNC NOTE: verbatim copy of @deepseek-ai/dsh-subagent/src/projection.ts.
+ * UPSTREAM-SYNC NOTE: copied from @deepseek-ai/dsh-subagent/src/projection.ts.
  * Official tarballs ship lib/ only, so deep src imports 404 on registry
  * installs; this copy makes the package self-contained. Keep in sync with the
  * upstream file when the vendored checkout advances.
+ *
+ * DELIBERATE DEVIATION: `descriptorIdentity` folds a descriptor through BOTH
+ * the harness descriptor fold (`foldHarnessSubagentDescriptor`) and the
+ * official fold (`foldSubagentDescriptor`). The harness writes version-3
+ * descriptors that carry the extra `subagent`/`team`/`role` fields; the
+ * official fold only accepts version-2. Folding only the official version
+ * would classify every harness-authored (version-3) child as `corrupt` even
+ * when its transcript is healthy — the identity classification must agree
+ * with the descriptor the running runtime actually wrote.
  */
 /**
  * Pure session projections for subagent identity (mode/label) and active-turn

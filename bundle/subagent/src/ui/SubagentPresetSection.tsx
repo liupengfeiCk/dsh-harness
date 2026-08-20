@@ -11,12 +11,12 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import {
-  Button, IconBrowseOutline16, IconEditOutline16, IconFolderOpenOutline16, IconPlusOutline16, IconTrashOutline16, Modal, Tooltip,
+  Button, IconBrowseOutline16, IconCopyOutline16, IconEditOutline16, IconFolderOpenOutline16, IconPlusOutline16, IconTrashOutline16, Modal, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  createBlocker, INHERIT_MODEL_VALUE, modelOptionValue, type CatalogDraft, type EditDraft, type SubagentRow, type SubagentSectionState, type ViewDraft,
+  createBlocker, INHERIT_MODEL_VALUE, type CatalogDraft, type EditDraft, type SubagentRow, type SubagentSectionState, type ViewDraft,
 } from './section-store.ts'
 import type { SubagentSettingsKey } from './locales.ts'
 import css from './SubagentPresetSection.module.css'
@@ -78,13 +78,14 @@ function SubagentRowView(props: {
   t: (key: SubagentSettingsKey) => string
   onToggle: (id: string, enabled: boolean) => void
   onView: (id: string) => void
+  onCopy: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
   onOpen: (id: string) => void
   hasDocument: boolean
   revealedPath: string | undefined
 }): ReactNode {
-  const { row, t, onToggle, onView, onEdit, onDelete, onOpen, hasDocument, revealedPath } = props
+  const { row, t, onToggle, onView, onCopy, onEdit, onDelete, onOpen, hasDocument, revealedPath } = props
   const custom = row.trust === 'user'
   const broken = row.broken !== undefined
   return (
@@ -110,6 +111,11 @@ function SubagentRowView(props: {
         <Tooltip label={t('view')} side="top">
           <button type="button" className={css.iconButton} onClick={() => onView(row.id)}>
             <IconBrowseOutline16 />
+          </button>
+        </Tooltip>
+        <Tooltip label={t('copy')} side="top">
+          <button type="button" className={css.iconButton} disabled={broken} onClick={() => onCopy(row.id)}>
+            <IconCopyOutline16 />
           </button>
         </Tooltip>
         <Tooltip label={t('edit')} side="top">
@@ -259,20 +265,14 @@ function EditDialog(props: {
           <span className={css.fieldLabel}>{t('model')}</span>
           <select
             className={`${css.input} ${css.select}`}
-            value={edit.metadata.model === undefined
-              ? INHERIT_MODEL_VALUE
-              : modelOptionValue(edit.metadata.model)}
+            value={edit.metadata.model === undefined ? INHERIT_MODEL_VALUE : edit.metadata.model}
             onChange={e => setEditField('model', 'value', e.target.value)}
           >
             <option value={INHERIT_MODEL_VALUE}>{t('inheritModel')}</option>
-            {edit.modelChoices.map(group => (
-              <optgroup key={group.provider} label={group.providerName}>
-                {group.models.map(model => (
-                  <option key={`${group.provider}\u0000${model.id}`} value={modelOptionValue({ provider: group.provider, model: model.id })}>
-                    {model.name}
-                  </option>
-                ))}
-              </optgroup>
+            {edit.planChoices.map(plan => (
+              <option key={plan.id} value={plan.id}>
+                {`${plan.id} — ${plan.provider}/${plan.model}`}
+              </option>
             ))}
           </select>
         </div>
@@ -417,6 +417,7 @@ export function SubagentPresetSection(props: SubagentPresetSectionProps): ReactN
             t={t}
             onToggle={props.toggle}
             onView={props.beginView}
+            onCopy={props.beginCreate}
             onEdit={props.beginEdit}
             onDelete={props.confirmDelete}
             onOpen={props.openLocation}
@@ -425,15 +426,21 @@ export function SubagentPresetSection(props: SubagentPresetSectionProps): ReactN
           />
         ))}
       </ul>
-      <button
-        type="button"
-        className={css.creatorButton}
-        disabled={!state.authorable || factory === undefined}
-        onClick={() => factory !== undefined && props.beginCreate(factory.id)}
-      >
-        <IconPlusOutline16 />
-        {t('create')}
-      </button>
+      {/* The roster creator is only meaningful when the deployment ships a
+          system template to copy from; without one, drop the button rather
+          than leave a permanently-greyed one. Copying any single subagent is
+          still available on every card. */}
+      {factory === undefined ? null : (
+        <button
+          type="button"
+          className={css.creatorButton}
+          disabled={!state.authorable}
+          onClick={() => props.beginCreate(factory.id)}
+        >
+          <IconPlusOutline16 />
+          {t('create')}
+        </button>
+      )}
       <CreateDialog
         state={state}
         t={t}

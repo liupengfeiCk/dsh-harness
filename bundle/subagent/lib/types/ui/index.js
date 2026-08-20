@@ -12,10 +12,17 @@ import { SubagentSectionController } from "./section-store.js";
 import { SubagentPresetSection } from "./SubagentPresetSection.js";
 import { createSubagentPresetWire } from "./wire-client.js";
 import { en, zh } from "./locales.js";
+/**
+ * The model-plan management channel, served by the model-plan bundle's Host
+ * half. The subagent surface reads only its `list` endpoint (to feed the edit
+ * dialog's plan picker) and never imports the model-plan bundle's own wire, so
+ * this constant mirrors the one that bundle publishes.
+ */
+export const MODEL_PLAN_CHANNEL = '/model-plan';
 // The independent "团队" (编制表) settings section rides the same single
 // browser client entry, so both sections ship in one client bundle.
 import { apply as applyTeamSection } from "../ui-team/index.js";
-export { createBlocker, SubagentSectionController } from "./section-store.js";
+export { createBlocker, plansListEntries, SubagentSectionController } from "./section-store.js";
 /** Required services (cordis fiber inject). */
 export const inject = ['slots', 'locale', 'connection', 'remote'];
 /**
@@ -24,10 +31,16 @@ export const inject = ['slots', 'locale', 'connection', 'remote'];
  */
 export function apply(ctx) {
     const { api, rpc } = ctx.get('connection');
+    // The model-plan roster, for the edit dialog's plan picker. Read structurally
+    // over the `/model-plan` channel — the only seam to the model-plan bundle —
+    // so a plan a subagent may bind never drifts from what the deployment serves.
+    const plans = {
+        list: (payload) => rpc.call(MODEL_PLAN_CHANNEL, 'list', payload),
+    };
     const section = new SubagentSectionController({
         ...api,
         subagentPresets: createSubagentPresetWire(rpc),
-    });
+    }, plans);
     ctx.effect(() => ctx.locale.register('settings.subagentPreset', { zh, en }), 'ui-subagent-preset: settings section dictionary');
     ctx.effect(() => {
         const refresh = () => {

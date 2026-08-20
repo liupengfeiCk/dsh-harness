@@ -35,8 +35,8 @@ function fakeApi(): Pick<IApiClient, 'llm'> & { teamPresets: TeamPresetWire } {
         team: {
           id: 'edit', trust: 'user', metadata: { name: 'Edit', enabled: true },
           roles: [
-            { id: 'copywriter', description: 'Writes copy.', prompt: 'You are a writer.', subagent: 'writer', memory: 'one-shot' },
-            { id: 'scout', description: 'Reads source.', prompt: 'You are a scout.', subagent: 'reviewer', memory: 'persistent' },
+            { id: 'copywriter', description: 'Writes copy.', prompt: 'You are a writer.', subagent: 'writer', level: 2, memory: 'one-shot' },
+            { id: 'scout', description: 'Reads source.', prompt: 'You are a scout.', subagent: 'reviewer', level: 1, memory: 'persistent' },
           ],
         },
       }),
@@ -104,7 +104,7 @@ describe('create dialog', () => {
     controller.setCreateRoleField(0, 'memory', 'persistent')
     await controller.confirmCreate()
     expect(created?.id).toBe('news')
-    expect(created?.roles).toEqual([{ id: 'copywriter', subagent: 'writer', memory: 'persistent' }])
+    expect(created?.roles).toEqual([{ id: 'copywriter', subagent: 'writer', level: 1, memory: 'persistent' }])
     expect(controller.store.getSnapshot().create).toBeNull()
   })
 })
@@ -211,7 +211,7 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
     const edit = detail.roleEdit
     expect(edit).not.toBeNull()
     expect(edit!.kind).toBe('new')
-    expect(edit!.draft).toEqual({ id: '', description: '', prompt: '', subagent: '', memory: 'one-shot' })
+    expect(edit!.draft).toEqual({ id: '', description: '', prompt: '', subagent: '', level: 1, memory: 'one-shot' })
     // roleBlocker only fails on the targeted single-role form — the blank
     // trailing row makes the whole roster block, but the new role is the
     // one being filled in.
@@ -288,7 +288,7 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
         read: () => wireOk({
           team: {
             id: 'edit', trust: 'user', metadata: {},
-            roles: [{ id: 'copywriter', description: '', prompt: '', subagent: 'writer', memory: 'one-shot' }],
+            roles: [{ id: 'copywriter', description: '', prompt: '', subagent: 'writer', level: 1, memory: 'one-shot' }],
           },
         }),
         update: () => { updateCalls++; return wireOk({ id: 'edit' }) },
@@ -334,7 +334,7 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
         read: () => wireOk({
           team: {
             id: 'edit', trust: 'user', metadata: {},
-            roles: [{ id: 'copywriter', description: '', prompt: '', subagent: 'writer', memory: 'one-shot' }],
+            roles: [{ id: 'copywriter', description: '', prompt: '', subagent: 'writer', level: 1, memory: 'one-shot' }],
           },
         }),
         update: (request: { id: string; roles: { id: string; subagent: string; memory: string }[] }) => {
@@ -354,7 +354,7 @@ describe('role-level edits (compact list → single-role edit dialog)', () => {
     controller.setRoleEditField('subagent', 'reviewer')
     controller.saveRoleEdit()
     await controller.confirmDetail()
-    expect(updatePayload?.roles).toEqual([{ id: 'copywriter', subagent: 'reviewer', memory: 'one-shot' }])
+    expect(updatePayload?.roles).toEqual([{ id: 'copywriter', subagent: 'reviewer', level: 1, memory: 'one-shot' }])
     expect(controller.store.getSnapshot().detail).toBeNull()
   })
 })

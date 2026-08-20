@@ -14,6 +14,8 @@ export const TEAM_PRESET_CHANNEL = '/team-preset';
 /** Build the management wire face over one connection RPC caller. */
 export function createTeamPresetWire(rpc) {
     return {
+        modeRead: (payload, signal) => call('modeRead', payload, signal),
+        modeSelect: (payload, signal) => call('modeSelect', payload, signal),
         list: (payload, signal) => call('list', payload, signal),
         read: (payload, signal) => call('read', payload, signal),
         create: (payload, signal) => call('create', payload, signal),

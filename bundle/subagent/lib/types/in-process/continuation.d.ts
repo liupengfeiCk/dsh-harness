@@ -21,6 +21,9 @@
  *     `subagent` id survives a cold resume (the official `foldSubagentDescriptor`
  *     would reject it as an unknown field);
  *   - `ContinuationHost` is exported so `./service.ts` can build the host.
+ *   - settlement after a wake-up report is skipped entirely (see
+ *     `deliverReport`'s `reportedWaking`), so a persistent role that reports
+ *     then settles notifies the parent exactly once.
  * When the official continuation manager changes upstream, re-sync this file.
  *
  * A continuable child has one durable Session and at most one process-local

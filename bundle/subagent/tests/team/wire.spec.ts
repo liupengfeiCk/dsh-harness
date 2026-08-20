@@ -36,6 +36,7 @@ function mockTeams(overrides: Partial<Teams> = {}): {
     resolve: async (id: string) => ({
       id, trust: 'user' as const, path: `/teams/${id}/team.yml`, metadata: {}, roles: [],
     }),
+    hygieneWarning: () => undefined,
     create,
     update,
     remove,
@@ -64,7 +65,8 @@ describe('team-preset wire dispatch', () => {
       authorable: false,
       list: async () => [{
         id: 'edit', trust: 'system' as const, path: '/x/team.yml',
-        metadata: { enabled: true }, roles: [{ id: 'copywriter' }, { id: 'editor', broken: 'x' }],
+        metadata: { enabled: true },
+        roles: [{ id: 'copywriter', level: 1 }, { id: 'editor', level: 2, broken: 'x' }],
       }],
     })
     const result = await dispatchTeamPreset(teams, mockSubagents(['writer', 'reviewer']), 'list', {}, signal())
@@ -73,7 +75,7 @@ describe('team-preset wire dispatch', () => {
       value: {
         teams: [{
           id: 'edit', trust: 'system', metadata: { enabled: true },
-          roles: [{ id: 'copywriter' }, { id: 'editor', broken: 'x' }],
+          roles: [{ id: 'copywriter', level: 1 }, { id: 'editor', level: 2, broken: 'x' }],
         }],
         authorable: false,
         hasDocument: expect.any(Boolean),
@@ -87,7 +89,7 @@ describe('team-preset wire dispatch', () => {
       resolve: async (id: string) => ({
         id, trust: 'user' as const, path: `/t/${id}/team.yml`,
         metadata: { name: 'Edit' }, roles: [{
-          id: 'copywriter', description: 'Writes copy', prompt: 'You are a copywriter.', subagent: 'writer', memory: 'persistent' as const,
+          id: 'copywriter', description: 'Writes copy', prompt: 'You are a copywriter.', subagent: 'writer', level: 3, memory: 'persistent' as const,
         }],
       }),
     })
@@ -98,8 +100,25 @@ describe('team-preset wire dispatch', () => {
         team: {
           id: 'edit', trust: 'user', metadata: { name: 'Edit' },
           roles: [{
-            id: 'copywriter', description: 'Writes copy', prompt: 'You are a copywriter.', subagent: 'writer', memory: 'persistent',
+            id: 'copywriter', description: 'Writes copy', prompt: 'You are a copywriter.', subagent: 'writer', level: 3, memory: 'persistent',
           }],
+        },
+      },
+    })
+  })
+
+  it('surfaces the config-hygiene warning on the team detail', async () => {
+    const { teams } = mockTeams({
+      hygieneWarning: () => 'one-shot role at level >= 2 dissolves after one task',
+    })
+    const result = await dispatchTeamPreset(teams, undefined, 'read', { id: 'edit' }, signal())
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        team: {
+          id: 'edit', trust: 'user', metadata: {},
+          roles: [],
+          warning: 'one-shot role at level >= 2 dissolves after one task',
         },
       },
     })
@@ -121,7 +140,7 @@ describe('team-preset wire dispatch', () => {
       {
         id: 'edit',
         name: 'Edit team',
-        roles: [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot' }],
+        roles: [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot', level: 2 }],
       },
       signal(),
     )
@@ -129,7 +148,7 @@ describe('team-preset wire dispatch', () => {
     expect(create).toHaveBeenCalledExactlyOnceWith(
       'edit',
       { name: 'Edit team' },
-      [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot' }],
+      [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot', level: 2 }],
     )
   })
 
@@ -186,7 +205,7 @@ describe('team-preset update semantics', () => {
       {
         id: 'edit',
         metadata: { name: 'New', enabled: true },
-        roles: [{ id: 'copywriter', subagent: 'writer', memory: 'persistent', description: 'Writes' }],
+        roles: [{ id: 'copywriter', subagent: 'writer', memory: 'persistent', description: 'Writes', level: 2 }],
       },
       signal(),
     )
@@ -194,7 +213,7 @@ describe('team-preset update semantics', () => {
     expect(update).toHaveBeenCalledExactlyOnceWith(
       'edit',
       { name: 'New', enabled: true },
-      [{ id: 'copywriter', description: 'Writes', subagent: 'writer', memory: 'persistent' }],
+      [{ id: 'copywriter', description: 'Writes', subagent: 'writer', memory: 'persistent', level: 2 }],
     )
   })
 
@@ -214,7 +233,7 @@ describe('team-preset update semantics', () => {
     expect(update).toHaveBeenCalledExactlyOnceWith(
       'edit',
       { name: 'Keep', enabled: true },
-      [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot' }],
+      [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot', level: 1 }],
     )
   })
 

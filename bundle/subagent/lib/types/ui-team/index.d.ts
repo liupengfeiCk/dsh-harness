@@ -16,6 +16,8 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
 export type { CreateDraft, DetailDraft, RoleDraft, RoleEditDraft, TeamRow, TeamSectionState, } from './section-store.ts';
 export { createBlocker, detailBlocker, roleBlocker, TeamSectionController } from './section-store.ts';
+export type { TeamModeOption, TeamModeSelection, TeamModeState } from './mode-store.ts';
+export { TeamModeController } from './mode-store.ts';
 export type { TeamSettingsKey } from './locales.ts';
 /** Required services (cordis fiber inject), shared with the subagent section. */
 export declare const inject: string[];

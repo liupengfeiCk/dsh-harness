@@ -349,7 +349,8 @@
 }
 
 .roleListSubagent,
-.roleListMemory {
+.roleListMemory,
+.roleListLevel {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -371,6 +372,11 @@
   border: 1px solid var(--dsw-alias-border-l2);
   font-size: 11px;
   line-height: 17px;
+}
+
+.roleListLevelValue {
+  color: var(--dsw-alias-brand-primary);
+  font-weight: 600;
 }
 
 .emptyRoles {
@@ -407,6 +413,23 @@
 .fieldLabel {
   font-size: 12px;
   font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.fieldHint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.hygieneWarning {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-state-warning-primary, #d97706);
+  border-radius: 8px;
+  background: var(--dsw-alias-state-warning-bg, color-mix(in srgb, var(--dsw-alias-state-warning-primary, #d97706) 10%, transparent));
+  font-size: 12px;
+  line-height: 1.5;
   color: var(--dsw-alias-label-secondary);
 }
 

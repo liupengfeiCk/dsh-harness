@@ -9,25 +9,37 @@
  * edit, delete, and open-directory through the host.
  */
 
-import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ConnectionHandle, RpcResult } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the settings shell's SlotMap merge (the 'settings.section' entry).
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { SubagentSectionController } from './section-store.ts'
+import { SubagentSectionController, type PlanWireEntry } from './section-store.ts'
 import type { SubagentSectionInjected } from './SubagentPresetSection.tsx'
 import { SubagentPresetSection } from './SubagentPresetSection.tsx'
 import { createSubagentPresetWire } from './wire-client.ts'
+import type { PlanListWire } from './section-store.ts'
 import { en, zh } from './locales.ts'
 // The independent "团队" (编制表) settings section rides the same single
 // browser client entry, so both sections ship in one client bundle.
 import { apply as applyTeamSection } from '../ui-team/index.ts'
 
+/**
+ * The model-plan management channel, served by the model-plan bundle's Host
+ * half. The subagent surface reads only its `list` endpoint (to feed the edit
+ * dialog's plan picker) and never imports the model-plan bundle's own wire, so
+ * this constant mirrors the one that bundle publishes.
+ */
+export const MODEL_PLAN_CHANNEL = '/model-plan'
+// The independent "团队" (编制表) settings section rides the same single
+// browser client entry, so both sections ship in one client bundle.
+import { apply as applyTeamSection } from '../ui-team/index.ts'
+
 export type {
-  CreateDraft, EditDraft, SubagentRow, SubagentSectionState,
+  CreateDraft, EditDraft, PlanListWire, PlanWireEntry, SubagentRow, SubagentSectionState,
 } from './section-store.ts'
-export { createBlocker, SubagentSectionController } from './section-store.ts'
+export { createBlocker, plansListEntries, SubagentSectionController } from './section-store.ts'
 export type { SubagentSettingsKey } from './locales.ts'
 
 /** Required services (cordis fiber inject). */
@@ -39,10 +51,18 @@ export const inject = ['slots', 'locale', 'connection', 'remote']
  */
 export function apply(ctx: ClientContext): void {
   const { api, rpc } = ctx.get('connection') as ConnectionHandle
+  // The model-plan roster, for the edit dialog's plan picker. Read structurally
+  // over the `/model-plan` channel — the only seam to the model-plan bundle —
+  // so a plan a subagent may bind never drifts from what the deployment serves.
+  const plans: PlanListWire = {
+    list: (payload) => rpc.call(
+      MODEL_PLAN_CHANNEL, 'list', payload,
+    ) as Promise<RpcResult<{ plans: readonly PlanWireEntry[]; authorable: boolean }>>,
+  }
   const section = new SubagentSectionController({
     ...api,
     subagentPresets: createSubagentPresetWire(rpc),
-  })
+  }, plans)
 
   ctx.effect(() => ctx.locale.register('settings.subagentPreset', { zh, en }), 'ui-subagent-preset: settings section dictionary')
 

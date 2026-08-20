@@ -115,11 +115,15 @@ function parseHarnessSubagentDescriptor(value) {
     }
     if (mode === 'one-shot') {
         const label = optionalString(value, 'label');
+        const team = optionalString(value, 'team');
+        const role = optionalString(value, 'role');
         const result = {
             version: HARNESS_SUBAGENT_DESCRIPTOR_VERSION,
             mode,
             provider,
             ...label !== undefined ? { label } : {},
+            ...team !== undefined ? { team } : {},
+            ...role !== undefined ? { role } : {},
         };
         return result;
     }
@@ -169,6 +173,26 @@ export function snapshotHarnessSubagentDescriptor(input) {
         ...input.persona !== undefined ? { persona: input.persona } : {},
         ...input.toolFilter !== undefined ? { toolFilter: input.toolFilter } : {},
         ...input.subagent !== undefined ? { subagent: input.subagent } : {},
+        ...input.team !== undefined ? { team: input.team } : {},
+        ...input.role !== undefined ? { role: input.role } : {},
+    };
+    const snapshot = snapshotJsonValue(candidate);
+    if (snapshot === undefined) {
+        throw new Error('subagent descriptor is not losslessly JSON-serializable');
+    }
+    return snapshot;
+}
+/**
+ * Snapshot a one-shot harness descriptor, optionally carrying the `team`/`role`
+ * identity so a one-shot team-role child is foldable by the delegation execution
+ * gate. A plain one-shot child (no team context) is unchanged.
+ */
+export function snapshotHarnessOneShotSubagentDescriptor(input) {
+    const candidate = {
+        version: HARNESS_SUBAGENT_DESCRIPTOR_VERSION,
+        mode: input.mode,
+        provider: input.provider,
+        ...input.label !== undefined ? { label: input.label } : {},
         ...input.team !== undefined ? { team: input.team } : {},
         ...input.role !== undefined ? { role: input.role } : {},
     };

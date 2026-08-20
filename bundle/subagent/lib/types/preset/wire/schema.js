@@ -20,7 +20,7 @@ import { z } from 'zod';
 export const wireSubagentMetadataSchema = z.object({
     description: z.string().optional(),
     enabled: z.boolean().optional(),
-    model: z.object({ provider: z.string(), model: z.string() }).optional(),
+    model: z.string().optional(),
     inheritParent: z.boolean().optional(),
 });
 /** One subagent roster row. */

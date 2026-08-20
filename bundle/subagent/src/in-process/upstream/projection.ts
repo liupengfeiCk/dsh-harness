@@ -1,8 +1,17 @@
 /**
- * UPSTREAM-SYNC NOTE: verbatim copy of @deepseek-ai/dsh-subagent/src/projection.ts.
+ * UPSTREAM-SYNC NOTE: copied from @deepseek-ai/dsh-subagent/src/projection.ts.
  * Official tarballs ship lib/ only, so deep src imports 404 on registry
  * installs; this copy makes the package self-contained. Keep in sync with the
  * upstream file when the vendored checkout advances.
+ *
+ * DELIBERATE DEVIATION: `descriptorIdentity` folds a descriptor through BOTH
+ * the harness descriptor fold (`foldHarnessSubagentDescriptor`) and the
+ * official fold (`foldSubagentDescriptor`). The harness writes version-3
+ * descriptors that carry the extra `subagent`/`team`/`role` fields; the
+ * official fold only accepts version-2. Folding only the official version
+ * would classify every harness-authored (version-3) child as `corrupt` even
+ * when its transcript is healthy — the identity classification must agree
+ * with the descriptor the running runtime actually wrote.
  */
 /**
  * Pure session projections for subagent identity (mode/label) and active-turn
@@ -14,6 +23,7 @@
 import { z } from 'zod'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { foldHarnessSubagentDescriptor } from '../descriptor.ts'
 import { foldSubagentDescriptor } from './descriptor.ts'
 import type { SubagentDescriptorData } from './descriptor.ts'
 import type { SubagentIdentityProjection, SubagentTimingProjection } from './projection-types.ts'
@@ -116,9 +126,19 @@ const identitySchema = z.discriminatedUnion('mode', [
 
 /** Interpret one `subagent/descriptor` event's identity; no value when the payload cannot be trusted. */
 function descriptorIdentity(event: SessionEvent): SubagentIdentityProjection | undefined {
+  // The harness writes version-3 descriptors carrying the extra `subagent`/
+  // `team`/`role` fields; the official fold only accepts version-2. Fold a
+  // harness-authored descriptor through the harness fold and fall back to the
+  // official fold for a version-2 child, so either authoring path yields an
+  // identity — otherwise every harness-authored (version-3) child would fold
+  // to no value and the catalog would misreport a healthy transcript as
+  // corrupt. Each fold is version-exclusive (it returns `undefined` for the
+  // other's version), so the order is unambiguous; a version-3 one-shot is
+  // handled by the harness fold's one-shot arm.
   let descriptor: SubagentDescriptorData | undefined
   try {
-    descriptor = foldSubagentDescriptor([event])
+    descriptor = foldHarnessSubagentDescriptor([event])
+    if (descriptor === undefined) descriptor = foldSubagentDescriptor([event])
   } catch {
     // Only a malformed current-version payload throws in descriptor parsing;
     // a projection fold must never throw, so damage folds to no value.

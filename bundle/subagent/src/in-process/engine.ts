@@ -25,7 +25,6 @@ import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { foldConsumedWork } from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
-import { installModelSelection, type ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { SessionId, type SessionEvent, type TurnEndReason } from '@deepseek-ai/dsh-session'
 import { createUserMessage, type ContentBlock } from '@deepseek-ai/dsh-llm'
 import {
@@ -44,6 +43,10 @@ import type {
   SubagentStopReason,
 } from '@deepseek-ai/dsh-subagent'
 import type { HarnessResolvedSubagentStartRequest } from './request-types.ts'
+// The team tool is mounted onto level >= 2 team-role children so they can
+// delegate down (issuance gate, rule 2). The tool module does not import this
+// engine module, so this edge does not create a cycle.
+import * as teamTool from '../team/tool.ts'
 // Type-only: make `ctx.get('agentPresets')` / `ctx.get('subagentPresets')` resolve
 // to their registries when composed — a child inherits its parent's composition
 // and may mount a named subagent's plugin tree opportunistically (the documented
@@ -110,6 +113,71 @@ export interface ChildComposition {
   readonly toolFilter?: import('@deepseek-ai/dsh-tools').ToolRestriction | undefined
   /** User-defined subagent id whose plugin tree mounts onto the child's own scope. */
   readonly subagent?: string | undefined
+  /**
+   * Issuance-gate grant (rule 2): when present, the child is a team role at
+   * level >= 2 and the `team_delegate` tool is mounted onto the child's own
+   * scope so it can delegate down. Level-1 children carry no grant, so they
+   * never get the delegation tool.
+   */
+  readonly teamDelegation?: { team: string; provider: string; toolName: string } | undefined
+}
+
+/**
+ * The parent agent's EFFECTIVE provider/model — what its requests actually
+ * route through — for a delegated child to inherit by default.
+ *
+ * The official `resolveChildAgentOptions` (and the continuation descriptor)
+ * inherit from `parent.options`, the preset's composed DEFAULT. But the main
+ * agent's live requests are routed by the installed model selection
+ * (`installModelSelection`), which overrides `agent/request` config to the
+ * user's picked provider/model; `parent.options` may still name a different
+ * preset default. Reading the session's last request header — the very source
+ * the official apiproxy `selectionFor` folds for its "current" selection —
+ * makes a delegated child inherit the SAME route the parent actually runs, so
+ * subagents and the main agent share one cache-friendly gateway. Falls back to
+ * `parent.options` when the parent has not yet issued a request.
+ *
+ * @param parent - the delegating parent whose live route to mirror.
+ * @returns the effective `{ provider, model }`, either field absent when unknown.
+ */
+export function resolveParentEffectiveModel(
+  parent: Agent,
+): { provider?: string; model?: string } {
+  const headerConfig = parent.session.requestHeader()?.config
+  return {
+    ...(headerConfig?.provider ?? parent.options.provider) !== undefined
+      ? { provider: headerConfig?.provider ?? parent.options.provider }
+      : {},
+    ...(headerConfig?.model ?? parent.options.model) !== undefined
+      ? { model: headerConfig?.model ?? parent.options.model }
+      : {},
+  }
+}
+
+/**
+ * Resolve a delegated child's agent options from the parent's EFFECTIVE model
+ * rather than its preset default. Overlays the effective `{ provider, model }`
+ * under the requested options and delegates the rest (maxTokens, subagentDepth)
+ * to the official `resolveChildAgentOptions`, so an explicit delegation
+ * `agentOptions` still wins and the subagent's own model override (installed
+ * later by {@link setupChildComposition}) keeps precedence at request time.
+ *
+ * @param parent - the delegating parent.
+ * @param requested - explicit delegation options, if any.
+ * @param childDepth - the child's recursion depth.
+ * @returns the child's agent options with the effective model inherited.
+ */
+export function harnessChildAgentOptions(
+  parent: Agent,
+  requested: import('@deepseek-ai/dsh-agent').AgentOptions | undefined,
+  childDepth: number,
+): import('@deepseek-ai/dsh-agent').AgentOptions {
+  const { provider, model } = resolveParentEffectiveModel(parent)
+  return resolveChildAgentOptions(parent, {
+    ...provider !== undefined ? { provider } : {},
+    ...model !== undefined ? { model } : {},
+    ...requested,
+  }, childDepth)
 }
 
 /**
@@ -156,18 +224,13 @@ export async function setupChildComposition(
     if (mounted?.metadata.inheritParent === true) {
       childCtx.get('agentPresets')?.composeFrom(childCtx, parent.ctx)
     }
-    // A named subagent may carry its own model override. When it does, couple
-    // that fixed provider/model pair to the child's own scope so the child's
-    // requests route to the selected model instead of the parent's. Absent an
-    // override the child inherits the parent's model.
-    const override = mounted?.metadata.model
-    if (override !== undefined) {
-      const selection: ModelSelectionRef = {
-        current: { provider: override.provider, model: override.model },
-        assembled: undefined,
-      }
-      installModelSelection(childCtx, selection)
-    }
+    // A named subagent may bind a model-plan (its metadata `model` is a plan
+    // id). The binding was recorded onto the child session as a log-only
+    // `model-plan/select` event inside {@link mountSubagentOnChild}; the
+    // model-plan merge interceptor (registered on every `agent/request`) reads
+    // it and routes the child's requests to the plan's provider/model/params.
+    // An unbound subagent (no plan id) inherits the parent's model — the
+    // existing inheritance path, untouched.
   }
   // Order 120: after the sandbox:policy (110) and approval:policy (115) sentences.
   childCtx.systemPrompt.context({ name: 'subagent:delegation', order: 120, text: SUBAGENT_DELEGATION_CONTEXT })
@@ -175,6 +238,81 @@ export async function setupChildComposition(
     childCtx.systemPrompt.section({ name: 'deployment:persona', order: 0, text: composition.persona })
   }
   if (composition.toolFilter !== undefined) childCtx.tools.restrict(composition.toolFilter)
+  // Issuance gate (rule 2): a team-role child at level >= 2 gets the
+  // `team_delegate` tool mounted onto its OWN scope — the team tool is a host
+  // tool that does not propagate to subagent children on its own, so it must be
+  // explicitly granted here. A level-1 child carries no grant and therefore
+  // never receives the delegation tool. Mounting the full plugin also renders
+  // the reader-aware authority table (rule 4) and the execution gate (rule 3)
+  // inside the child.
+  if (composition.teamDelegation !== undefined) {
+    childCtx.plugin(teamTool, {
+      team: composition.teamDelegation.team,
+      provider: composition.teamDelegation.provider,
+      toolName: composition.teamDelegation.toolName,
+      // The hierarchy's own level ordering is the recursion guard; do not stack
+      // a second hard cap that could clamp a legitimate chain.
+      maxDepth: 'provider-managed',
+    })
+  }
+}
+
+/** Bounded poll window for the `teams` service to be composed. */
+const TEAMS_READY_TIMEOUT_MS = 200
+/** Poll cadence while waiting for the `teams` service. */
+const TEAMS_READY_POLL_MS = 5
+
+/**
+ * Wait for the `teams` service to be composed before a team-role child's
+ * creation/resume resolution. If `teams` is absent when the tool applies, its
+ * `refreshRoleCatalogue` kick returns early and the authority table can only be
+ * refilled by the `internal/service` listener — after the first request has
+ * rendered. Bounded and fail-soft: a deployment without `teams`, or a service
+ * that stays absent, proceeds after the timeout. The per-scope roster fill
+ * itself is settled separately by {@link awaitTeamRoster}.
+ *
+ * @param ctx - the scope to probe (the manager/parent context, where `teams`
+ *   composes as a sibling row).
+ * @param signal - caller cancellation; an abort returns without waiting.
+ * @param timeoutMs - optional poll window override (tests may shrink it).
+ * @returns the composed `teams` service, or undefined after the timeout.
+ */
+export async function waitForTeamCatalogue(
+  ctx: Context,
+  signal: AbortSignal,
+  timeoutMs = TEAMS_READY_TIMEOUT_MS,
+): Promise<unknown> {
+  const deadline = Date.now() + timeoutMs
+  let teams = ctx.get('teams')
+  while (teams === undefined && Date.now() < deadline) {
+    if (signal.aborted) return undefined
+    await new Promise(resolve => setTimeout(resolve, TEAMS_READY_POLL_MS))
+    teams = ctx.get('teams')
+  }
+  return teams
+}
+
+/**
+ * Settle a team-role child's fresh roster catalogue before its first request.
+ *
+ * A team tool apply fills its per-scope `rosters` closure asynchronously
+ * (`refreshRoleCatalogue` → `teams.list().then(swap)`), kicked during the
+ * child's creation/resume setup. The child's FIRST request renders the prompt
+ * section synchronously, so it races that fill: if the fill has not landed, the
+ * authority table toggles in between the first and second request and the
+ * ~292-byte delta breaks the request prefix cache for a persistent role's cold
+ * resume. Awaiting one `teams.list()` here — issued AFTER the child's setup
+ * kicked its own read on the same service — deterministically settles the fresh
+ * fill (the apply's read was created first, so its swap microtask runs before
+ * this await's continuation), making the first request render the warm roster.
+ * Fail-soft: no `teams` service, or a read error, proceeds without blocking.
+ *
+ * @param ctx - the scope holding the composed `teams` service (shared registry).
+ * @param signal - caller cancellation; an abort returns without waiting.
+ */
+export async function awaitTeamRoster(ctx: Context, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return
+  await ctx.get('teams')?.list().catch(() => undefined)
 }
 
 /** Append one one-shot descriptor inside the child's initial turn before its first request. */
@@ -225,6 +363,7 @@ export async function startInProcessRun(
       persona: request.persona,
       toolFilter: request.toolFilter,
       subagent: request.subagent,
+      teamDelegation: request.teamDelegation,
     })
     if (request.outputSchema !== undefined) {
       structured = attachStructuredRuntime(childCtx, request.outputSchema)
@@ -232,14 +371,27 @@ export async function startInProcessRun(
     attachDescriptorAppend(childCtx, request.descriptor)
   }
 
+  // A team-role child (level >= 2) mounts the team tool in its setup, whose
+  // first-request authority table needs the `teams` roster warm. Wait for the
+  // service to be composed before `agents.create`, then settle the fresh roster
+  // fill after creation, so the first request renders the authority table —
+  // otherwise the table toggles in and breaks the request prefix cache.
+  // Non-team children skip both.
+  if (request.teamDelegation !== undefined) {
+    await waitForTeamCatalogue(parent.ctx, request.signal)
+  }
+
   const handle = await parent.ctx.agents.create({
     sessionId: childId,
     meta: childSessionMeta(parent, childDepth, activationBoundary),
     ...seed !== undefined ? { seed } : {},
-    agentOptions: resolveChildAgentOptions(parent, request.agentOptions, childDepth),
+    agentOptions: harnessChildAgentOptions(parent, request.agentOptions, childDepth),
     signal: request.signal,
     setup,
   })
+  if (request.teamDelegation !== undefined) {
+    await awaitTeamRoster(parent.ctx, request.signal)
+  }
   return drivePublishedRun(
     handle,
     request.signal,

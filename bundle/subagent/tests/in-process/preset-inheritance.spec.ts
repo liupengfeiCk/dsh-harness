@@ -219,6 +219,44 @@ describe('a child agent composed in-process (harness engine)', () => {
     await run.dispose()
   })
 
+  it('inherits the parent\'s EFFECTIVE model (request header), not its preset default', async () => {
+    const { ctx, adapter, parent } = await setupPresetHost()
+    // The parent's composed default is `mock`/`mock` (its agentOptions), but
+    // the user picked a different route that its last request actually ran on —
+    // here simulated as an installed model selection, whose request header
+    // records `mock`/`effective-model`. A delegated child with no override must
+    // inherit that live route so it shares the parent's cache-friendly gateway,
+    // not fall back to the preset default.
+    const effective = { provider: 'mock', model: 'effective-model', maxTokens: 32000 }
+    parent.session.append('request/header', { header: { config: effective } })
+    expect(parent.session.requestHeader()?.config).toMatchObject({ provider: 'mock', model: 'effective-model' })
+
+    // A subagent with no model override routes to the parent's effective model.
+    const run = await startInProcessRun({ ...spawnRequest(parent), subagent: 'inherit-on' }, {})
+    await run.result
+    const childRequest = adapter.requests.at(-1)
+    expect(childRequest?.provider).toBe('mock')
+    expect(childRequest?.model).toBe('effective-model')
+    await run.dispose()
+  })
+
+  it('preserves the subagent model override over the parent\'s effective model', async () => {
+    const { ctx, adapter, parent } = await setupPresetHost()
+    // The parent ran on `mock`/`effective-model`; `reviewer-model` still must
+    // win with its own override — the override precedence is unchanged.
+    parent.session.append('request/header', { header: { config: { provider: 'mock', model: 'effective-model' } } })
+
+    const run = await startInProcessRun(
+      { ...spawnRequest(parent), subagent: 'reviewer-model' },
+      {},
+    )
+    await run.result
+    const childRequest = adapter.requests.at(-1)
+    expect(childRequest?.provider).toBe('mock')
+    expect(childRequest?.model).toBe('override-model')
+    await run.dispose()
+  })
+
   it('fails loud when a named subagent is broken', async () => {
     const { ctx, parent } = await setupPresetHost()
     // A broken subagent must reject the child creation rather than publish a

@@ -17,19 +17,25 @@ import Include from '@deepseek-ai/cordis-plugin-include'
 import { CallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import SubagentPresets from '../../src/preset/index.ts'
 import Teams from '../../src/team/index.ts'
 import * as teamTool from '../../src/team/tool.ts'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { HarnessSubagentStartRequest } from '../../src/in-process/request-types.ts'
 
 const testToolSignal = new AbortController().signal
 
-/** A minimal parent Agent passed through to the provider request. */
+/**
+ * A minimal parent Agent whose session runs the team delegation surface: the
+ * team tool refuses a standard-mode session, so every fixture agent must carry
+ * a recorded `subagent-team/mode` team event.
+ */
 function fakeAgent(id = 'parent-1'): Agent {
-  return { id: SessionId(id) } as unknown as Agent
+  const session = Session.create(SessionId(id))
+  session.append('subagent-team/mode', { mode: 'team', team: 'edit' })
+  return { id: SessionId(id), session } as unknown as Agent
 }
 
 /** Register a capture provider that records every start request. */
@@ -171,10 +177,11 @@ describe('dsh-subagent-bundle/team/tool', () => {
 
   it('lists the bound team\'s roles in the system prompt', async () => {
     const { ctx } = await setup({})
+    const teamAgent = fakeAgent('team-prompt-1')
     const deadline = Date.now() + 2_000
     let prompt = ''
     while (Date.now() < deadline) {
-      prompt = (await ctx.systemPrompt.assemble()).sections.map(s => s.text).join('\n')
+      prompt = (await ctx.systemPrompt.assemble(assembleContextFor(teamAgent))).sections.map(s => s.text).join('\n')
       if (prompt.includes('copywriter')) break
       await new Promise(resolve => setTimeout(resolve, 25))
     }
@@ -208,7 +215,102 @@ describe('dsh-subagent-bundle/team/tool', () => {
     while (Date.now() < deadline) {
       await new Promise(resolve => setTimeout(resolve, 25))
     }
-    const prompt = (await ctx.systemPrompt.assemble()).sections.map(s => s.text).join('\n')
+    const prompt = (await ctx.systemPrompt.assemble(assembleContextFor(fakeAgent('team-disabled-1'))))
+      .sections.map(s => s.text).join('\n')
     expect(prompt).not.toContain('copywriter')
+  })
+
+  it('refreshes the role catalogue when the team registry activates AFTER the tool', async () => {
+    // Real deployments race the loader rows: `team/tool` must not require the
+    // `teams` service to be present at apply time. Mount the tool BEFORE the
+    // registry so `ctx.get('teams')` is undefined at apply — the catalogue must
+    // still settle once the registry provides later.
+    const subagentRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-subagent4-'))
+    const teamRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-root4-'))
+    await writeSubagent(subagentRoot, 'writer')
+    await writeTeam(teamRoot, 'edit', roleYaml('copywriter', 'writer', '    prompt: You are a copywriter.\n'))
+    const ctx = new Context()
+    ctx.baseUrl = pathToFileURL(subagentRoot).href + '/'
+    await ctx.plugin(Loader)
+    ctx.loader.builtins.include = Include
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(SubagentRuntime)
+    registerCapture(ctx, 'capture')
+    await ctx.plugin(SubagentPresets, { roots: [{ path: subagentRoot, trust: 'system' }], includeUserRoot: false })
+    // Tool first: at apply, `ctx.get('teams')` is undefined.
+    await ctx.plugin(teamTool, { team: 'edit', provider: 'capture' })
+    const teamAgent = fakeAgent('team-late-1')
+    const before = (await ctx.systemPrompt.assemble(assembleContextFor(teamAgent)))
+      .sections.map(s => s.text).join('\n')
+    expect(before).not.toContain('copywriter')
+    // Now the registry provides; the catalogue must settle without a delegate call.
+    await ctx.plugin(Teams, { roots: [{ path: teamRoot, trust: 'system' }], includeUserRoot: false })
+    const deadline = Date.now() + 2_000
+    let after = before
+    while (Date.now() < deadline) {
+      after = (await ctx.systemPrompt.assemble(assembleContextFor(teamAgent)))
+        .sections.map(s => s.text).join('\n')
+      if (after.includes('copywriter')) break
+      await new Promise(resolve => setTimeout(resolve, 25))
+    }
+    expect(after).toContain('copywriter')
+    expect(after).toContain('copywriter role')
+  })
+
+  it('keeps the role catalogue stable when the team registry transiently drops', async () => {
+    // The catalogue must be MONOTONIC once settled: a transient registry
+    // absence (loader race, hot re-mount) must not blank the prompt section and
+    // toggle the 292-byte authority table in/out across requests, which would
+    // break the LLM prefix cache. Previously `teams === undefined` cleared the
+    // roster synchronously, so a request assembled in that window lost the
+    // section; now the last-known-good catalogue is preserved until a genuine
+    // re-read replaces it.
+    const subagentRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-subagent5-'))
+    const teamRoot = await mkdtempPromise(join(tmpdir(), 'dsh-team-tool-root5-'))
+    await writeSubagent(subagentRoot, 'writer')
+    await writeTeam(teamRoot, 'edit', roleYaml('copywriter', 'writer', '    prompt: You are a copywriter.\n'))
+    const ctx = new Context()
+    ctx.baseUrl = pathToFileURL(subagentRoot).href + '/'
+    await ctx.plugin(Loader)
+    ctx.loader.builtins.include = Include
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(SubagentRuntime)
+    registerCapture(ctx, 'capture')
+    await ctx.plugin(SubagentPresets, { roots: [{ path: subagentRoot, trust: 'system' }], includeUserRoot: false })
+    // Capture the teams handle so we can dispose it mid-session to simulate a
+    // transient service absence.
+    const teamsHandle = await ctx.plugin(Teams, { roots: [{ path: teamRoot, trust: 'system' }], includeUserRoot: false })
+    await ctx.plugin(teamTool, { team: 'edit', provider: 'capture' })
+    const teamAgent = fakeAgent('team-stable-1')
+    // Let the catalogue settle first.
+    const deadline = Date.now() + 2_000
+    let settled = ''
+    while (Date.now() < deadline) {
+      settled = (await ctx.systemPrompt.assemble(assembleContextFor(teamAgent)))
+        .sections.map(s => s.text).join('\n')
+      if (settled.includes('copywriter')) break
+      await new Promise(resolve => setTimeout(resolve, 25))
+    }
+    expect(settled).toContain('copywriter')
+    // Drop the registry: the refresh triggered on dispose sees `teams ===
+    // undefined` and must keep the last-good catalogue, not blank it.
+    await teamsHandle.dispose()
+    const dropped = (await ctx.systemPrompt.assemble(assembleContextFor(teamAgent)))
+      .sections.map(s => s.text).join('\n')
+    expect(dropped).toContain('copywriter')
+    expect(dropped).toContain('copywriter role')
+    // Re-provide the registry; the catalogue refreshes from a genuine re-read.
+    await ctx.plugin(Teams, { roots: [{ path: teamRoot, trust: 'system' }], includeUserRoot: false })
+    const deadline2 = Date.now() + 2_000
+    let restored = dropped
+    while (Date.now() < deadline2) {
+      restored = (await ctx.systemPrompt.assemble(assembleContextFor(teamAgent)))
+        .sections.map(s => s.text).join('\n')
+      if (restored.includes('copywriter')) break
+      await new Promise(resolve => setTimeout(resolve, 25))
+    }
+    expect(restored).toContain('copywriter')
   })
 })
