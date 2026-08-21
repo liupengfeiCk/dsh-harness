@@ -22,6 +22,10 @@
       "types": "./lib/types/tasks/tool.d.ts",
       "default": "./lib/types/tasks/tool.js"
     },
+    "./tools": {
+      "types": "./lib/types/tools/index.d.ts",
+      "default": "./lib/types/tools/index.js"
+    },
     "./compaction": {
       "types": "./lib/types/compaction/index.d.ts",
       "default": "./lib/types/compaction/index.js"

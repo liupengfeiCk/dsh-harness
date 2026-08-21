@@ -61,6 +61,11 @@ export { createPreStepHandler, type PreStepDeps } from './injection/pre-step.ts'
 export { sessionRawStore, projectEvent, estimateTokens, textOfMessage, compactionRole } from './injection/raw-store.ts'
 export { installInjection, type InstallInjectionOptions, type RecallProvider } from './injection/host.ts'
 
+// T10 工具回查与补召——组合行（cordis.patch.yml id: `memory-tools`）的插件体
+// 与共享限次预算控制器。
+export { default as memoryTools, MemoryToolBudget } from './tools/index.ts'
+export type { Config as MemoryToolsConfig } from './tools/index.ts'
+
 // Memory engine host service (T4): assembles the vendor TdaiCore behind the
 // bundle's host adapter. Default export is the `memory` patch row's plugin body
 // (cordis.patch.yml `name: 'dsh-harness-memory-bundle'`).

@@ -35,6 +35,12 @@
     - id: memory-task-tool
       name: 'dsh-harness-memory-bundle/tasks/tool'
 
+    # T10 工具回查与补召：查记忆（query_memory）与查原对话（query_conversation，
+    # 含补召细层摘要 + L0 原文）。组合行共享一个每会话 ≤ 3 次的限次预算。
+    # 工具通过 ctx.get('memory') 机会式解析记忆引擎。
+    - id: memory-tools
+      name: 'dsh-harness-memory-bundle/tools'
+
     # The memory engine host service: assembles the vendor TdaiCore behind the
     # bundle's host adapter (data dir `~/.dsh/memory`, ctx.logger, ctx.llm LLM
     # runner). A host row. Its `start()` initializes the engine on boot.

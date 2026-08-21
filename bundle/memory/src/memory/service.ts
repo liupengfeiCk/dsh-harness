@@ -26,6 +26,7 @@ import type { InstallInjectionOptions } from '../injection/host.ts'
 import { installTurnCapture } from '../ingestion/turn-capture.ts'
 import type {
   CompletedTurn,
+  ConversationSearchParams,
   MemorySearchParams,
   RecallResult,
 } from '@tencentdb-agent-memory/memory-core-vendor/core/types'
@@ -110,5 +111,10 @@ export class Memory extends Service {
   /** Full-text memory search (memory tool). */
   async searchMemories(params: MemorySearchParams): Promise<{ text: string; total: number; strategy: string }> {
     return this.core.searchMemories(params)
+  }
+
+  /** Full-text L0 conversation search (conversation tool). */
+  async searchConversations(params: ConversationSearchParams): Promise<{ text: string; total: number }> {
+    return this.core.searchConversations(params)
   }
 }
