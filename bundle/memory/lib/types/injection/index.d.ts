@@ -12,5 +12,6 @@ export type { InjectionPlan, InjectionStage } from './stage.ts';
 export { assembleInjectionMessages, memorySource, MEMORY_PLUGIN } from './inject.ts';
 export { createCompressionCoordinator, routedSummarizer, type CompressionCoordinator, } from './compaction.ts';
 export { createPreStepHandler, type PreStepDeps } from './pre-step.ts';
+export { createOverflowRescueHandler, DEFAULT_MAX_OVERFLOW_RETRIES, type OverflowRescueDeps, type OverflowRescueHandler, } from './overflow.ts';
 export { sessionRawStore, projectEvent, estimateTokens, textOfMessage, compactionRole } from './raw-store.ts';
 //# sourceMappingURL=index.d.ts.map

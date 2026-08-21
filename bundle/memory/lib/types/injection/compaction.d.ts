@@ -39,6 +39,13 @@ export interface CompressionCoordinator {
         layers: readonly LayerSummary[];
         windowTokens: number;
     }>;
+    /**
+     * Context-overflow rescue: fold any compressible raw history into layered
+     * summaries, then recursively coarsen (deepen) the summaries to the coarsest
+     * useful layer so the session can retry within the window. Returns the
+     * durable layer count after coarsening, or `null` when nothing was reduced.
+     */
+    coarsenForOverflow(session: Session): Promise<readonly LayerSummary[] | null>;
 }
 /** Assemble a `CompressionCoordinator` for live sessions. */
 export declare function createCompressionCoordinator(options: {
@@ -46,5 +53,11 @@ export declare function createCompressionCoordinator(options: {
     readonly config?: Partial<CompactionConfig>;
     readonly storageBase?: string;
     readonly windowOverride?: number;
+    /**
+     * Invoked after hierarchical compression persists layers. Lets consumers
+     * (e.g. T12 inheritance) observe the compression-refresh point without
+     * reaching into the engine. Not awaited by `compress()`.
+     */
+    readonly onCompressed?: (sessionId: string, layers: readonly LayerSummary[]) => void;
 }): CompressionCoordinator;
 //# sourceMappingURL=compaction.d.ts.map

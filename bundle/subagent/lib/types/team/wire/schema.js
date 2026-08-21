@@ -29,6 +29,8 @@ export const wireRoleSchema = z.object({
     subagent: z.string().min(1),
     level: wireRoleLevelSchema,
     memory: wireRoleMemorySchema,
+    // T12: inherit the main conversation's summary as public memory (default true).
+    inheritMainSummaries: z.boolean(),
 });
 /** A role summary on the roster: enough to render the row and its count. */
 export const wireRoleSummarySchema = z.object({
@@ -88,6 +90,8 @@ export const wireStagedRoleSchema = z.object({
     // default so older clients remain compatible.
     level: wireRoleLevelSchema.optional(),
     memory: wireRoleMemorySchema,
+    // T12: optional so older clients (which never set it) keep the default true.
+    inheritMainSummaries: z.boolean().optional(),
 });
 /** teamPreset.create request payload: a new id plus its initial roster. */
 export const wireCreateRequestSchema = z.object({

@@ -11,5 +11,6 @@ export { StageLedger, planForStage, afterCompressionStage, INITIAL_STAGE, STAGE_
 export { assembleInjectionMessages, memorySource, MEMORY_PLUGIN } from "./inject.js";
 export { createCompressionCoordinator, routedSummarizer, } from "./compaction.js";
 export { createPreStepHandler } from "./pre-step.js";
+export { createOverflowRescueHandler, DEFAULT_MAX_OVERFLOW_RETRIES, } from "./overflow.js";
 export { sessionRawStore, projectEvent, estimateTokens, textOfMessage, compactionRole } from "./raw-store.js";
 //# sourceMappingURL=index.js.map

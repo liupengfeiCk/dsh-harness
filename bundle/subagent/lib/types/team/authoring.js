@@ -108,6 +108,10 @@ export function renderTeam(metadata, roles) {
         if (role.level !== undefined && role.level > 1)
             row.level = role.level;
         row.memory = role.memory;
+        // T12: inheritance is the default, so only a non-inheriting role is written
+        // explicitly (keeps default-configured files minimal and unchanged).
+        if (role.inheritMainSummaries === false)
+            row.inheritMainSummaries = false;
         return row;
     });
     const document = {};

@@ -31,6 +31,13 @@ export interface MemoryRuntimeConfig extends MemoryEngineConfig {
     injection?: InstallInjectionOptions;
     /** Set false to disable T9 unified injection entirely. */
     injectionEnabled?: boolean;
+    /**
+     * T12 child-session inheritance: inject the main conversation's summary into
+     * every live subagent child as shared public memory. Disabled via
+     * `inheritanceEnabled: false`. Requires T9 injection to also be enabled
+     * (the inherited section is refreshed at the compression point).
+     */
+    inheritanceEnabled?: boolean;
 }
 /**
  * The `memory` host service: owns the engine's lifecycle on the host context.

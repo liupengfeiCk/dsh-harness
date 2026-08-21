@@ -14102,8 +14102,8 @@ var GatewayError = class _GatewayError extends (_b = Error, _a$1 = symbol$1, _b)
 		return typeof error === "object" && error !== null && symbol$1 in error && error[symbol$1] === true;
 	}
 };
-var name$1 = "GatewayAuthenticationError";
-var marker2$1 = `vercel.ai.gateway.error.${name$1}`;
+var name$4 = "GatewayAuthenticationError";
+var marker2$1 = `vercel.ai.gateway.error.${name$4}`;
 var symbol2$1 = Symbol.for(marker2$1);
 var _a2$1;
 var _b2;
@@ -14116,7 +14116,7 @@ var GatewayAuthenticationError = class _GatewayAuthenticationError extends (_b2 
 			generationId
 		});
 		this[_a2$1] = true;
-		this.name = name$1;
+		this.name = name$4;
 		this.type = "authentication_error";
 	}
 	static isInstance(error) {
@@ -16722,14 +16722,14 @@ var __export = (target, all) => {
 		enumerable: true
 	});
 };
-var name = "AI_InvalidArgumentError";
-var marker = `vercel.ai.error.${name}`;
+var name$3 = "AI_InvalidArgumentError";
+var marker = `vercel.ai.error.${name$3}`;
 var symbol = Symbol.for(marker);
 var _a;
 var InvalidArgumentError = class extends AISDKError {
 	constructor({ parameter, value, message }) {
 		super({
-			name,
+			name: name$3,
 			message: `Invalid argument for parameter ${parameter}: ${message}`
 		});
 		this[_a] = true;
@@ -29156,6 +29156,197 @@ function installInjection(ctx, recall, options = {}) {
 	return () => {};
 }
 //#endregion
+//#region lib/types/inheritance/cache.js
+/**
+* Process-local public-section cache for T12 child-session inheritance.
+*
+* The inherited-main system section uses a synchronous text provider (the
+* `SystemPrompt` API evaluates section text synchronously per assembly), while
+* reading the main session's summary layers from disk is asynchronous. This
+* cache bridges the two: memory writes the assembled public section here (on
+* child creation and after a main-session compression), and each child's text
+* provider reads the cached string synchronously.
+*
+* Keyed by the main session id so all children of the same main session share
+* one byte-identical section (prefix sharing). Refreshing the cache for a main
+* session immediately changes what every live child renders on its next
+* assembly — the compression-refresh mechanism with zero per-assembly cost.
+*
+* @module dsh-harness-memory-bundle/inheritance/cache
+*/
+/** Per-main-session public-section cache. */
+var PublicSectionCache = class {
+	cache = /* @__PURE__ */ new Map();
+	/** Store the assembled public section for one main session. */
+	set(mainSessionId, section) {
+		this.cache.set(mainSessionId, section);
+	}
+	/** Read the cached section synchronously; `''` when absent. */
+	get(mainSessionId) {
+		return this.cache.get(mainSessionId) ?? "";
+	}
+	/** Drop one main session's entry (e.g. when its children are gone). */
+	delete(mainSessionId) {
+		this.cache.delete(mainSessionId);
+	}
+	/** Whether a main session has a cached section. */
+	has(mainSessionId) {
+		return this.cache.has(mainSessionId);
+	}
+};
+//#endregion
+//#region lib/types/inheritance/public-section.js
+/**
+* Public-section assembly for T12 child-session inheritance.
+*
+* The main conversation's hierarchical summary is injected into every live
+* child as a shared "public memory". This module turns the main session's
+* persisted summary layers (`LayerSummary[]`, ordered by level ascending) into
+* the byte-stable public section text that all children of the same main
+* session share.
+*
+* Byte stability is the contract: given the same layers, assembly always yields
+* the exact same string, so a main session's children see an identical public
+* prefix (prefix sharing). The section text is derived purely from the layers'
+* `text` fields plus stable framing — no timestamps, no session id, no volatile
+* metadata.
+*
+* @module dsh-harness-memory-bundle/inheritance/public-section
+*/
+/** The public-section name as registered on each child's system prompt. */
+const INHERITED_MAIN_SECTION = "memory:inherited-main";
+/**
+* Prompt order of the inherited-main section. It must sit after the harness
+* identity (-100) and deployment persona (0), before the role/delegation
+* sections and the tool guidance band (100–199). 20 keeps it in the stable
+* "team/project → public → role" region of the composed system prompt.
+*/
+const INHERITED_MAIN_ORDER = 20;
+/**
+* Assemble the public section text from a main session's persisted layers.
+*
+* Layers arrive ordered by level ascending (L1 → L2 → L3); the public memory
+* renders coarse-to-fine so the global overview (top level) comes first and
+* finer detail follows. Empty text is dropped; an empty layer set yields an
+* empty string (the caller then registers nothing).
+*
+* @param layers - the main session's summary layers.
+* @returns the byte-stable public section body, or `''` when nothing to inject.
+*/
+function assemblePublicSection(layers) {
+	const rendered = layers.slice().sort((a, b) => b.level - a.level).map((layer) => layer.text.trim()).filter((text) => text.length > 0);
+	if (rendered.length === 0) return "";
+	return ["[主对话公共记忆] 以下是主对话进展的分层摘要（粗→细），供本次子任务对齐全局上下文。", ...rendered].join("\n\n");
+}
+//#endregion
+//#region lib/types/inheritance/inject.js
+/**
+* T12 child-session inheritance wiring.
+*
+* The main conversation's hierarchical summary is injected into every live
+* child as a shared "public memory" (§4.4 inheritance mode). This module:
+*
+*   1. Recognises subagent children (`header.origin === 'subagent'` with a
+*      `parentSession`) at `agent/created`.
+*   2. Assembles the main session's summary layers into a public section and
+*      registers it on the child's system prompt as `memory:inherited-main`,
+*      with a synchronous text provider reading the process-local cache.
+*   3. When the main session compresses (its cache entry refreshes), every live
+*      child reads the updated text on its next assembly — the compression-
+*      refresh mechanism, byte-identical across children (prefix sharing).
+*   4. Honors the per-role `inheritMainSummaries` switch (default `true`): a
+*      role that opts out removes the section once its `subagent/descriptor`
+*      (carrying `team`/`role`) is appended — non-inheritance mode, orthogonal
+*      to the role's `memory` (role-sedimentation) policy.
+*
+* The public section is byte-stable: same main session → same cached text →
+* every child renders the identical prefix. A child never builds its own
+* hierarchical-summary system; its session-internal summaries ARE its role
+* memory (§4.4), produced by the ordinary T8/T9 compression of its own history.
+*
+* @module dsh-harness-memory-bundle/inheritance/inject
+*/
+/**
+* Install the inheritance wiring on `ctx`. Returns a refresh function: invoke
+* it after the main session compresses to reload the summary layers and update
+* the shared public-section cache (children pick the new text on next assembly).
+*/
+function installInheritance(ctx, deps) {
+	const cache = new PublicSectionCache();
+	const children = /* @__PURE__ */ new Map();
+	ctx.on("agent/created", (payload) => {
+		const { agent } = payload;
+		const header = agent.session.header;
+		if (header.origin !== "subagent" || header.parentSession === void 0) return;
+		const mainSessionId = String(header.parentSession);
+		const childId = String(agent.session.id);
+		if (children.has(childId)) return;
+		deps.loadLayers(mainSessionId).then((layers) => {
+			cache.set(mainSessionId, assemblePublicSection(layers));
+		});
+		const record = {
+			mainSessionId,
+			disposer: agent.ctx.systemPrompt.section({
+				name: INHERITED_MAIN_SECTION,
+				order: 20,
+				text: () => cache.get(mainSessionId)
+			}),
+			resolved: false
+		};
+		children.set(childId, record);
+	});
+	ctx.on("session/event", (session, event) => {
+		if (event.type !== "subagent/descriptor") return;
+		const childId = String(session.id);
+		const record = children.get(childId);
+		if (record === void 0 || record.resolved) return;
+		record.resolved = true;
+		resolveInheritsMain(session, deps).then((inherits) => {
+			if (inherits) return;
+			record.disposer();
+			children.delete(childId);
+			deps.log?.(`[memory] child ${childId}: role disables inheritMainSummaries; public section removed`);
+		});
+	});
+	return async (sessionId) => {
+		const layers = await deps.loadLayers(sessionId);
+		cache.set(sessionId, assemblePublicSection(layers));
+		ctx.emit("system-prompt/change");
+	};
+}
+/**
+* Resolve whether a child's role inherits the main summaries.
+*
+* The role is read from the child's `subagent/descriptor` event (folded here
+* structurally to avoid importing the subagent bundle). Defaults to `true` when
+* the role cannot be resolved (no descriptor, no teams registry, unknown role).
+*/
+async function resolveInheritsMain(session, deps) {
+	const teams = deps.teams?.();
+	if (teams === void 0) return true;
+	const identity = descriptorRole(session);
+	if (identity === void 0) return true;
+	try {
+		return (await teams.resolveRole(identity.teamId, identity.roleId)).inheritMainSummaries !== false;
+	} catch {
+		return true;
+	}
+}
+/** Read `team`/`role` from a child's `subagent/descriptor` event, structurally. */
+function descriptorRole(session) {
+	const found = session.events.find((candidate) => candidate.type === "subagent/descriptor");
+	if (found === void 0) return void 0;
+	const payload = found.data;
+	const data = typeof payload === "object" && payload !== null ? payload : {};
+	const team = data.team;
+	const role = data.role;
+	if (typeof team !== "string" || typeof role !== "string") return void 0;
+	return {
+		teamId: team,
+		roleId: role
+	};
+}
+//#endregion
 //#region lib/types/ingestion/attribution.js
 /**
 * dsh-harness-memory-bundle/ingestion/attribution — derive the DSH identity
@@ -29431,8 +29622,25 @@ var Memory = class extends Service {
 			};
 		}, "dsh-memory: dispose engine");
 		this.start();
+		const inheritanceRef = { current: void 0 };
+		if (config?.inheritanceEnabled !== false && config?.injectionEnabled !== false) ctx.effect(() => {
+			const storage = new FileSummaryStorage(config?.injection?.storageBase);
+			inheritanceRef.current = installInheritance(ctx, {
+				loadLayers: (sessionId) => storage.load(sessionId),
+				teams: () => ctx.get("teams"),
+				log: (message) => ctx.logger.info(message)
+			});
+			return () => {
+				inheritanceRef.current = void 0;
+			};
+		}, "dsh-memory: install T12 inheritance");
 		if (config?.injectionEnabled !== false) ctx.effect(() => {
-			installInjection(ctx, this, config?.injection);
+			installInjection(ctx, this, {
+				...config?.injection,
+				onCompressed: (sessionId) => {
+					inheritanceRef.current?.(sessionId);
+				}
+			});
 			return () => {};
 		}, "dsh-memory: install T9 injection");
 		ctx.effect(() => {
@@ -29988,6 +30196,13 @@ var MemoryToolBudget = class {
 *
 * @module dsh-harness-memory-bundle/tools/memory-tool
 */
+var memory_tool_exports = /* @__PURE__ */ __exportAll({
+	apply: () => apply$2,
+	inject: () => inject$2,
+	name: () => name$2
+});
+const name$2 = "dsh-harness-memory-bundle/tools/memory-tool";
+const inject$2 = ["tools"];
 /** 描述：声明触发场景 + 调用上限（参照 TencentDB MEMORY_TOOLS_GUIDE 措辞）。 */
 function buildDescription$1(limit) {
 	return `查询长期记忆库（L1 原子事实/偏好/约束 + L2 场景 + L3 画像）。当用户涉及自身身份/偏好/习惯、要求回忆历史事实、或答案强依赖历史记录（"我之前说过 / 我的偏好 / 上次方案 / 我们的约定"）时，先查再答。调用限制：本工具与 query_conversation 每会话合计最多 ${limit} 次；检索无果时明确说明"未在记忆中找到"，不要凭空编造。`;
@@ -30095,6 +30310,14 @@ function apply$2(ctx, config) {
 *
 * @module dsh-harness-memory-bundle/tools/conversation-tool
 */
+var conversation_tool_exports = /* @__PURE__ */ __exportAll({
+	apply: () => apply$1,
+	inject: () => inject$1,
+	loadFineLayers: () => loadFineLayers,
+	name: () => name$1
+});
+const name$1 = "dsh-harness-memory-bundle/tools/conversation-tool";
+const inject$1 = ["tools"];
 /** 描述：声明两种模式职责边界 + 触发场景 + 调用上限。 */
 function buildDescription(limit) {
 	return `查询原对话记录，两种模式职责不同，别混用：(1) search 模式（提供 query）：按关键词全文检索老会话的 L0 原文，用于跨会话查"上次聊到哪/之前说的细节"——跨会话老对话细节只能走本检索，不走注入；(2) refine 模式（提供 seq）：补回当前会话内覆盖 seq（该消息序号）的细层摘要（粗→细→更细，最细优先）与 L0 原文——用于会话内粗化过头后把粒度补回来。当用户提及历史/过去/之前（"我之前说过 / 上次 / 你还记不记得 / 我们聊过 / 之前那个 bug"）时，先查 L0 原文找具体消息再答。调用限制：本工具与 query_memory 每会话合计最多 ${limit} 次；检索无果或补回无覆盖时明确说明，不要凭空编造。`;
@@ -30225,10 +30448,26 @@ function apply$1(ctx, config) {
 * 组合一个共享的 {@link MemoryToolBudget}（两工具每会话合计 ≤ 3 次），并把
 * `query_memory`（查记忆库）与 `query_conversation`（查原对话 + 补召细层）
 * 注册进 `ctx.tools`。作为 memory bundle 的一个 host 行挂载（cordis.patch.yml
-* id: `memory-tools`），插件体默认导出本 apply。
+* id: `memory-tools`）。
+*
+* ⚠️ 本模块**必须命名导出 `inject` 且不得 `export default apply`**：cordis
+* Loader 的 `unwrapExports` 优先取 `default ?? exports`，若 default 存在则
+* 只返回 apply 函数、丢失命名导出的 `inject`，导致 cordis 不注入 `tools`
+* （报 "cannot get property tools without inject"）。与 `tasks/tool` 一致，
+* 用命名导出 apply + inject，使 Loader 拿到含 `inject` 的模块命名空间。
 *
 * @module dsh-harness-memory-bundle/tools
 */
+var tools_exports = /* @__PURE__ */ __exportAll({
+	MemoryToolBudget: () => MemoryToolBudget,
+	apply: () => apply,
+	conversationTool: () => conversation_tool_exports,
+	inject: () => inject,
+	memoryTool: () => memory_tool_exports,
+	name: () => name
+});
+const name = "dsh-harness-memory-bundle/tools";
+const inject = ["tools"];
 /**
 * 组合插件体：共享一个预算，注册查记忆 + 查原对话（补召）两个工具。
 *
@@ -30277,4 +30516,4 @@ function apply(ctx, config = {}) {
 */
 var types_default = Memory;
 //#endregion
-export { CoarseningFloorError, CompactionConfigError, CompactionEngine, CompactionError, DEFAULT_COMPACTION_CONFIG, DshLLMRunner, DshLLMRunnerFactory, FileSummaryStorage, INITIAL_STAGE, LayerRecoveryError, LlmSummarizer, MEMORY_PLUGIN, Memory, MemoryHostAdapter, MemoryToolBudget, NON_DISTILLABLE_SOURCE, NoCompressibleHistoryError, NoCoverageError, STAGE_ORDER, SUMMARY_SOURCE_TAG, StageLedger, TaskStore, Tasks, afterCompressionStage, assembleInjectionMessages, buildCompletedTurn, buildMemoryTdaiConfig, compactionRole, createCompressionCoordinator, createDefaultRouteResolver, createPreStepHandler, createPrefixAlignedSummarizer, types_default as default, deriveTurnAttribution, dshHomePath, encodeSessionKey, estimateTokens, installInjection, installTurnCapture, isBalancedBoundary, isNonDistillable, layerFileName, memorySource, apply as memoryTools, require_token_error as n, partitionLayers, pickCoarsenPair, planForStage, projectEvent, projectTurnMessage, projectTurnMessages, recursiveCoarsen, resolveBudgets, routedSummarizer, sanitizeSessionId, selectCompressibleRange, sessionRawStore, summariesRoot, summaryBudget, summarySourceMetadata, require_token_util as t, taskDbPath, textOf, textOfMessage, withinCap };
+export { CoarseningFloorError, CompactionConfigError, CompactionEngine, CompactionError, DEFAULT_COMPACTION_CONFIG, DshLLMRunner, DshLLMRunnerFactory, FileSummaryStorage, INHERITED_MAIN_ORDER, INHERITED_MAIN_SECTION, INITIAL_STAGE, LayerRecoveryError, LlmSummarizer, MEMORY_PLUGIN, Memory, MemoryHostAdapter, MemoryToolBudget, NON_DISTILLABLE_SOURCE, NoCompressibleHistoryError, NoCoverageError, PublicSectionCache, STAGE_ORDER, SUMMARY_SOURCE_TAG, StageLedger, TaskStore, Tasks, afterCompressionStage, assembleInjectionMessages, assemblePublicSection, buildCompletedTurn, buildMemoryTdaiConfig, compactionRole, createCompressionCoordinator, createDefaultRouteResolver, createPreStepHandler, createPrefixAlignedSummarizer, types_default as default, deriveTurnAttribution, dshHomePath, encodeSessionKey, estimateTokens, installInheritance, installInjection, installTurnCapture, isBalancedBoundary, isNonDistillable, layerFileName, memorySource, tools_exports as memoryTools, require_token_error as n, partitionLayers, pickCoarsenPair, planForStage, projectEvent, projectTurnMessage, projectTurnMessages, recursiveCoarsen, resolveBudgets, routedSummarizer, sanitizeSessionId, selectCompressibleRange, sessionRawStore, summariesRoot, summaryBudget, summarySourceMetadata, require_token_util as t, taskDbPath, textOf, textOfMessage, withinCap };

@@ -25,6 +25,14 @@ export interface InstallInjectionOptions {
     readonly windowOverride?: number;
     /** Set false to disable automatic compression at the compression point. */
     readonly autoCompress?: boolean;
+    /** Bounded context-overflow recovery retry budget (defaults to 2). */
+    readonly overflowRetries?: number;
+    /**
+     * Invoked after a session's hierarchical compression persists layers. The
+     * T12 inheritance wiring subscribes to this to refresh the shared public
+     * section (compression is the cache-invalidating moment).
+     */
+    readonly onCompressed?: (sessionId: string) => void;
 }
 /**
  * Install the pre-step injection handler on `ctx`. Returns the disposer.

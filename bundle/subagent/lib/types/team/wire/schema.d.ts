@@ -32,6 +32,7 @@ export declare const wireRoleSchema: z.ZodObject<{
     subagent: z.ZodString;
     level: z.ZodNumber;
     memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
+    inheritMainSummaries: z.ZodBoolean;
 }, z.core.$strip>;
 /** A role summary on the roster: enough to render the row and its count. */
 export declare const wireRoleSummarySchema: z.ZodObject<{
@@ -77,6 +78,7 @@ export declare const wireTeamDetailSchema: z.ZodObject<{
         subagent: z.ZodString;
         level: z.ZodNumber;
         memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
+        inheritMainSummaries: z.ZodBoolean;
     }, z.core.$strip>>;
     broken: z.ZodOptional<z.ZodString>;
     warning: z.ZodOptional<z.ZodString>;
@@ -125,6 +127,7 @@ export declare const wireReadValueSchema: z.ZodObject<{
             subagent: z.ZodString;
             level: z.ZodNumber;
             memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
+            inheritMainSummaries: z.ZodBoolean;
         }, z.core.$strip>>;
         broken: z.ZodOptional<z.ZodString>;
         warning: z.ZodOptional<z.ZodString>;
@@ -138,6 +141,7 @@ export declare const wireStagedRoleSchema: z.ZodObject<{
     subagent: z.ZodString;
     level: z.ZodOptional<z.ZodNumber>;
     memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
+    inheritMainSummaries: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strip>;
 /** teamPreset.create request payload: a new id plus its initial roster. */
 export declare const wireCreateRequestSchema: z.ZodObject<{
@@ -151,6 +155,7 @@ export declare const wireCreateRequestSchema: z.ZodObject<{
         subagent: z.ZodString;
         level: z.ZodOptional<z.ZodNumber>;
         memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
+        inheritMainSummaries: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
 /** teamPreset.create response value. */
@@ -172,6 +177,7 @@ export declare const wireUpdateRequestSchema: z.ZodObject<{
         subagent: z.ZodString;
         level: z.ZodOptional<z.ZodNumber>;
         memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
+        inheritMainSummaries: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>>>;
 }, z.core.$strip>;
 /** teamPreset.update response value. */
@@ -262,6 +268,7 @@ export declare const wireEndpoints: {
                     subagent: z.ZodString;
                     level: z.ZodNumber;
                     memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
+                    inheritMainSummaries: z.ZodBoolean;
                 }, z.core.$strip>>;
                 broken: z.ZodOptional<z.ZodString>;
                 warning: z.ZodOptional<z.ZodString>;
@@ -280,6 +287,7 @@ export declare const wireEndpoints: {
                 subagent: z.ZodString;
                 level: z.ZodOptional<z.ZodNumber>;
                 memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
+                inheritMainSummaries: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
         }, z.core.$strip>;
         readonly value: z.ZodObject<{
@@ -301,6 +309,7 @@ export declare const wireEndpoints: {
                 subagent: z.ZodString;
                 level: z.ZodOptional<z.ZodNumber>;
                 memory: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"persistent">]>;
+                inheritMainSummaries: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>>;
         }, z.core.$strip>;
         readonly value: z.ZodObject<{

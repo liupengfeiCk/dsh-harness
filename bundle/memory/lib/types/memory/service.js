@@ -18,7 +18,9 @@ import { Service } from '@deepseek-ai/cordis';
 import { MemoryHostAdapter } from "../adapters/host-adapter.js";
 import { buildMemoryTdaiConfig } from "../adapters/config.js";
 import { TdaiCore } from '@tencentdb-agent-memory/memory-core-vendor/core/tdai-core';
+import { FileSummaryStorage } from "../compaction/index.js";
 import { installInjection } from "../injection/host.js";
+import { installInheritance } from "../inheritance/index.js";
 import { installTurnCapture } from "../ingestion/turn-capture.js";
 /** Schemastery validator for the memory engine config (extension point). */
 export const Config = Object;
@@ -49,12 +51,36 @@ export class Memory extends Service {
         // Service subclasses do not get their `start()` invoked automatically).
         // Best-effort: a store-init failure degrades per the vendor contract.
         void this.start();
+        // T12 child-session inheritance: inject the main conversation's summary as
+        // shared public memory into every live subagent child. The returned refresh
+        // function reloads the cache after the main compresses; it is stored in a
+        // mutable ref and wired into the T9 injection's `onCompressed` below. The
+        // ref is read only at compression time (after both effects run), so the
+        // cross-effect ordering is safe. Requires T9 injection to share the storage.
+        const inheritanceRef = { current: undefined };
+        const inheritanceEnabled = config?.inheritanceEnabled !== false && config?.injectionEnabled !== false;
+        if (inheritanceEnabled) {
+            ctx.effect(() => {
+                const storage = new FileSummaryStorage(config?.injection?.storageBase);
+                inheritanceRef.current = installInheritance(ctx, {
+                    loadLayers: (sessionId) => storage.load(sessionId),
+                    teams: () => ctx.get('teams'),
+                    log: (message) => ctx.logger.info(message),
+                });
+                return () => { inheritanceRef.current = undefined; };
+            }, 'dsh-memory: install T12 inheritance');
+        }
         // T9 unified injection: mount the four-stage `agent/pre-step` memory
         // injection handler (scope-filtered to the root context). Disabled via
         // `injectionEnabled: false` when the profile composes memory without it.
         if (config?.injectionEnabled !== false) {
             ctx.effect(() => {
-                installInjection(ctx, this, config?.injection);
+                installInjection(ctx, this, {
+                    ...config?.injection,
+                    // Compression is the cache-invalidating moment: forward it so T12
+                    // refreshes every live child's shared public section.
+                    onCompressed: (sessionId) => { void inheritanceRef.current?.(sessionId); },
+                });
                 return () => { };
             }, 'dsh-memory: install T9 injection');
         }

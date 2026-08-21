@@ -52,6 +52,7 @@ export function createCompressionCoordinator(options) {
         },
     });
     const windowOverride = options.windowOverride;
+    const onCompressed = options.onCompressed;
     return {
         engine,
         storage,
@@ -67,7 +68,40 @@ export function createCompressionCoordinator(options) {
         async compress(session) {
             const windowTokens = this.resolveWindow(session);
             const result = await engine.compress(session.id, readRawHistory(session), windowTokens);
+            if (onCompressed !== undefined)
+                onCompressed(String(session.id), result.layers);
             return { layers: result.layers, windowTokens };
+        },
+        async coarsenForOverflow(session) {
+            const windowTokens = this.resolveWindow(session);
+            // Fold any compressible raw history into layered summaries first — the
+            // primary reduction when the overflow is driven by raw history.
+            let summaries = await storage.load(String(session.id));
+            if (summaries.length === 0) {
+                try {
+                    const result = await engine.compress(session.id, readRawHistory(session), windowTokens);
+                    summaries = result.layers;
+                }
+                catch {
+                    // Nothing compressible (e.g. history empty / fully retained) — coarsen
+                    // whatever persisted layers already exist.
+                }
+            }
+            if (summaries.length === 0)
+                return null;
+            // Deepen the layers recursively toward the coarsest useful layer. Cross
+            // session memory is fixed and not reducible here, so only the summaries
+            // are budgeted (cross-session memory = 0 lets coarsening reduce maximally).
+            // A coarsening floor (honest boundary) leaves whatever durable layers we
+            // already produced — still a net reduction worth retrying on.
+            let coarsened;
+            try {
+                coarsened = await engine.coarsen(String(session.id), summaries, 0, windowTokens);
+            }
+            catch {
+                coarsened = summaries;
+            }
+            return coarsened;
         },
     };
 }

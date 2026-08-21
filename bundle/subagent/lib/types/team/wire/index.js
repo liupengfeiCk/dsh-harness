@@ -138,6 +138,7 @@ async function read(teams, request) {
                     subagent: role.subagent,
                     level: role.level,
                     memory: role.memory,
+                    inheritMainSummaries: role.inheritMainSummaries,
                 })),
                 ...team.broken === undefined ? {} : { broken: team.broken },
                 // The config-hygiene advisory surfaces on the team detail so the UI
@@ -275,6 +276,9 @@ function stagedRole(role) {
         // the guard survives even a non-schema caller).
         level: role.level === undefined ? ROLE_LEVEL_DEFAULT : role.level,
         memory: role.memory,
+        // T12: omitted on the wire means the default (inherit). Older clients that
+        // never send the field keep inheriting; an explicit `false` opts out.
+        inheritMainSummaries: role.inheritMainSummaries !== false,
     };
 }
 /** Parse one endpoint's payload; a malformed shape throws BadRequestError. */
