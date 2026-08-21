@@ -7,10 +7,10 @@ __cjs_createRequire(import.meta.url);
 import { i as __toESM, n as __exportAll, r as __require, t as __commonJSMin } from "./rolldown-runtime-DkjfmFWY.js";
 import { $ as TypeValidationError, A as loadOptionalSetting, B as safeParseJSON, C as getFromApi, D as jsonSchema, E as isUrlSupported, F as postFormDataToApi, G as withUserAgentSuffix, H as secureJsonParse, I as postJsonToApi, J as AISDKError, K as withoutTrailingSlash, L as readResponseWithSizeLimit, M as parseJSON, N as parseJsonEventStream, O as lazySchema, P as parseProviderOptions, Q as TooManyEmbeddingValuesForCallError, R as resolve$1, S as getErrorMessage, T as isNonNullable, U as tool, V as safeValidateTypes, W as validateTypes, X as InvalidPromptError, Y as APICallError, Z as InvalidResponseDataError, _ as createToolNameMapping, a as combineHeaders, b as fetchWithValidatedRedirects, c as convertToFormData, d as createEventSourceResponseHandler, et as UnsupportedFunctionalityError, f as createIdGenerator, g as createProviderToolFactoryWithOutputSchema, h as createProviderToolFactory, i as cancelResponseBody, j as mediaTypeToExtension, k as loadApiKey, l as convertUint8ArrayToBase64, m as createJsonResponseHandler, n as DownloadError, nt as isJSONObject, o as convertBase64ToUint8Array, p as createJsonErrorResponseHandler, q as zodSchema, r as asSchema, s as convertToBase64, t as DEFAULT_MAX_DOWNLOAD_SIZE, tt as getErrorMessage$1, u as createBinaryResponseHandler, v as downloadBlob, w as getRuntimeEnvironmentUserAgent, x as generateId, y as executeTool, z as retryWithExponentialBackoff } from "./dist-DzYCUFn3.js";
 import { createRequire } from "node:module";
-import { Service } from "@deepseek-ai/cordis";
+import { Service, getTraceable } from "@deepseek-ai/cordis";
 import path, { dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
-import { createMessage, createUserMessage } from "@deepseek-ai/dsh-llm";
+import { CONTEXT_WINDOW_EXCEEDED_CODE, createMessage, createUserMessage } from "@deepseek-ai/dsh-llm";
 import crypto$1, { createHash, randomBytes, randomUUID } from "node:crypto";
 import fs, { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import fs$1, { appendFile, mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
@@ -19,6 +19,7 @@ import { z } from "zod/v4";
 import { z as z$1 } from "zod";
 import z$2 from "@deepseek-ai/schemastery";
 import { DatabaseSync } from "node:sqlite";
+import { defineTool } from "@deepseek-ai/dsh-tools";
 //#region lib/types/home-path.js
 /**
 * Self-contained harness-home path helpers.
@@ -256,6 +257,10 @@ var MemoryHostAdapter = class {
 	logger;
 	dataDir;
 	runnerFactory;
+	/** The resolved data directory (public for the management surface). */
+	get dataDirPath() {
+		return this.dataDir;
+	}
 	constructor(options) {
 		const config = options.config ?? {};
 		this.logger = adaptLogger(options.ctx.logger);
@@ -608,6 +613,13 @@ function normalizeOffloadRetentionDays(value) {
 function buildMemoryTdaiConfig(config) {
 	const raw = {};
 	if (config.storeBackend !== void 0) raw.storeBackend = config.storeBackend;
+	if (config.compressionPlan !== void 0 && config.compressionPlan.length > 0) raw.compression = {
+		enabled: true,
+		modelPlanId: config.compressionPlan
+	};
+	if (config.injectionLimit !== void 0) raw.injectionLimit = config.injectionLimit;
+	if (config.compressionLine !== void 0) raw.compressionLine = config.compressionLine;
+	if (config.retainLine !== void 0) raw.retainLine = config.retainLine;
 	raw.extraction = { enabled: config.llm?.provider !== void 0 && config.llm?.provider.length > 0 || config.llm?.model !== void 0 && config.llm?.model.length > 0 || config.modelPlanId !== void 0 && config.modelPlanId.length > 0 || config.followCurrentRoute !== false };
 	if (config.llm?.provider !== void 0 || config.llm?.model !== void 0) raw.llm = {
 		enabled: true,
@@ -28763,6 +28775,7 @@ function createCompressionCoordinator(options) {
 		}
 	});
 	const windowOverride = options.windowOverride;
+	const onCompressed = options.onCompressed;
 	return {
 		engine,
 		storage,
@@ -28776,10 +28789,27 @@ function createCompressionCoordinator(options) {
 		},
 		async compress(session) {
 			const windowTokens = this.resolveWindow(session);
+			const result = await engine.compress(session.id, readRawHistory(session), windowTokens);
+			if (onCompressed !== void 0) onCompressed(String(session.id), result.layers);
 			return {
-				layers: (await engine.compress(session.id, readRawHistory(session), windowTokens)).layers,
+				layers: result.layers,
 				windowTokens
 			};
+		},
+		async coarsenForOverflow(session) {
+			const windowTokens = this.resolveWindow(session);
+			let summaries = await storage.load(String(session.id));
+			if (summaries.length === 0) try {
+				summaries = (await engine.compress(session.id, readRawHistory(session), windowTokens)).layers;
+			} catch {}
+			if (summaries.length === 0) return null;
+			let coarsened;
+			try {
+				coarsened = await engine.coarsen(String(session.id), summaries, 0, windowTokens);
+			} catch {
+				coarsened = summaries;
+			}
+			return coarsened;
 		}
 	};
 }
@@ -28801,6 +28831,50 @@ function readRawHistory(session) {
 		if (projected !== null) messages.push(projected);
 	}
 	return messages;
+}
+/**
+* Build the context-overflow rescue handler bound to its deps. Returns the
+* handler plus the retry-budget reset seams the host wires to `agent/status`
+* and successful `assistant/message` events.
+*/
+function createOverflowRescueHandler(deps) {
+	const maxRetries = deps.maxOverflowRetries ?? 2;
+	const retries = /* @__PURE__ */ new WeakMap();
+	const owners = /* @__PURE__ */ new WeakMap();
+	return {
+		clear(agent) {
+			retries.delete(agent);
+		},
+		clearBySession(session) {
+			const agent = owners.get(session);
+			if (agent !== void 0) retries.delete(agent);
+		},
+		async handler(payload, next) {
+			const { agent, failure, signal } = payload;
+			if (failure.code !== CONTEXT_WINDOW_EXCEEDED_CODE || signal.aborted) return next();
+			const owner = agent;
+			owners.set(agent.session, owner);
+			const used = retries.get(owner) ?? 0;
+			if (used >= maxRetries) {
+				deps.log?.("warn", `[memory] context overflow: retry budget spent (${used}/${maxRetries}); preserving the original error`);
+				return next();
+			}
+			let layers;
+			try {
+				layers = await deps.compression.coarsenForOverflow(agent.session);
+			} catch (error) {
+				deps.log?.("warn", `[memory] context-overflow recovery failed; preserving the original error: ${error instanceof Error ? error.message : String(error)}`);
+				return next();
+			}
+			if (layers === null || layers.length === 0) {
+				deps.log?.("warn", "[memory] context overflow: no durable reduction possible; preserving the original error");
+				return next();
+			}
+			retries.set(owner, used + 1);
+			deps.log?.("info", `[memory] context overflow: coarsened into ${layers.length} summary layers, retrying`);
+			return { kind: "retry" };
+		}
+	};
 }
 //#endregion
 //#region lib/types/injection/inject.js
@@ -29047,13 +29121,15 @@ function textOf$1(message) {
 */
 function installInjection(ctx, recall, options = {}) {
 	const ledger = new StageLedger();
+	const compression = createCompressionCoordinator({
+		...options.compactionConfig === void 0 ? {} : { config: options.compactionConfig },
+		...options.storageBase === void 0 ? {} : { storageBase: options.storageBase },
+		...options.windowOverride === void 0 ? {} : { windowOverride: options.windowOverride },
+		...options.onCompressed === void 0 ? {} : { onCompressed: options.onCompressed }
+	});
 	const handler = createPreStepHandler({
 		recall: (text, key) => recall.recall(text, key),
-		compression: createCompressionCoordinator({
-			...options.compactionConfig === void 0 ? {} : { config: options.compactionConfig },
-			...options.storageBase === void 0 ? {} : { storageBase: options.storageBase },
-			...options.windowOverride === void 0 ? {} : { windowOverride: options.windowOverride }
-		}),
+		compression,
 		ledger,
 		autoCompress: options.autoCompress ?? true,
 		log: (level, message) => {
@@ -29062,6 +29138,21 @@ function installInjection(ctx, recall, options = {}) {
 		}
 	});
 	ctx.on("agent/pre-step", handler);
+	const overflow = createOverflowRescueHandler({
+		compression,
+		...options.overflowRetries === void 0 ? {} : { maxOverflowRetries: options.overflowRetries },
+		log: (level, message) => {
+			if (level === "warn") ctx.logger.warn(message);
+			else ctx.logger.info(message);
+		}
+	});
+	ctx.on("agent/request-error", overflow.handler);
+	ctx.on("agent/status", (payload) => {
+		if (payload.status === "idle") overflow.clear(payload.agent);
+	});
+	ctx.on("session/event", (session, event) => {
+		if (event.type === "assistant/message") overflow.clearBySession(session);
+	});
 	return () => {};
 }
 //#endregion
@@ -29368,6 +29459,10 @@ var Memory = class extends Service {
 	/** Full-text memory search (memory tool). */
 	async searchMemories(params) {
 		return this.core.searchMemories(params);
+	}
+	/** Full-text L0 conversation search (conversation tool). */
+	async searchConversations(params) {
+		return this.core.searchConversations(params);
 	}
 };
 //#endregion
@@ -29803,6 +29898,359 @@ var Tasks = class extends Service {
 	}
 };
 //#endregion
+//#region lib/types/tools/budget.js
+/**
+* 限次预算控制器——查记忆/查原对话工具共享的每会话调用配额。
+*
+* 参照 TencentDB MEMORY_TOOLS_GUIDE 的限次设计：`tdai_memory_search` +
+* `tdai_conversation_search` 每轮合计 ≤ 3 次。DSH 工具没有内置调用配额字段，
+* 故本控制器在宿主层提供一个按调用者会话 id 的同步计数，两个工具在 execute
+* 时先 `consume`，超限即拒绝（isError）；同一次配额也由
+* `ctx.tools.guard` 权威闸门二次拦截（guard 返回 reason 即拒绝整次调用）。
+*
+* 计数维度：会话（session）。设计 §3.3/§4.2 的"限 3 次"是主代理在需要深层
+* 细节时稀疏低频地主动回查，故按会话计费；会话结束即随上下文释放（本控制器
+* 持有的是弱引用 Map，条目在会话不再被引用后由 GC 回收）。
+*
+* @module dsh-harness-memory-bundle/tools/budget
+*/
+/**
+* 按会话 id 计数的跨工具共享预算。计数器同步自增（JS 单线程，原子无竞态）。
+* 条目用 WeakRef 弱引用持有，避免会话结束后长期驻留内存。
+*/
+var MemoryToolBudget = class {
+	/** 每个会话的合计调用上限（默认 3，设计 §3.3/§4.2）。 */
+	limit;
+	counts = /* @__PURE__ */ new Map();
+	constructor(limit = 3) {
+		if (!Number.isInteger(limit) || limit <= 0) throw new Error(`memory-tool budget limit must be a positive integer, got ${limit}`);
+		this.limit = limit;
+	}
+	/** 已消费（或借用）一次配额；`false` 表示已达上限。 */
+	consume(sessionId, owner) {
+		if (owner === void 0) return {
+			allowed: true,
+			remaining: this.limit
+		};
+		const existing = this.counts.get(sessionId);
+		if (existing === void 0) {
+			const ref = new WeakRef(owner);
+			this.counts.set(sessionId, {
+				value: 1,
+				ref
+			});
+			return {
+				allowed: true,
+				remaining: this.limit - 1
+			};
+		}
+		if (existing.value >= this.limit) return {
+			allowed: false,
+			remaining: 0
+		};
+		existing.value += 1;
+		return {
+			allowed: true,
+			remaining: this.limit - existing.value
+		};
+	}
+	/** 某会话剩余可调用次数（无记录则为上限）。 */
+	remaining(sessionId) {
+		const entry = this.counts.get(sessionId);
+		if (entry === void 0) return this.limit;
+		return Math.max(0, this.limit - entry.value);
+	}
+	/** 显式释放某会话的计数（测试/会话结束调用）。 */
+	reset(sessionId) {
+		this.counts.delete(sessionId);
+	}
+	/** 供单测断言：当前活跃（仍被引用）的会话数。 */
+	get activeCount() {
+		return this.counts.size;
+	}
+};
+//#endregion
+//#region lib/types/tools/memory-tool.js
+/**
+* 主代理 `query_memory` 工具——查记忆库（L1 三维事实 + L2 场景全文 + L3 画像）。
+*
+* 设计 §7 F6 / §3.3：深层细节不注入上下文，而是给主代理两个工具（查记忆/
+* 查原对话）自行调用。当注入的记忆片段不足以回答用户时，主代理调用本工具
+* 检索记忆库资产（vendor `TdaiCore.searchMemories`，经 `Memory` 服务暴露）。
+*
+* 触发场景（参照 TencentDB MEMORY_TOOLS_GUIDE）：用户涉及自身身份/偏好/习惯、
+* 要求回忆历史事实、答案强依赖历史记录——先查再答，检索无果明确说明，
+* 不凭空编造。
+*
+* 限次：`query_memory` 与 `query_conversation` 每会话合计 ≤ 3 次（共享
+* {@link MemoryToolBudget}），description 中声明；execute 内 `consume` 超限
+* 即 isError，另由宿主 `ctx.tools.guard` 权威闸门二次拒绝。
+*
+* @module dsh-harness-memory-bundle/tools/memory-tool
+*/
+/** 描述：声明触发场景 + 调用上限（参照 TencentDB MEMORY_TOOLS_GUIDE 措辞）。 */
+function buildDescription$1(limit) {
+	return `查询长期记忆库（L1 原子事实/偏好/约束 + L2 场景 + L3 画像）。当用户涉及自身身份/偏好/习惯、要求回忆历史事实、或答案强依赖历史记录（"我之前说过 / 我的偏好 / 上次方案 / 我们的约定"）时，先查再答。调用限制：本工具与 query_conversation 每会话合计最多 ${limit} 次；检索无果时明确说明"未在记忆中找到"，不要凭空编造。`;
+}
+/**
+* Cordis 插件体：注册 `query_memory` 工具。作为 memory bundle 的一个 host 行
+* 挂载（cordis.patch.yml）。
+* @param ctx - 宿主插件上下文。
+* @param config - 校验后的插件配置。
+*/
+function apply$2(ctx, config) {
+	const toolName = config.toolName ?? "query_memory";
+	const budget = config.budget ?? new MemoryToolBudget();
+	ctx.tools.register(defineTool({
+		name: toolName,
+		description: buildDescription$1(budget.limit),
+		parameters: {
+			query: {
+				type: "string",
+				required: true,
+				description: "要检索的记忆关键词或自然语言描述（身份/偏好/历史事实）。"
+			},
+			limit: {
+				type: "number",
+				description: "最多返回的条目数（默认 5）。"
+			},
+			type: {
+				type: "string",
+				description: "按记忆类型过滤（人格/情景/指令）。"
+			},
+			scene: {
+				type: "string",
+				description: "按场景过滤。"
+			}
+		},
+		output: {
+			schema: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					text: {
+						type: "string",
+						required: true
+					},
+					total: {
+						type: "number",
+						required: true
+					},
+					strategy: {
+						type: "string",
+						required: true
+					}
+				}
+			},
+			render: (_args, value) => [{
+				type: "text",
+				text: value.text
+			}]
+		},
+		isConcurrencySafe: () => true,
+		async execute(args, exec) {
+			const sessionId = exec.agent?.session?.id ?? "default";
+			if (!budget.consume(sessionId, exec.agent).allowed) throw new Error(`已达记忆工具调用上限（${budget.limit} 次）。请在现有结果基础上作答；如仍缺信息，向用户说明并请其补充。`);
+			const memory = getTraceable(ctx, ctx).get("memory");
+			if (memory === void 0) throw new Error("query_memory: 记忆引擎未加载（加载 dsh-harness-memory-bundle 的 memory host 行）");
+			const result = await memory.searchMemories({
+				query: args.query,
+				...args.limit === void 0 ? {} : { limit: args.limit },
+				...args.type === void 0 ? {} : { type: args.type },
+				...args.scene === void 0 ? {} : { scene: args.scene }
+			});
+			return {
+				text: result.text,
+				total: result.total,
+				strategy: result.strategy
+			};
+		}
+	}));
+}
+//#endregion
+//#region lib/types/tools/conversation-tool.js
+/**
+* 主代理 `query_conversation` 工具——查原对话 L0 原文 + 补召细层摘要。
+*
+* 设计 §7 F6 / §3.3 第二个工具：查原对话。§4.2 注入白名单：会话内分层摘要
+* 永不跨会话注入，跨会话需要老会话过程细节时一律走工具按需回查（连同摘要层
+* 与 L0 原文）。本工具提供两种模式：
+*
+*   1. **search（默认）**：按关键词全文检索 L0 原文（vendor
+*      `TdaiCore.searchConversations`），可按 `sessionKey` 限定到某会话——用于
+*      跨会话查老会话的原始消息。
+*   2. **refine（补召）**：给定当前会话的一条消息序号 `seq`，逐级补回该处
+*      覆盖 `seq` 的细层摘要（T8 `CompactionEngine.retrieve` 层级链：粗→细→
+*      更细，最细优先）与 L0 原文（`sessionRawStore.read`）。用于会话内粗化
+*      过头后需要更细粒度时，把细节从存储补回上下文。
+*
+* **职责边界**：refine 只补当前会话内"覆盖 seq 的细层摘要"；跨会话的老对话
+* 细节走 search（关键词检索 L0 原文）——两者别混。
+*
+* 触发场景（参照 TencentDB MEMORY_TOOLS_GUIDE）：用户提及历史/过去/之前
+* （"我之前说过 / 上次 / 你还记不记得 / 我们聊过"）→ search 查 L0 原文找
+* 具体消息。
+*
+* 限次：与 `query_memory` 每会话合计 ≤ 3 次（共享 {@link MemoryToolBudget}）。
+*
+* @module dsh-harness-memory-bundle/tools/conversation-tool
+*/
+/** 描述：声明两种模式职责边界 + 触发场景 + 调用上限。 */
+function buildDescription(limit) {
+	return `查询原对话记录，两种模式职责不同，别混用：(1) search 模式（提供 query）：按关键词全文检索老会话的 L0 原文，用于跨会话查"上次聊到哪/之前说的细节"——跨会话老对话细节只能走本检索，不走注入；(2) refine 模式（提供 seq）：补回当前会话内覆盖 seq（该消息序号）的细层摘要（粗→细→更细，最细优先）与 L0 原文——用于会话内粗化过头后把粒度补回来。当用户提及历史/过去/之前（"我之前说过 / 上次 / 你还记不记得 / 我们聊过 / 之前那个 bug"）时，先查 L0 原文找具体消息再答。调用限制：本工具与 query_memory 每会话合计最多 ${limit} 次；检索无果或补回无覆盖时明确说明，不要凭空编造。`;
+}
+/**
+* 从摘要存储读覆盖 `seq` 的细层摘要——补召层级链的"逐级补回细层"核心。
+* 语义与 T8 `CompactionEngine.retrieve` 一致：过滤覆盖 seq 的层，按层数降序
+* （最细优先）。导出以便补召集成测试直接验证"粗化后能补回细层"。
+*/
+async function loadFineLayers(storage, sessionId, seq) {
+	return (await storage.load(sessionId)).filter((layer) => layer.range[0] <= seq && seq <= layer.range[1]).sort((a, b) => b.level - a.level);
+}
+/**
+* 构造对当前会话做补召的默认实现：从存储读覆盖 `seq` 的细层摘要（最细优先），
+* L0 原文经会话事件投影的 rawStore 读。只读，不写任何数据。
+*/
+function defaultRefine(storageBase) {
+	const storage = new FileSummaryStorage(storageBase);
+	return async (session, seq) => {
+		return {
+			layers: await loadFineLayers(storage, session.id, seq),
+			rawMessages: (await sessionRawStore(session).read([seq, seq])).map((m) => ({
+				seq: m.seq,
+				text: m.text,
+				role: m.role
+			}))
+		};
+	};
+}
+/**
+* Cordis 插件体：注册 `query_conversation` 工具。作为 memory bundle 的一个
+* host 行挂载（cordis.patch.yml）。
+* @param ctx - 宿主插件上下文。
+* @param config - 校验后的插件配置。
+*/
+function apply$1(ctx, config) {
+	const toolName = config.toolName ?? "query_conversation";
+	const budget = config.budget ?? new MemoryToolBudget();
+	const refine = config.refine ?? defaultRefine(config.storageBase);
+	ctx.tools.register(defineTool({
+		name: toolName,
+		description: buildDescription(budget.limit),
+		parameters: {
+			query: {
+				type: "string",
+				description: "要检索的原文关键词（search 模式）。提供 seq 时忽略。"
+			},
+			sessionKey: {
+				type: "string",
+				description: "限定检索到某会话（search 模式，可选）。"
+			},
+			seq: {
+				type: "number",
+				description: "补召模式：当前会话中要补回细节的消息序号。提供时返回该处的细层摘要 + 原文。"
+			},
+			limit: {
+				type: "number",
+				description: "search 模式最多返回的条目数（默认 5）。"
+			}
+		},
+		output: {
+			schema: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					text: {
+						type: "string",
+						required: true
+					},
+					mode: {
+						type: "string",
+						required: true
+					}
+				}
+			},
+			render: (_args, value) => [{
+				type: "text",
+				text: value.text
+			}]
+		},
+		isConcurrencySafe: () => true,
+		async execute(args, exec) {
+			const sessionId = exec.agent?.session?.id ?? "default";
+			if (!budget.consume(sessionId, exec.agent).allowed) throw new Error(`已达记忆工具调用上限（${budget.limit} 次）。请在现有结果基础上作答；如仍缺信息，向用户说明并请其补充。`);
+			const session = exec.agent?.session;
+			if (args.seq !== void 0) {
+				if (session === void 0) throw new Error("query_conversation: 补召模式需要调用者会话（exec.agent.session 缺失）");
+				try {
+					const detail = await refine(session, args.seq);
+					const ordered = [...detail.layers].sort((a, b) => b.level - a.level);
+					const lines = [];
+					if (ordered.length > 0) {
+						lines.push(`覆盖 seq ${args.seq} 的摘要层（最细优先）：`);
+						for (const layer of ordered) lines.push(`  L${layer.level} [${layer.range[0]}-${layer.range[1]}]: ${layer.text}`);
+					} else lines.push(`seq ${args.seq} 无覆盖的摘要层。`);
+					if (detail.rawMessages.length > 0) {
+						lines.push(`L0 原文：`);
+						for (const m of detail.rawMessages) lines.push(`  [${m.seq} ${m.role}] ${m.text}`);
+					} else lines.push("该处无 L0 原文。");
+					return {
+						text: lines.join("\n"),
+						mode: "refine"
+					};
+				} catch (error) {
+					if (error instanceof NoCoverageError) throw new Error(`补召失败：seq ${args.seq} 在该会话无摘要层覆盖（${error.message}）`);
+					throw error;
+				}
+			}
+			const memory = getTraceable(ctx, ctx).get("memory");
+			if (memory === void 0) throw new Error("query_conversation: 记忆引擎未加载（加载 dsh-harness-memory-bundle 的 memory host 行）");
+			if (args.query === void 0 || args.query.trim() === "") throw new Error("query_conversation: search 模式需提供 query（或改用 seq 做补召）");
+			return {
+				text: (await memory.searchConversations({
+					query: args.query,
+					...args.limit === void 0 ? {} : { limit: args.limit },
+					...args.sessionKey === void 0 ? {} : { sessionKey: args.sessionKey }
+				})).text,
+				mode: "search"
+			};
+		}
+	}));
+}
+//#endregion
+//#region lib/types/tools/index.js
+/**
+* T10 工具回查与补召——共享限次预算的查记忆/查原对话工具组合行。
+*
+* 组合一个共享的 {@link MemoryToolBudget}（两工具每会话合计 ≤ 3 次），并把
+* `query_memory`（查记忆库）与 `query_conversation`（查原对话 + 补召细层）
+* 注册进 `ctx.tools`。作为 memory bundle 的一个 host 行挂载（cordis.patch.yml
+* id: `memory-tools`），插件体默认导出本 apply。
+*
+* @module dsh-harness-memory-bundle/tools
+*/
+/**
+* 组合插件体：共享一个预算，注册查记忆 + 查原对话（补召）两个工具。
+*
+* 直接调用两个子工具的 `apply`（而非 `ctx.plugin`）：每个子 apply 内部已自管
+* `ctx.on('dispose')` 清理，且避免 cordis 对 `{ apply }` 对象插件的识别差异。
+* @param ctx - 宿主插件上下文。
+* @param config - 校验后的组合配置。
+*/
+function apply(ctx, config = {}) {
+	const budget = new MemoryToolBudget(config.limit);
+	apply$2(ctx, {
+		...config.memoryToolName === void 0 ? {} : { toolName: config.memoryToolName },
+		budget
+	});
+	apply$1(ctx, {
+		...config.conversationToolName === void 0 ? {} : { toolName: config.conversationToolName },
+		budget,
+		...config.storageBase === void 0 ? {} : { storageBase: config.storageBase },
+		...config.refine === void 0 ? {} : { refine: config.refine }
+	});
+}
+//#endregion
 //#region lib/types/index.js
 /**
 * dsh-harness-memory-bundle — the Harness-owned memory subsystem as a profile
@@ -29829,4 +30277,4 @@ var Tasks = class extends Service {
 */
 var types_default = Memory;
 //#endregion
-export { CoarseningFloorError, CompactionConfigError, CompactionEngine, CompactionError, DEFAULT_COMPACTION_CONFIG, DshLLMRunner, DshLLMRunnerFactory, FileSummaryStorage, INITIAL_STAGE, LayerRecoveryError, LlmSummarizer, MEMORY_PLUGIN, Memory, MemoryHostAdapter, NON_DISTILLABLE_SOURCE, NoCompressibleHistoryError, NoCoverageError, STAGE_ORDER, SUMMARY_SOURCE_TAG, StageLedger, TaskStore, Tasks, afterCompressionStage, assembleInjectionMessages, buildCompletedTurn, buildMemoryTdaiConfig, compactionRole, createCompressionCoordinator, createDefaultRouteResolver, createPreStepHandler, createPrefixAlignedSummarizer, types_default as default, deriveTurnAttribution, dshHomePath, encodeSessionKey, estimateTokens, installInjection, installTurnCapture, isBalancedBoundary, isNonDistillable, layerFileName, memorySource, require_token_error as n, partitionLayers, pickCoarsenPair, planForStage, projectEvent, projectTurnMessage, projectTurnMessages, recursiveCoarsen, resolveBudgets, routedSummarizer, sanitizeSessionId, selectCompressibleRange, sessionRawStore, summariesRoot, summaryBudget, summarySourceMetadata, require_token_util as t, taskDbPath, textOf, textOfMessage, withinCap };
+export { CoarseningFloorError, CompactionConfigError, CompactionEngine, CompactionError, DEFAULT_COMPACTION_CONFIG, DshLLMRunner, DshLLMRunnerFactory, FileSummaryStorage, INITIAL_STAGE, LayerRecoveryError, LlmSummarizer, MEMORY_PLUGIN, Memory, MemoryHostAdapter, MemoryToolBudget, NON_DISTILLABLE_SOURCE, NoCompressibleHistoryError, NoCoverageError, STAGE_ORDER, SUMMARY_SOURCE_TAG, StageLedger, TaskStore, Tasks, afterCompressionStage, assembleInjectionMessages, buildCompletedTurn, buildMemoryTdaiConfig, compactionRole, createCompressionCoordinator, createDefaultRouteResolver, createPreStepHandler, createPrefixAlignedSummarizer, types_default as default, deriveTurnAttribution, dshHomePath, encodeSessionKey, estimateTokens, installInjection, installTurnCapture, isBalancedBoundary, isNonDistillable, layerFileName, memorySource, apply as memoryTools, require_token_error as n, partitionLayers, pickCoarsenPair, planForStage, projectEvent, projectTurnMessage, projectTurnMessages, recursiveCoarsen, resolveBudgets, routedSummarizer, sanitizeSessionId, selectCompressibleRange, sessionRawStore, summariesRoot, summaryBudget, summarySourceMetadata, require_token_util as t, taskDbPath, textOf, textOfMessage, withinCap };

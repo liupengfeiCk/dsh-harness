@@ -20,7 +20,7 @@ import { MemoryHostAdapter } from '../adapters/host-adapter.ts';
 import type { MemoryEngineConfig } from '../adapters/config.ts';
 import { TdaiCore } from '@tencentdb-agent-memory/memory-core-vendor/core/tdai-core';
 import type { InstallInjectionOptions } from '../injection/host.ts';
-import type { CompletedTurn, MemorySearchParams, RecallResult } from '@tencentdb-agent-memory/memory-core-vendor/core/types';
+import type { CompletedTurn, ConversationSearchParams, MemorySearchParams, RecallResult } from '@tencentdb-agent-memory/memory-core-vendor/core/types';
 /** Schemastery validator for the memory engine config (extension point). */
 export declare const Config: ObjectConstructor;
 /** Runtime config the `memory` service receives. */
@@ -54,6 +54,11 @@ export declare class Memory extends Service {
         text: string;
         total: number;
         strategy: string;
+    }>;
+    /** Full-text L0 conversation search (conversation tool). */
+    searchConversations(params: ConversationSearchParams): Promise<{
+        text: string;
+        total: number;
     }>;
 }
 //# sourceMappingURL=service.d.ts.map

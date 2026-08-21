@@ -21,6 +21,15 @@ export function buildMemoryTdaiConfig(config) {
     const raw = {};
     if (config.storeBackend !== undefined)
         raw.storeBackend = config.storeBackend;
+    if (config.compressionPlan !== undefined && config.compressionPlan.length > 0) {
+        raw.compression = { enabled: true, modelPlanId: config.compressionPlan };
+    }
+    if (config.injectionLimit !== undefined)
+        raw.injectionLimit = config.injectionLimit;
+    if (config.compressionLine !== undefined)
+        raw.compressionLine = config.compressionLine;
+    if (config.retainLine !== undefined)
+        raw.retainLine = config.retainLine;
     // Extraction needs an LLM route. The engine enables extraction when any of:
     //   - an explicit default route (`llm`) is pinned,
     //   - a model plan id is pinned (`modelPlanId`),

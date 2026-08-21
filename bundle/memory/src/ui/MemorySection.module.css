@@ -1,0 +1,270 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 720px;
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.intro {
+  margin: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-text-2, #8b94a6);
+  line-height: 1.6;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab {
+  padding: 6px 12px;
+  border: 1px solid var(--dsw-alias-stroke, #2a3242);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-text-2, #8b94a6);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tabActive {
+  border-color: var(--dsw-alias-stroke-focus, #4f7cff);
+  color: var(--dsw-alias-text-1, #e6e9f0);
+  background: color-mix(in srgb, var(--dsw-alias-stroke-focus, #4f7cff) 12%, transparent);
+}
+
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.statusBlock,
+.bindBlock,
+.configBlock {
+  border: 1px solid var(--dsw-alias-stroke, #2a3242);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.blockTitle {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.statusGrid {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.statusGrid li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.statusGrid span {
+  font-size: 11px;
+  color: var(--dsw-alias-text-2, #8b94a6);
+}
+
+.statusGrid strong {
+  font-size: 16px;
+}
+
+.statusLast {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--dsw-alias-text-2, #8b94a6);
+}
+
+.layers {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.layer {
+  border: 1px solid var(--dsw-alias-stroke, #2a3242);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.layerTitle {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-text-2, #8b94a6);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.assetList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.emptyLayer {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-text-3, #5b6472);
+}
+
+.assetRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.assetTitle {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.assetTitle:hover {
+  text-decoration: underline;
+}
+
+.assetPreview {
+  flex: 1;
+  font-size: 12px;
+  color: var(--dsw-alias-text-2, #8b94a6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.assetActions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.iconButton {
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-text-2, #8b94a6);
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.iconButton:hover {
+  background: color-mix(in srgb, var(--dsw-alias-stroke, #2a3242) 40%, transparent);
+}
+
+.iconDanger {
+  color: var(--dsw-alias-state-error-primary, #e5484d);
+}
+
+.iconWarn {
+  color: var(--dsw-alias-state-warning-primary, #e5a340);
+}
+
+.bindRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bindLabel {
+  font-size: 12px;
+  color: var(--dsw-alias-text-2, #8b94a6);
+}
+
+.input {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--dsw-alias-stroke, #2a3242);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+}
+
+.bindHint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--dsw-alias-text-2, #8b94a6);
+}
+
+.boundAssets {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--dsw-alias-text-2, #8b94a6);
+  word-break: break-all;
+}
+
+.configGrid {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.configGrid li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.configGrid span {
+  font-size: 11px;
+  color: var(--dsw-alias-text-2, #8b94a6);
+}
+
+.configGrid strong {
+  font-size: 13px;
+}
+
+.detailContent {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.6;
+  color: inherit;
+}
+
+.detailDialog {
+  max-width: 560px;
+  width: 100%;
+}
+
+.deleteDialog {
+  max-width: 420px;
+  width: 100%;
+}
+
+.deleteConfirm {
+  background: var(--dsw-alias-state-error-primary, #e5484d);
+}

@@ -72,6 +72,11 @@ export class MemoryHostAdapter implements HostAdapter {
   private readonly dataDir: string
   private readonly runnerFactory: DshLLMRunnerFactory
 
+  /** The resolved data directory (public for the management surface). */
+  get dataDirPath(): string {
+    return this.dataDir
+  }
+
   constructor(options: MemoryHostAdapterOptions) {
     const config: MemoryEngineConfig = options.config ?? {}
     this.logger = adaptLogger(options.ctx.logger)

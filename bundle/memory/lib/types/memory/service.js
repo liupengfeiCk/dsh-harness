@@ -86,5 +86,9 @@ export class Memory extends Service {
     async searchMemories(params) {
         return this.core.searchMemories(params);
     }
+    /** Full-text L0 conversation search (conversation tool). */
+    async searchConversations(params) {
+        return this.core.searchConversations(params);
+    }
 }
 //# sourceMappingURL=service.js.map

@@ -38,6 +38,10 @@ export class MemoryHostAdapter {
     logger;
     dataDir;
     runnerFactory;
+    /** The resolved data directory (public for the management surface). */
+    get dataDirPath() {
+        return this.dataDir;
+    }
     constructor(options) {
         const config = options.config ?? {};
         this.logger = adaptLogger(options.ctx.logger);

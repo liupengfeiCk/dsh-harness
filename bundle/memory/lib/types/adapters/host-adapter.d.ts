@@ -47,6 +47,8 @@ export declare class MemoryHostAdapter implements HostAdapter {
     private readonly logger;
     private readonly dataDir;
     private readonly runnerFactory;
+    /** The resolved data directory (public for the management surface). */
+    get dataDirPath(): string;
     constructor(options: MemoryHostAdapterOptions);
     getRuntimeContext(): RuntimeContext;
     getLogger(): Logger;

@@ -63,3 +63,26 @@ describe('buildMemoryTdaiConfig extraction routing (T7)', () => {
     expect(cfg.llm).toBeUndefined()
   })
 })
+
+describe('buildMemoryTdaiConfig T15 sizing + compression (T15)', () => {
+  it('carries the compression plan when pinned', () => {
+    const cfg = buildMemoryTdaiConfig({ compressionPlan: 'plan-c' })
+    expect(cfg.compression).toEqual({ enabled: true, modelPlanId: 'plan-c' })
+  })
+
+  it('omits the compression block when no plan is pinned', () => {
+    const cfg = buildMemoryTdaiConfig({})
+    expect(cfg.compression).toBeUndefined()
+  })
+
+  it('carries the three independent ratios when set', () => {
+    const cfg = buildMemoryTdaiConfig({
+      injectionLimit: 0.3,
+      compressionLine: 0.85,
+      retainLine: 0.1,
+    })
+    expect(cfg.injectionLimit).toBe(0.3)
+    expect(cfg.compressionLine).toBe(0.85)
+    expect(cfg.retainLine).toBe(0.1)
+  })
+})

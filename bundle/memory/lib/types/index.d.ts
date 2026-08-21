@@ -33,6 +33,8 @@ export { createCompressionCoordinator, routedSummarizer, type CompressionCoordin
 export { createPreStepHandler, type PreStepDeps } from './injection/pre-step.ts';
 export { sessionRawStore, projectEvent, estimateTokens, textOfMessage, compactionRole } from './injection/raw-store.ts';
 export { installInjection, type InstallInjectionOptions, type RecallProvider } from './injection/host.ts';
+export { default as memoryTools, MemoryToolBudget } from './tools/index.ts';
+export type { Config as MemoryToolsConfig } from './tools/index.ts';
 export { Memory } from './memory/service.ts';
 export type { MemoryRuntimeConfig } from './memory/service.ts';
 export { MemoryHostAdapter } from './adapters/host-adapter.ts';

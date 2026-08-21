@@ -41,6 +41,9 @@ export { createCompressionCoordinator, routedSummarizer, } from "./injection/com
 export { createPreStepHandler } from "./injection/pre-step.js";
 export { sessionRawStore, projectEvent, estimateTokens, textOfMessage, compactionRole } from "./injection/raw-store.js";
 export { installInjection } from "./injection/host.js";
+// T10 工具回查与补召——组合行（cordis.patch.yml id: `memory-tools`）的插件体
+// 与共享限次预算控制器。
+export { default as memoryTools, MemoryToolBudget } from "./tools/index.js";
 // Memory engine host service (T4): assembles the vendor TdaiCore behind the
 // bundle's host adapter. Default export is the `memory` patch row's plugin body
 // (cordis.patch.yml `name: 'dsh-harness-memory-bundle'`).

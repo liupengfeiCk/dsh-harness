@@ -46,6 +46,21 @@ export interface MemoryEngineConfig {
    * keep the engine storage-only (no extraction) without a pinned route.
    */
   readonly followCurrentRoute?: boolean
+  /**
+   * Model plan id used for the compression LLM (T15). When set, the pipeline
+   * resolves the compression route from that model plan. When unset, the
+   * pipeline follows the harness's current model selection.
+   */
+  readonly compressionPlan?: string
+  /**
+   * Unified-injection cap as a 0..1 fraction (T15, default 0.2). The share of
+   * the assembled prompt budget memory recall may consume.
+   */
+  readonly injectionLimit?: number
+  /** Original-text compression line as a 0..1 fraction (T15, default 0.8). */
+  readonly compressionLine?: number
+  /** Original-text retention line as a 0..1 fraction (T15, default 0.16). */
+  readonly retainLine?: number
   /** Explicit default LLM route (provider + model) for extraction calls. */
   readonly llm?: {
     /** Provider route key registered with the `llm` service adapter. */
@@ -63,6 +78,12 @@ export interface MemoryEngineConfig {
 export function buildMemoryTdaiConfig(config: MemoryEngineConfig): MemoryTdaiConfig {
   const raw: Record<string, unknown> = {}
   if (config.storeBackend !== undefined) raw.storeBackend = config.storeBackend
+  if (config.compressionPlan !== undefined && config.compressionPlan.length > 0) {
+    raw.compression = { enabled: true, modelPlanId: config.compressionPlan }
+  }
+  if (config.injectionLimit !== undefined) raw.injectionLimit = config.injectionLimit
+  if (config.compressionLine !== undefined) raw.compressionLine = config.compressionLine
+  if (config.retainLine !== undefined) raw.retainLine = config.retainLine
   // Extraction needs an LLM route. The engine enables extraction when any of:
   //   - an explicit default route (`llm`) is pinned,
   //   - a model plan id is pinned (`modelPlanId`),
