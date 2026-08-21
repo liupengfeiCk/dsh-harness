@@ -21,6 +21,7 @@
  * engine's host wiring here.
  * @module dsh-harness-memory-bundle
  */
+import { Memory } from "./memory/service.js";
 // Task-entity registry (design §7 F10). `Tasks` is the cordis service default
 // exported from `./tasks`, mounted by the `tasks` patch row.
 export { Tasks } from "./tasks/index.js";
@@ -30,4 +31,13 @@ export { TaskStore, taskDbPath } from "./tasks/store.js";
 // face; re-export it wholesale so host consumers get the engine, the layer
 // planner, the summarizer, the storage, and the tagging helpers.
 export * from "./compaction/index.js";
+// Memory engine host service (T4): assembles the vendor TdaiCore behind the
+// bundle's host adapter. Default export is the `memory` patch row's plugin body
+// (cordis.patch.yml `name: 'dsh-harness-memory-bundle'`).
+export { Memory } from "./memory/service.js";
+export { MemoryHostAdapter } from "./adapters/host-adapter.js";
+export { DshLLMRunner, DshLLMRunnerFactory } from "./adapters/llm-runner.js";
+export { buildMemoryTdaiConfig } from "./adapters/config.js";
+export { dshHomePath } from "./home-path.js";
+export default Memory;
 //# sourceMappingURL=index.js.map

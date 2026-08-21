@@ -22,6 +22,8 @@
  * @module dsh-harness-memory-bundle
  */
 
+import { Memory } from './memory/service.ts'
+
 // Task-entity registry (design §7 F10). `Tasks` is the cordis service default
 // exported from `./tasks`, mounted by the `tasks` patch row.
 export { Tasks } from './tasks/index.ts'
@@ -36,3 +38,24 @@ export type {
 // face; re-export it wholesale so host consumers get the engine, the layer
 // planner, the summarizer, the storage, and the tagging helpers.
 export * from './compaction/index.ts'
+
+// Memory engine host service (T4): assembles the vendor TdaiCore behind the
+// bundle's host adapter. Default export is the `memory` patch row's plugin body
+// (cordis.patch.yml `name: 'dsh-harness-memory-bundle'`).
+export { Memory } from './memory/service.ts'
+export type { MemoryRuntimeConfig } from './memory/service.ts'
+export { MemoryHostAdapter } from './adapters/host-adapter.ts'
+export { DshLLMRunner, DshLLMRunnerFactory } from './adapters/llm-runner.ts'
+export type { RouteResolver } from './adapters/llm-runner.ts'
+export { buildMemoryTdaiConfig } from './adapters/config.ts'
+export type { MemoryEngineConfig } from './adapters/config.ts'
+export { dshHomePath } from './home-path.ts'
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** The memory engine service, composed by the memory bundle. */
+    memory: Memory
+  }
+}
+
+export default Memory

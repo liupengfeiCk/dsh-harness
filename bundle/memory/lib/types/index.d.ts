@@ -21,8 +21,24 @@
  * engine's host wiring here.
  * @module dsh-harness-memory-bundle
  */
+import { Memory } from './memory/service.ts';
 export { Tasks } from './tasks/index.ts';
 export { TaskStore, taskDbPath } from './tasks/store.ts';
 export type { StoredTask, StoredTaskSession, Task, TaskCreateInput, TaskListFilter, TaskRole, TaskSession, TaskSessionKind, TaskStatus, TaskUpdateInput, } from './tasks/types.ts';
 export * from './compaction/index.ts';
+export { Memory } from './memory/service.ts';
+export type { MemoryRuntimeConfig } from './memory/service.ts';
+export { MemoryHostAdapter } from './adapters/host-adapter.ts';
+export { DshLLMRunner, DshLLMRunnerFactory } from './adapters/llm-runner.ts';
+export type { RouteResolver } from './adapters/llm-runner.ts';
+export { buildMemoryTdaiConfig } from './adapters/config.ts';
+export type { MemoryEngineConfig } from './adapters/config.ts';
+export { dshHomePath } from './home-path.ts';
+declare module '@deepseek-ai/cordis' {
+    interface Context {
+        /** The memory engine service, composed by the memory bundle. */
+        memory: Memory;
+    }
+}
+export default Memory;
 //# sourceMappingURL=index.d.ts.map

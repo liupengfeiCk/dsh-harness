@@ -34,3 +34,9 @@
     # The tool resolves the `tasks` service opportunistically via ctx.get.
     - id: memory-task-tool
       name: 'dsh-harness-memory-bundle/tasks/tool'
+
+    # The memory engine host service: assembles the vendor TdaiCore behind the
+    # bundle's host adapter (data dir `~/.dsh/memory`, ctx.logger, ctx.llm LLM
+    # runner). A host row. Its `start()` initializes the engine on boot.
+    - id: memory
+      name: 'dsh-harness-memory-bundle'
