@@ -18,6 +18,7 @@ import { Service } from '@deepseek-ai/cordis';
 import { MemoryHostAdapter } from "../adapters/host-adapter.js";
 import { buildMemoryTdaiConfig } from "../adapters/config.js";
 import { TdaiCore } from '@tencentdb-agent-memory/memory-core-vendor/core/tdai-core';
+import { installInjection } from "../injection/host.js";
 /** Schemastery validator for the memory engine config (extension point). */
 export const Config = Object;
 /**
@@ -47,6 +48,15 @@ export class Memory extends Service {
         // Service subclasses do not get their `start()` invoked automatically).
         // Best-effort: a store-init failure degrades per the vendor contract.
         void this.start();
+        // T9 unified injection: mount the four-stage `agent/pre-step` memory
+        // injection handler (scope-filtered to the root context). Disabled via
+        // `injectionEnabled: false` when the profile composes memory without it.
+        if (config?.injectionEnabled !== false) {
+            ctx.effect(() => {
+                installInjection(ctx, this, config?.injection);
+                return () => { };
+            }, 'dsh-memory: install T9 injection');
+        }
     }
     /** Initialize the engine (idempotent, best-effort). */
     async start() {

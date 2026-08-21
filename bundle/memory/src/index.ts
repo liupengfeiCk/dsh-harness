@@ -39,6 +39,28 @@ export type {
 // planner, the summarizer, the storage, and the tagging helpers.
 export * from './compaction/index.ts'
 
+// T9 unified injection — the four-stage memory-injection wiring that mounts the
+// compaction engine and the memory recall into the agent loop. Exported for
+// the host entry and for programmatic composition (e.g. tests, or a profile
+// that builds the injection handler directly).
+export {
+  StageLedger,
+  planForStage,
+  afterCompressionStage,
+  INITIAL_STAGE,
+  STAGE_ORDER,
+} from './injection/stage.ts'
+export type { InjectionPlan, InjectionStage } from './injection/stage.ts'
+export { assembleInjectionMessages, memorySource, MEMORY_PLUGIN } from './injection/inject.ts'
+export {
+  createCompressionCoordinator,
+  routedSummarizer,
+  type CompressionCoordinator,
+} from './injection/compaction.ts'
+export { createPreStepHandler, type PreStepDeps } from './injection/pre-step.ts'
+export { sessionRawStore, projectEvent, estimateTokens, textOfMessage, compactionRole } from './injection/raw-store.ts'
+export { installInjection, type InstallInjectionOptions, type RecallProvider } from './injection/host.ts'
+
 // Memory engine host service (T4): assembles the vendor TdaiCore behind the
 // bundle's host adapter. Default export is the `memory` patch row's plugin body
 // (cordis.patch.yml `name: 'dsh-harness-memory-bundle'`).

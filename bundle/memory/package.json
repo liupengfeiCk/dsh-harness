@@ -26,6 +26,10 @@
       "types": "./lib/types/compaction/index.d.ts",
       "default": "./lib/types/compaction/index.js"
     },
+    "./injection": {
+      "types": "./lib/types/injection/index.d.ts",
+      "default": "./lib/types/injection/index.js"
+    },
     "./home-path": {
       "types": "./lib/types/home-path.d.ts",
       "default": "./lib/types/home-path.js"
@@ -53,6 +57,7 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.0.1-rc.4",
+    "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
     "@deepseek-ai/dsh-client-connection": "0.1.0-rc.6",
     "@deepseek-ai/dsh-host-apiproxy": "0.1.0-rc.6",
     "@deepseek-ai/dsh-llm": "0.1.0-rc.7",
@@ -60,6 +65,9 @@
     "@deepseek-ai/dsh-tools": "0.1.0-rc.6"
   },
   "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-agent": {
+      "optional": true
+    },
     "@deepseek-ai/dsh-client-connection": {
       "optional": true
     },
@@ -78,6 +86,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.1-rc.4",
+    "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
     "@deepseek-ai/dsh-client-connection": "0.1.0-rc.6",
     "@deepseek-ai/dsh-host-apiproxy": "0.1.0-rc.6",
     "@deepseek-ai/dsh-llm": "0.1.0-rc.7",

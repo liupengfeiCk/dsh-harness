@@ -27966,507 +27966,6 @@ var TdaiCore = class {
 	}
 };
 //#endregion
-//#region lib/types/memory/service.js
-/**
-* Memory engine host service.
-*
-* Assembles the vendor `TdaiCore` behind the memory bundle's host adapter:
-*   - constructs the {@link MemoryHostAdapter} (data dir, logger, LLM runner),
-*   - builds the vendor `MemoryTdaiConfig` from the host-facing settings,
-*   - constructs and initializes the engine, so a fresh `~/.dsh/memory` data
-*     root is created and the store/pipeline are ready,
-*   - tears the engine down on dispose.
-*
-* The engine's `initialize()` is best-effort: a store-init failure degrades to
-* the vendor's fallback (JSONL records, no vector recall) rather than crashing
-* the host, matching the vendor's own degraded-mode contract.
-*
-* @module dsh-harness-memory-bundle/memory/service
-*/
-/**
-* The `memory` host service: owns the engine's lifecycle on the host context.
-*/
-var Memory = class extends Service {
-	config;
-	/** The underlying engine. Created lazily on start. */
-	core;
-	/** Host adapter through which the engine talks to the harness. */
-	hostAdapter;
-	constructor(ctx, config = {}) {
-		super(ctx, "memory");
-		this.config = config;
-		this.hostAdapter = new MemoryHostAdapter({
-			ctx,
-			config: config ?? {}
-		});
-		this.core = new TdaiCore({
-			hostAdapter: this.hostAdapter,
-			config: buildMemoryTdaiConfig(config),
-			...config.sessionFilter !== void 0 ? { sessionFilter: config.sessionFilter } : {},
-			instanceId: "dsh-web"
-		});
-		ctx.effect(() => {
-			const core = this.core;
-			return () => {
-				core.destroy();
-			};
-		}, "dsh-memory: dispose engine");
-		this.start();
-	}
-	/** Initialize the engine (idempotent, best-effort). */
-	async start() {
-		if (this._started) return;
-		this._started = true;
-		await this.core.initialize();
-		this.ctx.logger.info("[memory] engine initialized");
-	}
-	_started = false;
-	/** Capture a completed conversation turn into L0/L1 (+ pipeline scheduling). */
-	async onTurnCommitted(turn) {
-		await this.core.handleTurnCommitted(turn);
-	}
-	/** Recall memories relevant to a user message (L1/L2/L3 injection). */
-	async recall(userText, sessionKey) {
-		return this.core.handleBeforeRecall(userText, sessionKey);
-	}
-	/** Full-text memory search (memory tool). */
-	async searchMemories(params) {
-		return this.core.searchMemories(params);
-	}
-};
-//#endregion
-//#region lib/types/tasks/types.js
-/**
-* Task-entity vocabulary for the memory bundle.
-*
-* A Task is the DSH counterpart of the TencentDB Agent Memory concept "persistent
-* business task" (design §3.4 / §7 F10): a durable work arrangement owned by the
-* MAIN conversation dimension. A task carries a goal, a lifecycle
-* (`running` → `completed`), and the set of responsible roles WITH their
-* intra-task division of labour. Child (delegated) sessions are the task's
-* execution units and never hold the task themselves — they attach to it through
-* the association ledger (`TaskSession`), and the task id becomes a memory
-* filtering dimension parallel to team/role/project (design §4.1).
-*
-* @module dsh-harness-memory-bundle/tasks/types
-*/
-/** The default: active tasks only. */
-const DEFAULT_TASK_FILTER = { includeCompleted: false };
-/** A task was not found. */
-var UnknownTaskError = class extends Error {
-	taskId;
-	available;
-	constructor(taskId, available) {
-		super(`task "${taskId}" does not exist (available: ${available.length === 0 ? "none" : available.join(", ")})`);
-		this.taskId = taskId;
-		this.available = available;
-		this.name = "UnknownTaskError";
-	}
-};
-/** A create/update payload was invalid. */
-var InvalidTaskInputError = class extends Error {
-	constructor(reason) {
-		super(`invalid task input: ${reason}`);
-		this.name = "InvalidTaskInputError";
-	}
-};
-//#endregion
-//#region lib/types/tasks/paths.js
-/**
-* Self-contained harness-home path helpers for the task store.
-*
-* The task table lives under the harness home (`$DSH_HOME/.dsh/memory/tasks`,
-* or the default `~/.dsh/memory/tasks`). The official package exporting these
-* helpers, `@deepseek-ai/dsh-home-paths`, is only an optional peer dependency
-* and is NOT present in the hot-mount (cordis loader) environment — so, exactly
-* as the subagent and model-plan bundles do, this module re-implements the two
-* helpers the store needs (`dshHomePath` and `expandHomePath`) with
-* byte-for-byte identical behaviour, using only Node's own
-* `node:os`/`node:path` modules.
-*
-* The memory bundle's skeleton will own a shared `src/home-path.ts`; this
-* module is kept self-contained so the task store can be tested and run before
-* the skeleton lands, and can later be switched to import the shared helper
-* without behaviour change.
-* @module dsh-harness-memory-bundle/tasks/paths
-*/
-/** Directory name for the default DeepSeek Harness home under the OS home. */
-const DSH_HOME_DIR_NAME = ".dsh";
-/** Environment variable that overrides the default DeepSeek Harness home. */
-const DSH_HOME_ENV = "DSH_HOME";
-/**
-* Resolve the default DeepSeek Harness home using Node's platform path rules.
-* @returns the absolute default harness home path.
-*/
-function defaultDshHome() {
-	return join(homedir(), DSH_HOME_DIR_NAME);
-}
-/**
-* Expand supported tilde prefixes against the operating-system home.
-* @param path - configured path that may begin with `~`, `~/`, or `~\`.
-* @returns the expanded path, or the original value when no supported prefix is present.
-*/
-function expandHomePath(path) {
-	if (path === "~") return homedir();
-	if (path.startsWith("~/") || path.startsWith("~\\")) return join(homedir(), path.slice(2));
-	return path;
-}
-/**
-* Resolve the single-root DeepSeek Harness home.
-*
-* Precedence, highest first: an explicit configured path, `$DSH_HOME`, then
-* `~/.dsh`. An empty or whitespace-only `$DSH_HOME` is treated as unset.
-* @param configured - explicit harness-home override, which has highest precedence.
-* @param env - environment mapping used to read `DSH_HOME`.
-* @returns the normalized absolute harness home path.
-*/
-function resolveDshHome(configured, env = process.env) {
-	const fromEnv = env[DSH_HOME_ENV];
-	const selected = configured ?? (fromEnv !== void 0 && fromEnv.trim().length > 0 ? fromEnv : defaultDshHome());
-	return resolve(expandHomePath(selected));
-}
-/**
-* Join path segments onto the resolved DeepSeek Harness home.
-* @param segments - path segments appended to the Harness home; an empty list returns the home itself.
-* @returns the normalized absolute joined path.
-*/
-function dshHomePath$1(...segments) {
-	return join(resolveDshHome(), ...segments);
-}
-/** The default tasks database file under the harness home. */
-const TASK_DB_FILE = "tasks.db";
-/** The default absolute path of the tasks database. */
-function taskDbPath() {
-	return dshHomePath$1("memory", "tasks", TASK_DB_FILE);
-}
-/** Parse a roles JSON column, failing loud on corruption. */
-function parseRoles(json) {
-	try {
-		const value = JSON.parse(json);
-		if (!Array.isArray(value)) throw new Error("roles column is not an array");
-		return value;
-	} catch (error) {
-		throw new Error(`task roles column holds invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
-	}
-}
-/** Resolve the tasks database path, honouring an explicit override and `:memory:`. */
-function resolveDbPath(explicit) {
-	return explicit === void 0 || explicit === ":memory:" ? explicit ?? taskDbPath() : resolve(explicit);
-}
-/**
-* The task store: CRUD, associations, filtering, and completion downweighting.
-*/
-var TaskStore = class TaskStore {
-	db;
-	stmts;
-	/**
-	* @param path - database path; `:memory:` for tests, undefined for the default
-	*   harness-home path. Missing directories/files are created owner-only.
-	*/
-	constructor(path) {
-		this.db = new DatabaseSync(path);
-		this.configure(path);
-		this.stmts = this.prepare();
-	}
-	/** Open a store. See {@link TaskStore.constructor}. */
-	static open(path) {
-		return new TaskStore(resolveDbPath(path));
-	}
-	/** Open an in-memory store for tests. */
-	static openMemory() {
-		return new TaskStore(":memory:");
-	}
-	configure(path) {
-		this.db.exec("PRAGMA foreign_keys = ON");
-		const { user_version: onDisk } = this.db.prepare("PRAGMA user_version").get();
-		if (onDisk !== 0 && onDisk !== 1) throw new Error(`tasks database at "${path}" has schema version ${onDisk}, incompatible with this build (1)`);
-		this.db.exec(`
-      CREATE TABLE IF NOT EXISTS tasks (
-        id          TEXT PRIMARY KEY,
-        title       TEXT NOT NULL,
-        goal        TEXT NOT NULL,
-        status      TEXT NOT NULL CHECK (status IN ('running', 'completed')),
-        roles_json  TEXT NOT NULL,
-        created_at  TEXT NOT NULL,
-        completed_at TEXT
-      ) STRICT
-    `);
-		this.db.exec(`
-      CREATE TABLE IF NOT EXISTS task_sessions (
-        task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-        session_id  TEXT NOT NULL,
-        role_id     TEXT,
-        kind        TEXT NOT NULL CHECK (kind IN ('session', 'delegation')),
-        attached_at TEXT NOT NULL,
-        PRIMARY KEY (task_id, session_id)
-      ) STRICT
-    `);
-		this.db.exec("CREATE INDEX IF NOT EXISTS task_sessions_session ON task_sessions (session_id)");
-		if (onDisk === 0) this.db.exec(`PRAGMA user_version = 1`);
-	}
-	prepare() {
-		return {
-			insert: this.db.prepare("INSERT INTO tasks (id, title, goal, status, roles_json, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)"),
-			update: this.db.prepare("UPDATE tasks SET title = ?, goal = ?, roles_json = ? WHERE id = ?"),
-			complete: this.db.prepare("UPDATE tasks SET status = ?, completed_at = ? WHERE id = ?"),
-			find: this.db.prepare(`SELECT id, title, goal, status, roles_json AS rolesJson, created_at AS createdAt, completed_at AS completedAt
-         FROM tasks WHERE id = ?`),
-			listAll: this.db.prepare(`SELECT id, title, goal, status, roles_json AS rolesJson, created_at AS createdAt, completed_at AS completedAt
-         FROM tasks ORDER BY created_at ASC`),
-			listActive: this.db.prepare(`SELECT id, title, goal, status, roles_json AS rolesJson, created_at AS createdAt, completed_at AS completedAt
-         FROM tasks WHERE status = 'running' ORDER BY created_at ASC`),
-			insertSession: this.db.prepare(`INSERT INTO task_sessions (task_id, session_id, role_id, kind, attached_at)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(task_id, session_id) DO UPDATE SET role_id = excluded.role_id, kind = excluded.kind, attached_at = excluded.attached_at`),
-			sessionsFor: this.db.prepare(`SELECT session_id AS sessionId, role_id AS roleId, kind, attached_at AS attachedAt
-         FROM task_sessions WHERE task_id = ? ORDER BY attached_at ASC`),
-			removeSession: this.db.prepare("DELETE FROM task_sessions WHERE task_id = ? AND session_id = ?")
-		};
-	}
-	/**
-	* Create a task.
-	* @param input - title, goal, and optional responsible roles.
-	* @returns the persisted task.
-	* @throws InvalidTaskInputError on a missing title/goal.
-	*/
-	create(input) {
-		const title = input.title.trim();
-		const goal = input.goal.trim();
-		if (title.length === 0) throw new InvalidTaskInputError("title must not be empty");
-		if (goal.length === 0) throw new InvalidTaskInputError("goal must not be empty");
-		const roles = validateRoles(input.roles);
-		const id = randomUUID();
-		const now = (/* @__PURE__ */ new Date()).toISOString();
-		this.db.exec("BEGIN");
-		try {
-			this.stmts.insert.run(id, title, goal, "running", JSON.stringify(roles), now, null);
-			this.db.exec("COMMIT");
-		} catch (error) {
-			this.db.exec("ROLLBACK");
-			throw error;
-		}
-		return this.hydrate({
-			id,
-			title,
-			goal,
-			status: "running",
-			rolesJson: JSON.stringify(roles),
-			createdAt: now,
-			completedAt: null
-		}, []);
-	}
-	/**
-	* Update a task's title/goal/roles.
-	* @param id - the task id.
-	* @param input - any subset of the mutable fields.
-	* @throws UnknownTaskError when the task does not exist.
-	*/
-	update(id, input) {
-		const row = this.requireRow(id);
-		const title = input.title === void 0 ? row.title : input.title.trim();
-		const goal = input.goal === void 0 ? row.goal : input.goal.trim();
-		if (title.length === 0) throw new InvalidTaskInputError("title must not be empty");
-		if (goal.length === 0) throw new InvalidTaskInputError("goal must not be empty");
-		const roles = input.roles === void 0 ? parseRoles(row.rolesJson) : validateRoles(input.roles);
-		this.stmts.update.run(title, goal, JSON.stringify(roles), id);
-		const updated = {
-			...row,
-			title,
-			goal,
-			rolesJson: JSON.stringify(roles)
-		};
-		return this.hydrate(updated, this.sessionsForId(id));
-	}
-	/**
-	* Mark a task completed (idempotent).
-	* @param id - the task id.
-	* @returns the updated task.
-	* @throws UnknownTaskError when the task does not exist.
-	*/
-	complete(id) {
-		const row = this.requireRow(id);
-		if (row.status === "running") {
-			const now = (/* @__PURE__ */ new Date()).toISOString();
-			this.stmts.complete.run("completed", now, id);
-			const updated = {
-				...row,
-				status: "completed",
-				completedAt: now
-			};
-			return this.hydrate(updated, this.sessionsForId(id));
-		}
-		return this.hydrate(row, this.sessionsForId(id));
-	}
-	/**
-	* List tasks. By default completed tasks are EXCLUDED (the downweighting rule);
-	* pass `includeCompleted: true` to surface them explicitly.
-	* @param filter - optional list filter.
-	*/
-	list(filter = DEFAULT_TASK_FILTER) {
-		return (filter.includeCompleted ?? false ? this.stmts.listAll : this.stmts.listActive).all().map((row) => this.hydrate(row, this.sessionsForId(row.id)));
-	}
-	/**
-	* Read one task.
-	* @param id - the task id.
-	* @throws UnknownTaskError when the task does not exist.
-	*/
-	read(id) {
-		const row = this.requireRow(id);
-		return this.hydrate(row, this.sessionsForId(id));
-	}
-	/**
-	* The ids of tasks the memory engine should treat as active for filtering —
-	* completed tasks are excluded by default, so a completed task's memories are
-	* downweighted (they still exist, but are not offered as active filters).
-	*/
-	activeTaskIds() {
-		return this.stmts.listActive.all().map((row) => row.id);
-	}
-	/**
-	* Whether a task is completed — the memory engine downweights L0/L1 for a
-	* completed task by default and surfaces them only on an explicit query.
-	* @param id - the task id.
-	* @returns true when the task exists and is completed; false when running or missing.
-	*/
-	isCompleted(id) {
-		const row = this.stmts.find.get(id);
-		return row !== void 0 && row.status === "completed";
-	}
-	/**
-	* Associate a session with a task (会话挂任务 or 委派挂任务).
-	* @param taskId - the task id.
-	* @param sessionId - the session to attach.
-	* @param roleId - the role that ran the session (delegation attaches it).
-	* @param kind - how the association was made.
-	* @throws UnknownTaskError when the task does not exist.
-	*/
-	attachSession(taskId, sessionId, roleId, kind) {
-		const row = this.requireRow(taskId);
-		const trimmed = sessionId.trim();
-		if (trimmed.length === 0) throw new InvalidTaskInputError("sessionId must not be empty");
-		const now = (/* @__PURE__ */ new Date()).toISOString();
-		this.stmts.insertSession.run(row.id, trimmed, roleId ?? null, kind, now);
-		return this.hydrate(row, this.sessionsForId(row.id));
-	}
-	/** Remove a session association (used by tests and cleanup). */
-	detachSession(taskId, sessionId) {
-		this.stmts.removeSession.run(taskId, sessionId);
-	}
-	/** Close the database connection. */
-	close() {
-		this.db.close();
-	}
-	requireRow(id) {
-		const row = this.stmts.find.get(id);
-		if (row === void 0) throw new UnknownTaskError(id, this.stmts.listAll.all().map((r) => r.id));
-		return row;
-	}
-	sessionsForId(taskId) {
-		return this.stmts.sessionsFor.all(taskId).map((s) => ({
-			sessionId: s.sessionId,
-			...s.roleId === null ? {} : { roleId: s.roleId },
-			kind: s.kind,
-			attachedAt: s.attachedAt
-		}));
-	}
-	hydrate(row, sessions) {
-		return {
-			id: row.id,
-			title: row.title,
-			goal: row.goal,
-			status: row.status,
-			roles: parseRoles(row.rolesJson),
-			createdAt: row.createdAt,
-			completedAt: row.completedAt,
-			sessions
-		};
-	}
-};
-/** Validate the responsible-roles list, mapping bad shapes to InvalidTaskInputError. */
-function validateRoles(roles) {
-	if (roles === void 0) return [];
-	for (const role of roles) {
-		if (typeof role.roleId !== "string" || role.roleId.trim().length === 0) throw new InvalidTaskInputError("each role must have a non-empty roleId");
-		if (typeof role.division !== "string" || role.division.trim().length === 0) throw new InvalidTaskInputError(`role "${role.roleId}" must have a non-empty division`);
-	}
-	return roles;
-}
-/** Ensure the tasks directory exists with owner-only permissions. */
-async function ensureTasksDirectory() {
-	await mkdir(dirname(resolveDbPath(void 0)), {
-		recursive: true,
-		mode: 448
-	});
-}
-z$2.object({ dbPath: z$2.string().default(void 0) });
-/**
-* The task registry: wraps the SQLite {@link TaskStore} behind the cordis
-* service boundary, so the wire and the main-agent tool share one store and
-* the memory engine queries it through a stable interface.
-*/
-var Tasks = class extends Service {
-	config;
-	/** The backing store; also exposed so host code can close it. */
-	store;
-	constructor(ctx, config = {}) {
-		super(ctx, "tasks");
-		this.config = config;
-		this.config = config ?? {};
-		this.store = TaskStore.open(this.config.dbPath);
-		ensureTasksDirectory().catch(() => {});
-		ctx.effect(() => {
-			const store = this.store;
-			return () => store.close();
-		}, "dsh-memory-tasks: dispose store");
-	}
-	/** Create a task (管理界面 wire / 主代理 create_task 工具两入口共用). */
-	create(input) {
-		const task = this.store.create(input);
-		this.ctx.emit("memory/task-changed", task.id, task.status);
-		return task;
-	}
-	/** Update a task's title/goal/roles. */
-	update(id, input) {
-		return this.store.update(id, input);
-	}
-	/** Mark a task completed (idempotent). */
-	complete(id) {
-		const task = this.store.complete(id);
-		this.ctx.emit("memory/task-changed", task.id, task.status);
-		return task;
-	}
-	/** List tasks; completed tasks are excluded by default (downweighting). */
-	list(filter) {
-		return this.store.list(filter);
-	}
-	/** Read one task. */
-	read(id) {
-		return this.store.read(id);
-	}
-	/** The ids of active (non-completed) tasks — the memory engine's filter set. */
-	activeTaskIds() {
-		return this.store.activeTaskIds();
-	}
-	/** Whether a task is completed — the memory engine downweights completed-task L0/L1. */
-	isCompleted(id) {
-		return this.store.isCompleted(id);
-	}
-	/**
-	* Associate a session with a task (委派挂任务 / 会话挂任务).
-	* @param taskId - the task id.
-	* @param sessionId - the associated session.
-	* @param roleId - the role that ran the session, when known.
-	* @param kind - how the association was made.
-	*/
-	attachSession(taskId, sessionId, roleId, kind = "session") {
-		return this.store.attachSession(taskId, sessionId, roleId, kind);
-	}
-	/** Remove a session association. */
-	detachSession(taskId, sessionId) {
-		this.store.detachSession(taskId, sessionId);
-	}
-};
-//#endregion
 //#region lib/types/compaction/types.js
 /**
 * Session-internal hierarchical compaction subsystem — shared types, data
@@ -29102,6 +28601,933 @@ function isNonDistillable(metadata) {
 	return metadata.source === NON_DISTILLABLE_SOURCE;
 }
 //#endregion
+//#region lib/types/injection/raw-store.js
+/**
+* Real `RawStore` implementation (T9): reads the session's raw original
+* history (L0) from the event-sourced session log.
+*
+* T8 left `RawStore` as an injectable seam; this module fills it with the
+* durable realization — project each surface-eligible session event into a
+* `CompactionMessage` via `session.deriveEventMessage`, preserving the event
+* `seq` as the immutable coordinate and pricing tokens with a deterministic
+* character-based estimate (dependency-light; the compaction subsystem's
+* budgets are ratios over the window, so a consistent estimator suffices).
+*
+* @module dsh-harness-memory-bundle/injection/raw-store
+*/
+/** Deterministic character-based token estimate: ~4 chars per token. */
+function estimateTokens(text) {
+	return Math.max(1, Math.ceil(text.length / 4));
+}
+/** Extract the concatenated text of a derived message's text blocks. */
+function textOfMessage(message) {
+	return message.content.filter((block) => block.type === "text").map((block) => block.text).join("");
+}
+/** The compaction role for a derived message (tool results surface as user). */
+function compactionRole(message) {
+	if (message.role === "assistant") return "assistant";
+	return message.source.kind === "tool" ? "tool" : "user";
+}
+/**
+* Project one surface-eligible session event into a `CompactionMessage`, using
+* the session's own projection so the text and role match the model-visible
+* history exactly. Non-surface events yield `null`.
+*/
+function projectEvent(session, event) {
+	if (event.type !== "user/message" && event.type !== "assistant/message" && event.type !== "tool/result") return null;
+	const message = session.deriveEventMessage(event);
+	if (message === null) return null;
+	const text = textOfMessage(message);
+	return {
+		seq: event.seq,
+		text,
+		tokens: estimateTokens(text),
+		role: compactionRole(message)
+	};
+}
+/**
+* Build a live `RawStore` over one session's event log.
+* `read` returns the compactable messages in `range` (inclusive), surface order.
+*/
+function sessionRawStore(session) {
+	return {
+		async read(range) {
+			const [start, end] = range;
+			const result = [];
+			for (const event of session.events) {
+				if (event.seq < start) continue;
+				if (event.seq > end) break;
+				const message = projectEvent(session, event);
+				if (message !== null) result.push(message);
+			}
+			return result;
+		},
+		async has(seq) {
+			return session.events.some((event) => event.seq <= seq);
+		}
+	};
+}
+//#endregion
+//#region lib/types/injection/compaction.js
+/**
+* Compression-point wiring (stage 3): run the T8 `CompactionEngine` against a
+* live session's real raw store, with an injectable summarizer and storage.
+*
+* This module assembles the engine once (with the durable `sessionRawStore`
+* and `FileSummaryStorage`) and exposes:
+*   - `shouldCompress` — has the session's raw history crossed the compression
+*     line against the resolved window?
+*   - `compress`       — execute the hierarchical compression and persist layers.
+*
+* The window capacity is resolved from the routed model's advertised context
+* window (`session.requestContext()?.contextWindow`), falling back to a
+* configurable default. The summarizer is injectable so tests run without a
+* live LLM; production passes a prefix-aligned `ctx.llm.stream` summarizer.
+*
+* @module dsh-harness-memory-bundle/injection/compaction
+*/
+/** Fallback context window when the routed model advertises none. */
+const DEFAULT_CONTEXT_WINDOW = 65536;
+/**
+* A summarizer that reuses the routed conversation's prefix (system/tools and
+* leading messages) so the provider's KV cache is not invalidated — built on
+* the T8 prefix-aligned summarizer with a route resolver that follows the
+* session's latest routed provider/model.
+*/
+function routedSummarizer(llm, session) {
+	return createPrefixAlignedSummarizer(llm, () => {
+		const routed = session.requestContext();
+		return {
+			provider: routed?.provider ?? "",
+			model: routed?.model ?? "",
+			maxTokens: 512,
+			sessionId: session.id
+		};
+	});
+}
+/** Assemble a `CompressionCoordinator` for live sessions. */
+function createCompressionCoordinator(options) {
+	const storage = new FileSummaryStorage(options.storageBase);
+	const summarizer = options.summarizer ?? neverSummarizer();
+	const engine = new CompactionEngine({
+		...options.config === void 0 ? {} : { config: options.config },
+		summarizer,
+		storage,
+		rawStore: {
+			async read() {
+				return [];
+			},
+			async has() {
+				return false;
+			}
+		}
+	});
+	const windowOverride = options.windowOverride;
+	return {
+		engine,
+		storage,
+		resolveWindow(session) {
+			if (windowOverride !== void 0) return windowOverride;
+			return session.requestContext()?.contextWindow ?? DEFAULT_CONTEXT_WINDOW;
+		},
+		shouldCompress(session) {
+			const windowTokens = this.resolveWindow(session);
+			return engine.checkTrigger(rawHistoryTokens(session), windowTokens);
+		},
+		async compress(session) {
+			const windowTokens = this.resolveWindow(session);
+			return {
+				layers: (await engine.compress(session.id, readRawHistory(session), windowTokens)).layers,
+				windowTokens
+			};
+		}
+	};
+}
+/** A summarizer that never reduces — used only when no LLM seam is present. */
+function neverSummarizer() {
+	return { async summarize() {
+		return null;
+	} };
+}
+/** Measure raw-history tokens via the real raw store projection. */
+function rawHistoryTokens(session) {
+	return readRawHistory(session).reduce((sum, m) => sum + m.tokens, 0);
+}
+/** Project the session's raw history into `CompactionMessage[]` (surface order). */
+function readRawHistory(session) {
+	const messages = [];
+	for (const event of session.events) {
+		const projected = projectEvent(session, event);
+		if (projected !== null) messages.push(projected);
+	}
+	return messages;
+}
+//#endregion
+//#region lib/types/injection/inject.js
+/**
+* Memory message assembly: turn an `InjectionPlan` into concrete `UserMessage`
+* objects that ride the `agent/pre-step` logged surface.
+*
+* Each injected message is tagged `source: { kind: 'plugin', plugin: 'memory',
+* form: 'recall' }` so consumers can recognize (and a downstream pipeline can
+* skip or de-duplicate) memory-injected content. The text is used byte-for-byte
+* from the recall output — no timestamps, session ids, or other dynamic fields
+* are mixed in, satisfying the byte-determinism requirement.
+*
+* @module dsh-harness-memory-bundle/injection/inject
+*/
+/** Stable plugin name carried on every memory-injected message. */
+const MEMORY_PLUGIN = "memory";
+/** The recall-form source tag stamped on memory messages. */
+function memorySource() {
+	return {
+		kind: "plugin",
+		plugin: MEMORY_PLUGIN,
+		form: "recall"
+	};
+}
+/**
+* Assemble the ordered `UserMessage[]` for an injection plan.
+* Order matches the design splice: snapshot (L3 + L2 nav) precedes L1, both
+* preceding the turn's real user message (the pre-step caller prefixes them).
+* @param plan - the injection plan decided for the current stage.
+* @returns zero, one, or two messages to prefix onto the step's messages.
+*/
+function assembleInjectionMessages(plan) {
+	const messages = [];
+	if (plan.snapshot !== void 0) messages.push(createUserMessage({
+		content: [{
+			type: "text",
+			text: plan.snapshot.text
+		}],
+		source: memorySource()
+	}));
+	if (plan.l1 !== void 0) messages.push(createUserMessage({
+		content: [{
+			type: "text",
+			text: plan.l1.text
+		}],
+		source: memorySource()
+	}));
+	return messages;
+}
+//#endregion
+//#region lib/types/injection/stage.js
+/**
+* Four-stage memory-injection timing model (§4.2).
+*
+* The design drives when memory content is injected into the session:
+*
+*   stage 1 — NEW SESSION FIRST TURN: install the static memory snapshot
+*             (L3 persona + L2 scene nav) and run one L1 three-dimensional
+*             mixed recall.
+*   stage 2 — DURING SESSION (PRE-COMPRESSION): inject NO changing content —
+*             no L1 recall, no memory refresh. The system stays constant.
+*   stage 3 — COMPRESSION POINT: run the hierarchical compaction and install
+*             the latest snapshot (the prefix cache is discarded anyway).
+*   stage 4 — POST-COMPRESSION: L1 mixed recall starts, injected every turn.
+*
+* The injection targets the LOGGED channel (the `agent/pre-step` message
+* surface), not the request config, so the system segment stays byte-stable
+* (the "system 恒定" property) and the dynamic fields (L1 recall) never mix
+* into the system.
+*
+* @module dsh-harness-memory-bundle/injection/stage
+*/
+/** The four-stage injection timing model. */
+const STAGE_ORDER = [
+	"first-turn",
+	"pre-compression",
+	"compression",
+	"post-compression"
+];
+/** Transition guard helper: the legal stage that follows a compression. */
+function afterCompressionStage(stage) {
+	return stage === "post-compression" ? "post-compression" : "compression";
+}
+/** The stage a fresh session begins in. */
+const INITIAL_STAGE = "first-turn";
+/**
+* Decide the injection plan for a stage.
+* - first-turn: snapshot + first L1.
+* - pre-compression: nothing (system constant, no L1).
+* - compression: snapshot refresh only (latest L3/L2), no L1 (cache discarded).
+* - post-compression: L1 every turn, no snapshot re-install.
+*/
+function planForStage(stage, recall) {
+	const snapshotText = recall.appendSystemContext?.trim();
+	const l1Text = recall.prependContext?.trim();
+	switch (stage) {
+		case "first-turn": return {
+			...snapshotText === void 0 || snapshotText.length === 0 ? {} : { snapshot: { text: snapshotText } },
+			...l1Text === void 0 || l1Text.length === 0 ? {} : { l1: { text: l1Text } }
+		};
+		case "pre-compression": return {};
+		case "compression": return snapshotText === void 0 || snapshotText.length === 0 ? {} : { snapshot: { text: snapshotText } };
+		case "post-compression": return l1Text === void 0 || l1Text.length === 0 ? {} : { l1: { text: l1Text } };
+	}
+}
+/**
+* A per-session stage ledger. The pre-step handler reads/advances it. Kept
+* separate from the session object so it is trivially unit-testable.
+*/
+var StageLedger = class {
+	states = /* @__PURE__ */ new Map();
+	/** Current stage for a session key, defaulting to the initial stage. */
+	get(sessionKey) {
+		return this.states.get(sessionKey) ?? "first-turn";
+	}
+	/** Set the stage for a session key. */
+	set(sessionKey, stage) {
+		this.states.set(sessionKey, stage);
+	}
+	/**
+	* Advance through the timing model: after the first turn runs, move to
+	* pre-compression (unless already post-compression); a compression event
+	* moves to post-compression.
+	*/
+	enterPreCompression(sessionKey) {
+		const current = this.get(sessionKey);
+		if (current === "post-compression" || current === "compression") return;
+		this.states.set(sessionKey, "pre-compression");
+	}
+	/** Record a compression; the session now injects L1 every turn. */
+	enterPostCompression(sessionKey) {
+		this.states.set(sessionKey, "post-compression");
+	}
+	/** Remove all ledger state for a session (agent teardown). */
+	clear(sessionKey) {
+		this.states.delete(sessionKey);
+	}
+};
+//#endregion
+//#region lib/types/injection/pre-step.js
+/**
+* The `agent/pre-step` injection handler that realizes the four-stage timing
+* model. Mounted on the agent-scoped context (scope-filtered dispatch), it runs
+* before each step and:
+*
+*   - stage 1 (first turn): installs the static snapshot + one L1 recall.
+*   - stage 2 (pre-compression): injects nothing (system stays constant).
+*   - stage 3 (compression point): runs the hierarchical compaction, then
+*     installs the latest snapshot.
+*   - stage 4 (post-compression): injects L1 every turn.
+*
+* The handler returns a `PreStepDecision` whose `messages` are the step's
+* claimed messages prefixed by any memory-injected messages. The loop appends
+* them to the session log (the logged channel), so injection never touches the
+* request config — keeping the system segment byte-stable and disjoint from the
+* model-plan merge (which owns `agent/request` config).
+*
+* @module dsh-harness-memory-bundle/injection/pre-step
+*/
+/** The session's key for the memory engine (shared session id). */
+function sessionKey(session) {
+	return String(session.id);
+}
+/** The effective injection stage for one pre-step, before this step advances. */
+function stageBeforeAdvance(ledger, session) {
+	return ledger.get(sessionKey(session));
+}
+/** Whether this is the session's first turn (no user history committed yet). */
+function isFirstTurn(session) {
+	return session.events.every((event) => event.type !== "user/message");
+}
+/**
+* Build an `agent/pre-step` handler bound to the deps. Returns the handler
+* function to register via `ctx.on('agent/pre-step', handler)`.
+*/
+function createPreStepHandler(deps) {
+	const { ledger, compression } = deps;
+	return async (payload, next) => {
+		const { agent, signal } = payload;
+		const session = agent.session;
+		const key = sessionKey(session);
+		if (signal.aborted) return next();
+		try {
+			if (deps.autoCompress && deps.compression.shouldCompress(session)) {
+				const { layers } = await compression.compress(session);
+				deps.log?.("info", `[memory] compressed into ${layers.length} summary layers`);
+				ledger.enterPostCompression(key);
+			}
+		} catch (error) {
+			deps.log?.("warn", `[memory] compression failed; continuing the turn: ${error instanceof Error ? error.message : String(error)}`);
+		}
+		const stage = stageBeforeAdvance(ledger, session);
+		const effectiveStage = stage === "pre-compression" && isFirstTurn(session) ? "first-turn" : stage;
+		let plan = {};
+		if (effectiveStage === "first-turn" || effectiveStage === "post-compression") {
+			const userText = payload.messages.map((m) => textOf(m)).join("\n");
+			try {
+				plan = planForStage(effectiveStage, await deps.recall(userText, key));
+			} catch (error) {
+				deps.log?.("warn", `[memory] recall failed; injecting nothing this turn: ${error instanceof Error ? error.message : String(error)}`);
+				plan = {};
+			}
+		} else if (effectiveStage === "compression") plan = planForStage("compression", await safeRecall(deps, "", key));
+		if (effectiveStage === "first-turn") ledger.enterPreCompression(key);
+		const injected = assembleInjectionMessages(plan);
+		if (injected.length === 0) return next();
+		return {
+			kind: "enter",
+			messages: [...injected, ...payload.messages]
+		};
+	};
+}
+async function safeRecall(deps, userText, key) {
+	try {
+		return await deps.recall(userText, key);
+	} catch (error) {
+		deps.log?.("warn", `[memory] recall failed: ${error instanceof Error ? error.message : String(error)}`);
+		return {};
+	}
+}
+/** Extract the text content of a user message (its blocks' text, joined). */
+function textOf(message) {
+	return message.content.filter((block) => block.type === "text").map((block) => block.text).join("");
+}
+//#endregion
+//#region lib/types/injection/host.js
+/**
+* Host wiring for T9 unified injection: install the `agent/pre-step` handler
+* on the root context using the memory service's recall + the T8 compaction
+* coordinator. Scope-filtered dispatch delivers agent-scoped pre-step events
+* to this root listener for every live agent.
+*
+* @module dsh-harness-memory-bundle/injection/host
+*/
+/**
+* Install the pre-step injection handler on `ctx`. Returns the disposer.
+* The handler reads the per-session stage ledger and, on each step:
+*   - runs hierarchical compaction when the raw history crosses the line,
+*   - injects the snapshot (L3/L2) and/or L1 recall per the stage,
+*   - prefixes the step's messages with the injected content.
+*/
+function installInjection(ctx, recall, options = {}) {
+	const ledger = new StageLedger();
+	const handler = createPreStepHandler({
+		recall: (text, key) => recall.recall(text, key),
+		compression: createCompressionCoordinator({
+			...options.compactionConfig === void 0 ? {} : { config: options.compactionConfig },
+			...options.storageBase === void 0 ? {} : { storageBase: options.storageBase },
+			...options.windowOverride === void 0 ? {} : { windowOverride: options.windowOverride }
+		}),
+		ledger,
+		autoCompress: options.autoCompress ?? true,
+		log: (level, message) => {
+			if (level === "warn") ctx.logger.warn(message);
+			else ctx.logger.info(message);
+		}
+	});
+	ctx.on("agent/pre-step", handler);
+	return () => {};
+}
+//#endregion
+//#region lib/types/memory/service.js
+/**
+* Memory engine host service.
+*
+* Assembles the vendor `TdaiCore` behind the memory bundle's host adapter:
+*   - constructs the {@link MemoryHostAdapter} (data dir, logger, LLM runner),
+*   - builds the vendor `MemoryTdaiConfig` from the host-facing settings,
+*   - constructs and initializes the engine, so a fresh `~/.dsh/memory` data
+*     root is created and the store/pipeline are ready,
+*   - tears the engine down on dispose.
+*
+* The engine's `initialize()` is best-effort: a store-init failure degrades to
+* the vendor's fallback (JSONL records, no vector recall) rather than crashing
+* the host, matching the vendor's own degraded-mode contract.
+*
+* @module dsh-harness-memory-bundle/memory/service
+*/
+/**
+* The `memory` host service: owns the engine's lifecycle on the host context.
+*/
+var Memory = class extends Service {
+	config;
+	/** The underlying engine. Created lazily on start. */
+	core;
+	/** Host adapter through which the engine talks to the harness. */
+	hostAdapter;
+	constructor(ctx, config = {}) {
+		super(ctx, "memory");
+		this.config = config;
+		this.hostAdapter = new MemoryHostAdapter({
+			ctx,
+			config: config ?? {}
+		});
+		this.core = new TdaiCore({
+			hostAdapter: this.hostAdapter,
+			config: buildMemoryTdaiConfig(config),
+			...config.sessionFilter !== void 0 ? { sessionFilter: config.sessionFilter } : {},
+			instanceId: "dsh-web"
+		});
+		ctx.effect(() => {
+			const core = this.core;
+			return () => {
+				core.destroy();
+			};
+		}, "dsh-memory: dispose engine");
+		this.start();
+		if (config?.injectionEnabled !== false) ctx.effect(() => {
+			installInjection(ctx, this, config?.injection);
+			return () => {};
+		}, "dsh-memory: install T9 injection");
+	}
+	/** Initialize the engine (idempotent, best-effort). */
+	async start() {
+		if (this._started) return;
+		this._started = true;
+		await this.core.initialize();
+		this.ctx.logger.info("[memory] engine initialized");
+	}
+	_started = false;
+	/** Capture a completed conversation turn into L0/L1 (+ pipeline scheduling). */
+	async onTurnCommitted(turn) {
+		await this.core.handleTurnCommitted(turn);
+	}
+	/** Recall memories relevant to a user message (L1/L2/L3 injection). */
+	async recall(userText, sessionKey) {
+		return this.core.handleBeforeRecall(userText, sessionKey);
+	}
+	/** Full-text memory search (memory tool). */
+	async searchMemories(params) {
+		return this.core.searchMemories(params);
+	}
+};
+//#endregion
+//#region lib/types/tasks/types.js
+/**
+* Task-entity vocabulary for the memory bundle.
+*
+* A Task is the DSH counterpart of the TencentDB Agent Memory concept "persistent
+* business task" (design §3.4 / §7 F10): a durable work arrangement owned by the
+* MAIN conversation dimension. A task carries a goal, a lifecycle
+* (`running` → `completed`), and the set of responsible roles WITH their
+* intra-task division of labour. Child (delegated) sessions are the task's
+* execution units and never hold the task themselves — they attach to it through
+* the association ledger (`TaskSession`), and the task id becomes a memory
+* filtering dimension parallel to team/role/project (design §4.1).
+*
+* @module dsh-harness-memory-bundle/tasks/types
+*/
+/** The default: active tasks only. */
+const DEFAULT_TASK_FILTER = { includeCompleted: false };
+/** A task was not found. */
+var UnknownTaskError = class extends Error {
+	taskId;
+	available;
+	constructor(taskId, available) {
+		super(`task "${taskId}" does not exist (available: ${available.length === 0 ? "none" : available.join(", ")})`);
+		this.taskId = taskId;
+		this.available = available;
+		this.name = "UnknownTaskError";
+	}
+};
+/** A create/update payload was invalid. */
+var InvalidTaskInputError = class extends Error {
+	constructor(reason) {
+		super(`invalid task input: ${reason}`);
+		this.name = "InvalidTaskInputError";
+	}
+};
+//#endregion
+//#region lib/types/tasks/paths.js
+/**
+* Self-contained harness-home path helpers for the task store.
+*
+* The task table lives under the harness home (`$DSH_HOME/.dsh/memory/tasks`,
+* or the default `~/.dsh/memory/tasks`). The official package exporting these
+* helpers, `@deepseek-ai/dsh-home-paths`, is only an optional peer dependency
+* and is NOT present in the hot-mount (cordis loader) environment — so, exactly
+* as the subagent and model-plan bundles do, this module re-implements the two
+* helpers the store needs (`dshHomePath` and `expandHomePath`) with
+* byte-for-byte identical behaviour, using only Node's own
+* `node:os`/`node:path` modules.
+*
+* The memory bundle's skeleton will own a shared `src/home-path.ts`; this
+* module is kept self-contained so the task store can be tested and run before
+* the skeleton lands, and can later be switched to import the shared helper
+* without behaviour change.
+* @module dsh-harness-memory-bundle/tasks/paths
+*/
+/** Directory name for the default DeepSeek Harness home under the OS home. */
+const DSH_HOME_DIR_NAME = ".dsh";
+/** Environment variable that overrides the default DeepSeek Harness home. */
+const DSH_HOME_ENV = "DSH_HOME";
+/**
+* Resolve the default DeepSeek Harness home using Node's platform path rules.
+* @returns the absolute default harness home path.
+*/
+function defaultDshHome() {
+	return join(homedir(), DSH_HOME_DIR_NAME);
+}
+/**
+* Expand supported tilde prefixes against the operating-system home.
+* @param path - configured path that may begin with `~`, `~/`, or `~\`.
+* @returns the expanded path, or the original value when no supported prefix is present.
+*/
+function expandHomePath(path) {
+	if (path === "~") return homedir();
+	if (path.startsWith("~/") || path.startsWith("~\\")) return join(homedir(), path.slice(2));
+	return path;
+}
+/**
+* Resolve the single-root DeepSeek Harness home.
+*
+* Precedence, highest first: an explicit configured path, `$DSH_HOME`, then
+* `~/.dsh`. An empty or whitespace-only `$DSH_HOME` is treated as unset.
+* @param configured - explicit harness-home override, which has highest precedence.
+* @param env - environment mapping used to read `DSH_HOME`.
+* @returns the normalized absolute harness home path.
+*/
+function resolveDshHome(configured, env = process.env) {
+	const fromEnv = env[DSH_HOME_ENV];
+	const selected = configured ?? (fromEnv !== void 0 && fromEnv.trim().length > 0 ? fromEnv : defaultDshHome());
+	return resolve(expandHomePath(selected));
+}
+/**
+* Join path segments onto the resolved DeepSeek Harness home.
+* @param segments - path segments appended to the Harness home; an empty list returns the home itself.
+* @returns the normalized absolute joined path.
+*/
+function dshHomePath$1(...segments) {
+	return join(resolveDshHome(), ...segments);
+}
+/** The default tasks database file under the harness home. */
+const TASK_DB_FILE = "tasks.db";
+/** The default absolute path of the tasks database. */
+function taskDbPath() {
+	return dshHomePath$1("memory", "tasks", TASK_DB_FILE);
+}
+/** Parse a roles JSON column, failing loud on corruption. */
+function parseRoles(json) {
+	try {
+		const value = JSON.parse(json);
+		if (!Array.isArray(value)) throw new Error("roles column is not an array");
+		return value;
+	} catch (error) {
+		throw new Error(`task roles column holds invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+	}
+}
+/** Resolve the tasks database path, honouring an explicit override and `:memory:`. */
+function resolveDbPath(explicit) {
+	return explicit === void 0 || explicit === ":memory:" ? explicit ?? taskDbPath() : resolve(explicit);
+}
+/**
+* The task store: CRUD, associations, filtering, and completion downweighting.
+*/
+var TaskStore = class TaskStore {
+	db;
+	stmts;
+	/**
+	* @param path - database path; `:memory:` for tests, undefined for the default
+	*   harness-home path. Missing directories/files are created owner-only.
+	*/
+	constructor(path) {
+		this.db = new DatabaseSync(path);
+		this.configure(path);
+		this.stmts = this.prepare();
+	}
+	/** Open a store. See {@link TaskStore.constructor}. */
+	static open(path) {
+		return new TaskStore(resolveDbPath(path));
+	}
+	/** Open an in-memory store for tests. */
+	static openMemory() {
+		return new TaskStore(":memory:");
+	}
+	configure(path) {
+		this.db.exec("PRAGMA foreign_keys = ON");
+		const { user_version: onDisk } = this.db.prepare("PRAGMA user_version").get();
+		if (onDisk !== 0 && onDisk !== 1) throw new Error(`tasks database at "${path}" has schema version ${onDisk}, incompatible with this build (1)`);
+		this.db.exec(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id          TEXT PRIMARY KEY,
+        title       TEXT NOT NULL,
+        goal        TEXT NOT NULL,
+        status      TEXT NOT NULL CHECK (status IN ('running', 'completed')),
+        roles_json  TEXT NOT NULL,
+        created_at  TEXT NOT NULL,
+        completed_at TEXT
+      ) STRICT
+    `);
+		this.db.exec(`
+      CREATE TABLE IF NOT EXISTS task_sessions (
+        task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        session_id  TEXT NOT NULL,
+        role_id     TEXT,
+        kind        TEXT NOT NULL CHECK (kind IN ('session', 'delegation')),
+        attached_at TEXT NOT NULL,
+        PRIMARY KEY (task_id, session_id)
+      ) STRICT
+    `);
+		this.db.exec("CREATE INDEX IF NOT EXISTS task_sessions_session ON task_sessions (session_id)");
+		if (onDisk === 0) this.db.exec(`PRAGMA user_version = 1`);
+	}
+	prepare() {
+		return {
+			insert: this.db.prepare("INSERT INTO tasks (id, title, goal, status, roles_json, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)"),
+			update: this.db.prepare("UPDATE tasks SET title = ?, goal = ?, roles_json = ? WHERE id = ?"),
+			complete: this.db.prepare("UPDATE tasks SET status = ?, completed_at = ? WHERE id = ?"),
+			find: this.db.prepare(`SELECT id, title, goal, status, roles_json AS rolesJson, created_at AS createdAt, completed_at AS completedAt
+         FROM tasks WHERE id = ?`),
+			listAll: this.db.prepare(`SELECT id, title, goal, status, roles_json AS rolesJson, created_at AS createdAt, completed_at AS completedAt
+         FROM tasks ORDER BY created_at ASC`),
+			listActive: this.db.prepare(`SELECT id, title, goal, status, roles_json AS rolesJson, created_at AS createdAt, completed_at AS completedAt
+         FROM tasks WHERE status = 'running' ORDER BY created_at ASC`),
+			insertSession: this.db.prepare(`INSERT INTO task_sessions (task_id, session_id, role_id, kind, attached_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(task_id, session_id) DO UPDATE SET role_id = excluded.role_id, kind = excluded.kind, attached_at = excluded.attached_at`),
+			sessionsFor: this.db.prepare(`SELECT session_id AS sessionId, role_id AS roleId, kind, attached_at AS attachedAt
+         FROM task_sessions WHERE task_id = ? ORDER BY attached_at ASC`),
+			removeSession: this.db.prepare("DELETE FROM task_sessions WHERE task_id = ? AND session_id = ?")
+		};
+	}
+	/**
+	* Create a task.
+	* @param input - title, goal, and optional responsible roles.
+	* @returns the persisted task.
+	* @throws InvalidTaskInputError on a missing title/goal.
+	*/
+	create(input) {
+		const title = input.title.trim();
+		const goal = input.goal.trim();
+		if (title.length === 0) throw new InvalidTaskInputError("title must not be empty");
+		if (goal.length === 0) throw new InvalidTaskInputError("goal must not be empty");
+		const roles = validateRoles(input.roles);
+		const id = randomUUID();
+		const now = (/* @__PURE__ */ new Date()).toISOString();
+		this.db.exec("BEGIN");
+		try {
+			this.stmts.insert.run(id, title, goal, "running", JSON.stringify(roles), now, null);
+			this.db.exec("COMMIT");
+		} catch (error) {
+			this.db.exec("ROLLBACK");
+			throw error;
+		}
+		return this.hydrate({
+			id,
+			title,
+			goal,
+			status: "running",
+			rolesJson: JSON.stringify(roles),
+			createdAt: now,
+			completedAt: null
+		}, []);
+	}
+	/**
+	* Update a task's title/goal/roles.
+	* @param id - the task id.
+	* @param input - any subset of the mutable fields.
+	* @throws UnknownTaskError when the task does not exist.
+	*/
+	update(id, input) {
+		const row = this.requireRow(id);
+		const title = input.title === void 0 ? row.title : input.title.trim();
+		const goal = input.goal === void 0 ? row.goal : input.goal.trim();
+		if (title.length === 0) throw new InvalidTaskInputError("title must not be empty");
+		if (goal.length === 0) throw new InvalidTaskInputError("goal must not be empty");
+		const roles = input.roles === void 0 ? parseRoles(row.rolesJson) : validateRoles(input.roles);
+		this.stmts.update.run(title, goal, JSON.stringify(roles), id);
+		const updated = {
+			...row,
+			title,
+			goal,
+			rolesJson: JSON.stringify(roles)
+		};
+		return this.hydrate(updated, this.sessionsForId(id));
+	}
+	/**
+	* Mark a task completed (idempotent).
+	* @param id - the task id.
+	* @returns the updated task.
+	* @throws UnknownTaskError when the task does not exist.
+	*/
+	complete(id) {
+		const row = this.requireRow(id);
+		if (row.status === "running") {
+			const now = (/* @__PURE__ */ new Date()).toISOString();
+			this.stmts.complete.run("completed", now, id);
+			const updated = {
+				...row,
+				status: "completed",
+				completedAt: now
+			};
+			return this.hydrate(updated, this.sessionsForId(id));
+		}
+		return this.hydrate(row, this.sessionsForId(id));
+	}
+	/**
+	* List tasks. By default completed tasks are EXCLUDED (the downweighting rule);
+	* pass `includeCompleted: true` to surface them explicitly.
+	* @param filter - optional list filter.
+	*/
+	list(filter = DEFAULT_TASK_FILTER) {
+		return (filter.includeCompleted ?? false ? this.stmts.listAll : this.stmts.listActive).all().map((row) => this.hydrate(row, this.sessionsForId(row.id)));
+	}
+	/**
+	* Read one task.
+	* @param id - the task id.
+	* @throws UnknownTaskError when the task does not exist.
+	*/
+	read(id) {
+		const row = this.requireRow(id);
+		return this.hydrate(row, this.sessionsForId(id));
+	}
+	/**
+	* The ids of tasks the memory engine should treat as active for filtering —
+	* completed tasks are excluded by default, so a completed task's memories are
+	* downweighted (they still exist, but are not offered as active filters).
+	*/
+	activeTaskIds() {
+		return this.stmts.listActive.all().map((row) => row.id);
+	}
+	/**
+	* Whether a task is completed — the memory engine downweights L0/L1 for a
+	* completed task by default and surfaces them only on an explicit query.
+	* @param id - the task id.
+	* @returns true when the task exists and is completed; false when running or missing.
+	*/
+	isCompleted(id) {
+		const row = this.stmts.find.get(id);
+		return row !== void 0 && row.status === "completed";
+	}
+	/**
+	* Associate a session with a task (会话挂任务 or 委派挂任务).
+	* @param taskId - the task id.
+	* @param sessionId - the session to attach.
+	* @param roleId - the role that ran the session (delegation attaches it).
+	* @param kind - how the association was made.
+	* @throws UnknownTaskError when the task does not exist.
+	*/
+	attachSession(taskId, sessionId, roleId, kind) {
+		const row = this.requireRow(taskId);
+		const trimmed = sessionId.trim();
+		if (trimmed.length === 0) throw new InvalidTaskInputError("sessionId must not be empty");
+		const now = (/* @__PURE__ */ new Date()).toISOString();
+		this.stmts.insertSession.run(row.id, trimmed, roleId ?? null, kind, now);
+		return this.hydrate(row, this.sessionsForId(row.id));
+	}
+	/** Remove a session association (used by tests and cleanup). */
+	detachSession(taskId, sessionId) {
+		this.stmts.removeSession.run(taskId, sessionId);
+	}
+	/** Close the database connection. */
+	close() {
+		this.db.close();
+	}
+	requireRow(id) {
+		const row = this.stmts.find.get(id);
+		if (row === void 0) throw new UnknownTaskError(id, this.stmts.listAll.all().map((r) => r.id));
+		return row;
+	}
+	sessionsForId(taskId) {
+		return this.stmts.sessionsFor.all(taskId).map((s) => ({
+			sessionId: s.sessionId,
+			...s.roleId === null ? {} : { roleId: s.roleId },
+			kind: s.kind,
+			attachedAt: s.attachedAt
+		}));
+	}
+	hydrate(row, sessions) {
+		return {
+			id: row.id,
+			title: row.title,
+			goal: row.goal,
+			status: row.status,
+			roles: parseRoles(row.rolesJson),
+			createdAt: row.createdAt,
+			completedAt: row.completedAt,
+			sessions
+		};
+	}
+};
+/** Validate the responsible-roles list, mapping bad shapes to InvalidTaskInputError. */
+function validateRoles(roles) {
+	if (roles === void 0) return [];
+	for (const role of roles) {
+		if (typeof role.roleId !== "string" || role.roleId.trim().length === 0) throw new InvalidTaskInputError("each role must have a non-empty roleId");
+		if (typeof role.division !== "string" || role.division.trim().length === 0) throw new InvalidTaskInputError(`role "${role.roleId}" must have a non-empty division`);
+	}
+	return roles;
+}
+/** Ensure the tasks directory exists with owner-only permissions. */
+async function ensureTasksDirectory() {
+	await mkdir(dirname(resolveDbPath(void 0)), {
+		recursive: true,
+		mode: 448
+	});
+}
+z$2.object({ dbPath: z$2.string().default(void 0) });
+/**
+* The task registry: wraps the SQLite {@link TaskStore} behind the cordis
+* service boundary, so the wire and the main-agent tool share one store and
+* the memory engine queries it through a stable interface.
+*/
+var Tasks = class extends Service {
+	config;
+	/** The backing store; also exposed so host code can close it. */
+	store;
+	constructor(ctx, config = {}) {
+		super(ctx, "tasks");
+		this.config = config;
+		this.config = config ?? {};
+		this.store = TaskStore.open(this.config.dbPath);
+		ensureTasksDirectory().catch(() => {});
+		ctx.effect(() => {
+			const store = this.store;
+			return () => store.close();
+		}, "dsh-memory-tasks: dispose store");
+	}
+	/** Create a task (管理界面 wire / 主代理 create_task 工具两入口共用). */
+	create(input) {
+		const task = this.store.create(input);
+		this.ctx.emit("memory/task-changed", task.id, task.status);
+		return task;
+	}
+	/** Update a task's title/goal/roles. */
+	update(id, input) {
+		return this.store.update(id, input);
+	}
+	/** Mark a task completed (idempotent). */
+	complete(id) {
+		const task = this.store.complete(id);
+		this.ctx.emit("memory/task-changed", task.id, task.status);
+		return task;
+	}
+	/** List tasks; completed tasks are excluded by default (downweighting). */
+	list(filter) {
+		return this.store.list(filter);
+	}
+	/** Read one task. */
+	read(id) {
+		return this.store.read(id);
+	}
+	/** The ids of active (non-completed) tasks — the memory engine's filter set. */
+	activeTaskIds() {
+		return this.store.activeTaskIds();
+	}
+	/** Whether a task is completed — the memory engine downweights completed-task L0/L1. */
+	isCompleted(id) {
+		return this.store.isCompleted(id);
+	}
+	/**
+	* Associate a session with a task (委派挂任务 / 会话挂任务).
+	* @param taskId - the task id.
+	* @param sessionId - the associated session.
+	* @param roleId - the role that ran the session, when known.
+	* @param kind - how the association was made.
+	*/
+	attachSession(taskId, sessionId, roleId, kind = "session") {
+		return this.store.attachSession(taskId, sessionId, roleId, kind);
+	}
+	/** Remove a session association. */
+	detachSession(taskId, sessionId) {
+		this.store.detachSession(taskId, sessionId);
+	}
+};
+//#endregion
 //#region lib/types/index.js
 /**
 * dsh-harness-memory-bundle — the Harness-owned memory subsystem as a profile
@@ -29128,4 +29554,4 @@ function isNonDistillable(metadata) {
 */
 var types_default = Memory;
 //#endregion
-export { CoarseningFloorError, CompactionConfigError, CompactionEngine, CompactionError, DEFAULT_COMPACTION_CONFIG, DshLLMRunner, DshLLMRunnerFactory, FileSummaryStorage, LayerRecoveryError, LlmSummarizer, Memory, MemoryHostAdapter, NON_DISTILLABLE_SOURCE, NoCompressibleHistoryError, NoCoverageError, SUMMARY_SOURCE_TAG, TaskStore, Tasks, buildMemoryTdaiConfig, createPrefixAlignedSummarizer, types_default as default, dshHomePath, isBalancedBoundary, isNonDistillable, layerFileName, require_token_error as n, partitionLayers, pickCoarsenPair, recursiveCoarsen, resolveBudgets, sanitizeSessionId, selectCompressibleRange, summariesRoot, summaryBudget, summarySourceMetadata, require_token_util as t, taskDbPath, withinCap };
+export { CoarseningFloorError, CompactionConfigError, CompactionEngine, CompactionError, DEFAULT_COMPACTION_CONFIG, DshLLMRunner, DshLLMRunnerFactory, FileSummaryStorage, INITIAL_STAGE, LayerRecoveryError, LlmSummarizer, MEMORY_PLUGIN, Memory, MemoryHostAdapter, NON_DISTILLABLE_SOURCE, NoCompressibleHistoryError, NoCoverageError, STAGE_ORDER, SUMMARY_SOURCE_TAG, StageLedger, TaskStore, Tasks, afterCompressionStage, assembleInjectionMessages, buildMemoryTdaiConfig, compactionRole, createCompressionCoordinator, createPreStepHandler, createPrefixAlignedSummarizer, types_default as default, dshHomePath, estimateTokens, installInjection, isBalancedBoundary, isNonDistillable, layerFileName, memorySource, require_token_error as n, partitionLayers, pickCoarsenPair, planForStage, projectEvent, recursiveCoarsen, resolveBudgets, routedSummarizer, sanitizeSessionId, selectCompressibleRange, sessionRawStore, summariesRoot, summaryBudget, summarySourceMetadata, require_token_util as t, taskDbPath, textOfMessage, withinCap };

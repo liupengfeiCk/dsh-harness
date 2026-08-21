@@ -21,6 +21,8 @@ import { MemoryHostAdapter } from '../adapters/host-adapter.ts'
 import { buildMemoryTdaiConfig } from '../adapters/config.ts'
 import type { MemoryEngineConfig } from '../adapters/config.ts'
 import { TdaiCore } from '@tencentdb-agent-memory/memory-core-vendor/core/tdai-core'
+import { installInjection } from '../injection/host.ts'
+import type { InstallInjectionOptions } from '../injection/host.ts'
 import type {
   CompletedTurn,
   MemorySearchParams,
@@ -34,6 +36,10 @@ export const Config = Object
 export interface MemoryRuntimeConfig extends MemoryEngineConfig {
   /** Optional pre-built session filter (internal/benchmark sessions). */
   sessionFilter?: import('@tencentdb-agent-memory/memory-core-vendor/utils/session-filter').SessionFilter
+  /** T9 unified-injection options (four-stage timing model). */
+  injection?: InstallInjectionOptions
+  /** Set false to disable T9 unified injection entirely. */
+  injectionEnabled?: boolean
 }
 
 /**
@@ -62,6 +68,16 @@ export class Memory extends Service {
     // Service subclasses do not get their `start()` invoked automatically).
     // Best-effort: a store-init failure degrades per the vendor contract.
     void this.start()
+
+    // T9 unified injection: mount the four-stage `agent/pre-step` memory
+    // injection handler (scope-filtered to the root context). Disabled via
+    // `injectionEnabled: false` when the profile composes memory without it.
+    if (config?.injectionEnabled !== false) {
+      ctx.effect(() => {
+        installInjection(ctx, this, config?.injection)
+        return () => {}
+      }, 'dsh-memory: install T9 injection')
+    }
   }
 
   /** Initialize the engine (idempotent, best-effort). */

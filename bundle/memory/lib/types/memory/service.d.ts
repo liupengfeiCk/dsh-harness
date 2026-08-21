@@ -19,6 +19,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import { MemoryHostAdapter } from '../adapters/host-adapter.ts';
 import type { MemoryEngineConfig } from '../adapters/config.ts';
 import { TdaiCore } from '@tencentdb-agent-memory/memory-core-vendor/core/tdai-core';
+import type { InstallInjectionOptions } from '../injection/host.ts';
 import type { CompletedTurn, MemorySearchParams, RecallResult } from '@tencentdb-agent-memory/memory-core-vendor/core/types';
 /** Schemastery validator for the memory engine config (extension point). */
 export declare const Config: ObjectConstructor;
@@ -26,6 +27,10 @@ export declare const Config: ObjectConstructor;
 export interface MemoryRuntimeConfig extends MemoryEngineConfig {
     /** Optional pre-built session filter (internal/benchmark sessions). */
     sessionFilter?: import('@tencentdb-agent-memory/memory-core-vendor/utils/session-filter').SessionFilter;
+    /** T9 unified-injection options (four-stage timing model). */
+    injection?: InstallInjectionOptions;
+    /** Set false to disable T9 unified injection entirely. */
+    injectionEnabled?: boolean;
 }
 /**
  * The `memory` host service: owns the engine's lifecycle on the host context.
