@@ -55,6 +55,15 @@ export interface MemoryEngineConfig {
 export function buildMemoryTdaiConfig(config: MemoryEngineConfig): MemoryTdaiConfig {
   const raw: Record<string, unknown> = {}
   if (config.storeBackend !== undefined) raw.storeBackend = config.storeBackend
+  // Extraction needs an LLM route. When none is configured (no modelPlanId, no
+  // default provider/model), fall back to a storage-only engine: `extraction`
+  // off so the engine initializes without an LLM route (the extraction LLM
+  // "follows the current route" only once a route is configured). This keeps
+  // the memory store/recall usable out of the box while deferring LLM wiring.
+  const hasRoute = (config.llm?.provider !== undefined && config.llm?.provider.length > 0)
+    || (config.llm?.model !== undefined && config.llm?.model.length > 0)
+    || (config.modelPlanId !== undefined && config.modelPlanId.length > 0)
+  raw.extraction = { enabled: hasRoute }
   if (config.llm?.provider !== undefined || config.llm?.model !== undefined) {
     raw.llm = {
       enabled: true,

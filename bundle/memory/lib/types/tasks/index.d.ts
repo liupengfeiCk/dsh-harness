@@ -49,7 +49,7 @@ export declare class Tasks extends Service {
     config: Config;
     /** The backing store; also exposed so host code can close it. */
     readonly store: TaskStore;
-    constructor(ctx: Context, config: Config);
+    constructor(ctx: Context, config?: Config);
     /** Create a task (管理界面 wire / 主代理 create_task 工具两入口共用). */
     create(input: TaskCreateInput): Task;
     /** Update a task's title/goal/roles. */

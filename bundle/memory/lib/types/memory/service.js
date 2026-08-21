@@ -29,10 +29,10 @@ export class Memory extends Service {
     core;
     /** Host adapter through which the engine talks to the harness. */
     hostAdapter;
-    constructor(ctx, config) {
+    constructor(ctx, config = {}) {
         super(ctx, 'memory');
         this.config = config;
-        this.hostAdapter = new MemoryHostAdapter({ ctx, config });
+        this.hostAdapter = new MemoryHostAdapter({ ctx, config: config ?? {} });
         this.core = new TdaiCore({
             hostAdapter: this.hostAdapter,
             config: buildMemoryTdaiConfig(config),
@@ -43,12 +43,20 @@ export class Memory extends Service {
             const core = this.core;
             return () => { void core.destroy(); };
         }, 'dsh-memory: dispose engine');
+        // Initialize the engine as soon as the service is constructed (cordis
+        // Service subclasses do not get their `start()` invoked automatically).
+        // Best-effort: a store-init failure degrades per the vendor contract.
+        void this.start();
     }
     /** Initialize the engine (idempotent, best-effort). */
     async start() {
+        if (this._started)
+            return;
+        this._started = true;
         await this.core.initialize();
         this.ctx.logger.info('[memory] engine initialized');
     }
+    _started = false;
     /** Capture a completed conversation turn into L0/L1 (+ pipeline scheduling). */
     async onTurnCommitted(turn) {
         await this.core.handleTurnCommitted(turn);

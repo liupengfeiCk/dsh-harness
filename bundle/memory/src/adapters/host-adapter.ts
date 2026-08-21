@@ -73,13 +73,14 @@ export class MemoryHostAdapter implements HostAdapter {
   private readonly runnerFactory: DshLLMRunnerFactory
 
   constructor(options: MemoryHostAdapterOptions) {
+    const config: MemoryEngineConfig = options.config ?? {}
     this.logger = adaptLogger(options.ctx.logger)
-    this.dataDir = options.config.dataDir !== undefined && options.config.dataDir.length > 0
-      ? options.config.dataDir
+    this.dataDir = config.dataDir !== undefined && config.dataDir.length > 0
+      ? config.dataDir
       : join(dshHomePath(), 'memory')
     this.runnerFactory = new DshLLMRunnerFactory({
       ctx: options.ctx,
-      config: options.config,
+      config,
     })
   }
 

@@ -1,5 +1,11 @@
-import { i as __toESM, n as __exportAll, r as __require, t as __commonJSMin } from "./rolldown-runtime-B4iAMlE-.js";
-import { $ as TypeValidationError, A as loadOptionalSetting, B as safeParseJSON, C as getFromApi, D as jsonSchema, E as isUrlSupported, F as postFormDataToApi, G as withUserAgentSuffix, H as secureJsonParse, I as postJsonToApi, J as AISDKError, K as withoutTrailingSlash, L as readResponseWithSizeLimit, M as parseJSON, N as parseJsonEventStream, O as lazySchema, P as parseProviderOptions, Q as TooManyEmbeddingValuesForCallError, R as resolve$1, S as getErrorMessage, T as isNonNullable, U as tool, V as safeValidateTypes, W as validateTypes, X as InvalidPromptError, Y as APICallError, Z as InvalidResponseDataError, _ as createToolNameMapping, a as combineHeaders, b as fetchWithValidatedRedirects, c as convertToFormData, d as createEventSourceResponseHandler, et as UnsupportedFunctionalityError, f as createIdGenerator, g as createProviderToolFactoryWithOutputSchema, h as createProviderToolFactory, i as cancelResponseBody, j as mediaTypeToExtension, k as loadApiKey, l as convertUint8ArrayToBase64, m as createJsonResponseHandler, n as DownloadError, nt as isJSONObject, o as convertBase64ToUint8Array, p as createJsonErrorResponseHandler, q as zodSchema, r as asSchema, s as convertToBase64, t as DEFAULT_MAX_DOWNLOAD_SIZE, tt as getErrorMessage$1, u as createBinaryResponseHandler, v as downloadBlob, w as getRuntimeEnvironmentUserAgent, x as generateId, y as executeTool, z as retryWithExponentialBackoff } from "./dist-CQsGjAM6.js";
+import { createRequire as __cjs_createRequire } from "node:module";
+import { dirname as __cjs_dirname } from "node:path";
+import { fileURLToPath as __cjs_fileURLToPath } from "node:url";
+const __filename = __cjs_fileURLToPath(import.meta.url);
+const __dirname = __cjs_dirname(__filename);
+__cjs_createRequire(import.meta.url);
+import { i as __toESM, n as __exportAll, r as __require, t as __commonJSMin } from "./rolldown-runtime-DkjfmFWY.js";
+import { $ as TypeValidationError, A as loadOptionalSetting, B as safeParseJSON, C as getFromApi, D as jsonSchema, E as isUrlSupported, F as postFormDataToApi, G as withUserAgentSuffix, H as secureJsonParse, I as postJsonToApi, J as AISDKError, K as withoutTrailingSlash, L as readResponseWithSizeLimit, M as parseJSON, N as parseJsonEventStream, O as lazySchema, P as parseProviderOptions, Q as TooManyEmbeddingValuesForCallError, R as resolve$1, S as getErrorMessage, T as isNonNullable, U as tool, V as safeValidateTypes, W as validateTypes, X as InvalidPromptError, Y as APICallError, Z as InvalidResponseDataError, _ as createToolNameMapping, a as combineHeaders, b as fetchWithValidatedRedirects, c as convertToFormData, d as createEventSourceResponseHandler, et as UnsupportedFunctionalityError, f as createIdGenerator, g as createProviderToolFactoryWithOutputSchema, h as createProviderToolFactory, i as cancelResponseBody, j as mediaTypeToExtension, k as loadApiKey, l as convertUint8ArrayToBase64, m as createJsonResponseHandler, n as DownloadError, nt as isJSONObject, o as convertBase64ToUint8Array, p as createJsonErrorResponseHandler, q as zodSchema, r as asSchema, s as convertToBase64, t as DEFAULT_MAX_DOWNLOAD_SIZE, tt as getErrorMessage$1, u as createBinaryResponseHandler, v as downloadBlob, w as getRuntimeEnvironmentUserAgent, x as generateId, y as executeTool, z as retryWithExponentialBackoff } from "./dist-DzYCUFn3.js";
 import { createRequire } from "node:module";
 import { Service } from "@deepseek-ai/cordis";
 import path, { dirname, join, resolve, sep } from "node:path";
@@ -243,11 +249,12 @@ var MemoryHostAdapter = class {
 	dataDir;
 	runnerFactory;
 	constructor(options) {
+		const config = options.config ?? {};
 		this.logger = adaptLogger(options.ctx.logger);
-		this.dataDir = options.config.dataDir !== void 0 && options.config.dataDir.length > 0 ? options.config.dataDir : join(dshHomePath(), "memory");
+		this.dataDir = config.dataDir !== void 0 && config.dataDir.length > 0 ? config.dataDir : join(dshHomePath(), "memory");
 		this.runnerFactory = new DshLLMRunnerFactory({
 			ctx: options.ctx,
-			config: options.config
+			config
 		});
 	}
 	getRuntimeContext() {
@@ -593,6 +600,7 @@ function normalizeOffloadRetentionDays(value) {
 function buildMemoryTdaiConfig(config) {
 	const raw = {};
 	if (config.storeBackend !== void 0) raw.storeBackend = config.storeBackend;
+	raw.extraction = { enabled: config.llm?.provider !== void 0 && config.llm?.provider.length > 0 || config.llm?.model !== void 0 && config.llm?.model.length > 0 || config.modelPlanId !== void 0 && config.modelPlanId.length > 0 };
 	if (config.llm?.provider !== void 0 || config.llm?.model !== void 0) raw.llm = {
 		enabled: true,
 		provider: "openai",
@@ -13096,7 +13104,7 @@ function createL2Runner(opts) {
 		}
 		let records;
 		if (vectorStore && !vectorStore.isDegraded()) {
-			const { queryMemoryRecords } = await import("./l1-reader-O_zNpx8z.js");
+			const { queryMemoryRecords } = await import("./l1-reader-CzBIPKCc.js");
 			const memRecords = await queryMemoryRecords(vectorStore, profileFilter ? {
 				teamId: profileFilter.teamId,
 				userId: profileFilter.userId,
@@ -13531,7 +13539,7 @@ var require_get_vercel_oidc_token = /* @__PURE__ */ __commonJSMin(((exports, mod
 			err = error;
 		}
 		try {
-			const [{ getTokenPayload, isExpired }, { refreshToken }] = await Promise.all([await Promise.resolve().then(() => /* @__PURE__ */ __toESM(require_token_util())), await import("./token-CQ7BobPm.js").then((m) => /* @__PURE__ */ __toESM(m.default))]);
+			const [{ getTokenPayload, isExpired }, { refreshToken }] = await Promise.all([await Promise.resolve().then(() => /* @__PURE__ */ __toESM(require_token_util())), await import("./token-DOHgh3dX.js").then((m) => /* @__PURE__ */ __toESM(m.default))]);
 			if (!token || isExpired(getTokenPayload(token), options?.expirationBufferMs)) {
 				await refreshToken(options);
 				token = getVercelOidcTokenSync();
@@ -27284,7 +27292,7 @@ var StandaloneLLMRunner = class {
 			tools = params.tools;
 			this.logger?.debug?.(`${TAG$1} Using caller-provided tools: [${Object.keys(tools).join(", ")}]`);
 		} else if (effectiveEnableTools && params.storage) {
-			const { createStorageTools } = await import("./storage-tools-Ds9Y-HTr.js");
+			const { createStorageTools } = await import("./storage-tools-63aq1ka-.js");
 			tools = createStorageTools(params.storage, params.storagePrefix ?? "", this.logger);
 			this.logger?.debug?.(`${TAG$1} Using storage-backed tools (prefix="${params.storagePrefix ?? ""}")`);
 		} else if (effectiveEnableTools) tools = createSandboxedTools(workspaceDir, this.logger);
@@ -27984,12 +27992,12 @@ var Memory = class extends Service {
 	core;
 	/** Host adapter through which the engine talks to the harness. */
 	hostAdapter;
-	constructor(ctx, config) {
+	constructor(ctx, config = {}) {
 		super(ctx, "memory");
 		this.config = config;
 		this.hostAdapter = new MemoryHostAdapter({
 			ctx,
-			config
+			config: config ?? {}
 		});
 		this.core = new TdaiCore({
 			hostAdapter: this.hostAdapter,
@@ -28003,12 +28011,16 @@ var Memory = class extends Service {
 				core.destroy();
 			};
 		}, "dsh-memory: dispose engine");
+		this.start();
 	}
 	/** Initialize the engine (idempotent, best-effort). */
 	async start() {
+		if (this._started) return;
+		this._started = true;
 		await this.core.initialize();
 		this.ctx.logger.info("[memory] engine initialized");
 	}
+	_started = false;
 	/** Capture a completed conversation turn into L0/L1 (+ pipeline scheduling). */
 	async onTurnCommitted(turn) {
 		await this.core.handleTurnCommitted(turn);
@@ -28396,10 +28408,11 @@ var Tasks = class extends Service {
 	config;
 	/** The backing store; also exposed so host code can close it. */
 	store;
-	constructor(ctx, config) {
+	constructor(ctx, config = {}) {
 		super(ctx, "tasks");
 		this.config = config;
-		this.store = TaskStore.open(config.dbPath);
+		this.config = config ?? {};
+		this.store = TaskStore.open(this.config.dbPath);
 		ensureTasksDirectory().catch(() => {});
 		ctx.effect(() => {
 			const store = this.store;

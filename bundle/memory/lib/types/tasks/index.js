@@ -32,10 +32,13 @@ export class Tasks extends Service {
     config;
     /** The backing store; also exposed so host code can close it. */
     store;
-    constructor(ctx, config) {
+    constructor(ctx, config = {}) {
         super(ctx, 'tasks');
         this.config = config;
-        this.store = TaskStore.open(config.dbPath);
+        // The patch row may mount this service without a config object; default it
+        // so a missing config falls through to the harness-home db path.
+        this.config = config ?? {};
+        this.store = TaskStore.open(this.config.dbPath);
         // Best-effort: ensure the tasks directory exists so a fresh profile can
         // write; the store also creates it on first open via node:sqlite's parent
         // creation path, so a failure here is non-fatal.

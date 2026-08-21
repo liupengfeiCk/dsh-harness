@@ -36,9 +36,10 @@ export declare class Memory extends Service {
     readonly core: TdaiCore;
     /** Host adapter through which the engine talks to the harness. */
     readonly hostAdapter: MemoryHostAdapter;
-    constructor(ctx: Context, config: MemoryRuntimeConfig);
+    constructor(ctx: Context, config?: MemoryRuntimeConfig);
     /** Initialize the engine (idempotent, best-effort). */
     start(): Promise<void>;
+    private _started;
     /** Capture a completed conversation turn into L0/L1 (+ pipeline scheduling). */
     onTurnCommitted(turn: CompletedTurn): Promise<void>;
     /** Recall memories relevant to a user message (L1/L2/L3 injection). */
