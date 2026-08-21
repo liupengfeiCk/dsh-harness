@@ -3,7 +3,10 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "lib/types",
-    "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo"
+    "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo",
+    "paths": {
+      "@tencentdb-agent-memory/memory-core-vendor/*": ["./vendor/lib/*"]
+    }
   },
   "include": [
     "src/**/*.ts",

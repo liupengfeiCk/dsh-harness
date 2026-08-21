@@ -26,6 +26,14 @@
       "types": "./lib/types/compaction/index.d.ts",
       "default": "./lib/types/compaction/index.js"
     },
+    "./home-path": {
+      "types": "./lib/types/home-path.d.ts",
+      "default": "./lib/types/home-path.js"
+    },
+    "./adapters/*": {
+      "types": "./lib/types/adapters/*.d.ts",
+      "default": "./lib/types/adapters/*.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },

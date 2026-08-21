@@ -5,7 +5,6 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": false,
-    "noEmit": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
@@ -16,8 +15,10 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "exactOptionalPropertyTypes": false,
-    "declaration": false,
-    "noImplicitOverride": false
+    "declaration": true,
+    "noImplicitOverride": false,
+    "rootDir": "src",
+    "outDir": "lib"
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts"]
 }
