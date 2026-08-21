@@ -6,10 +6,10 @@
 
 ## 阶段一：骨架（引擎在宿主里跑起来）
 
-- [ ] **T1 vendor 落地**：复制腾讯 MemoryCore 的 `src/core` + `src/adapters/standalone` + `src/utils` + `src/config.ts` 进 `dsh-harness/bundle/memory/vendor/`，裁掉 gateway/openclaw 壳/云后端/计费观测，清理失效 import，版权头保留。tsc 编译通过。验收：vendor 目录独立编译绿。
-- [ ] **T2 bundle 骨架**：`dsh-harness/bundle/memory/` 标准形态——package.json（dsh.bundle 声明）、tsconfig、tsdown、cordis.patch.yml、host apply 入口。验收：tsc -b + tsdown 全量重建过。
-- [ ] **T3 适配层**：HostAdapter 实现（数据目录 `~/.dsh/memory/`、日志、配置注入）+ LLMRunner 实现（`run` → `ctx.llm.stream`，提炼走模型方案）。验收：单测覆盖两个适配器。
-- [ ] **T4 上架存活**：patch 行进 profile、reconcile、重启后引擎初始化成功（存活但不做任何事）。验收：--dump-config 含 memory 行；启动日志无错；`~/.dsh/memory/` 目录建成。
+- [x] **T1 vendor 落地**：复制腾讯 MemoryCore 的 `src/core` + `src/adapters/standalone` + `src/utils` + `src/config.ts` 进 `dsh-harness/bundle/memory/vendor/`，裁掉 gateway/openclaw 壳/云后端/计费观测，清理失效 import，版权头保留。tsc 编译通过。验收：vendor 目录独立编译绿。✅ commit 985b4a9，79 文件落地编译绿；skill 模块/云后端/计费观测/分布式/OpenClaw 壳全裁，L0-L3 全流程机制保留
+- [x] **T2 bundle 骨架**：`dsh-harness/bundle/memory/` 标准形态——package.json（dsh.bundle 声明）、tsconfig、tsdown、cordis.patch.yml、host apply 入口。验收：tsc -b + tsdown 全量重建过。✅ commit f9be5a6
+- [x] **T3 适配层**：HostAdapter 实现（数据目录 `~/.dsh/memory/`、日志、配置注入）+ LLMRunner 实现（`run` → `ctx.llm.stream`，提炼走模型方案）。验收：单测覆盖两个适配器。✅ commit 4ac6f9e（vendor 包化产 lib + host paths 映射，13 新测）
+- [x] **T4 上架存活**：patch 行进 profile、reconcile、重启后引擎初始化成功（存活但不做任何事）。验收：--dump-config 含 memory 行；启动日志无错；`~/.dsh/memory/` 目录建成。✅ commit acab4d5（dump-config 四行、3080 健康 200、目录建成；当前降级运行：无 LLM route 时 extraction 关）
 
 ## 阶段二：数据与提炼
 
