@@ -8,7 +8,9 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { Session } from '@deepseek-ai/dsh-session'
 import { createCompressionCoordinator } from './compaction.ts'
+import { createOverflowRescueHandler } from './overflow.ts'
 import { createPreStepHandler } from './pre-step.ts'
 import { StageLedger } from './stage.ts'
 import type { CompactionConfig } from '../compaction/types.ts'
@@ -31,6 +33,14 @@ export interface InstallInjectionOptions {
   readonly windowOverride?: number
   /** Set false to disable automatic compression at the compression point. */
   readonly autoCompress?: boolean
+  /** Bounded context-overflow recovery retry budget (defaults to 2). */
+  readonly overflowRetries?: number
+  /**
+   * Invoked after a session's hierarchical compression persists layers. The
+   * T12 inheritance wiring subscribes to this to refresh the shared public
+   * section (compression is the cache-invalidating moment).
+   */
+  readonly onCompressed?: (sessionId: string) => void
 }
 
 /**
@@ -50,6 +60,10 @@ export function installInjection(
     ...(options.compactionConfig === undefined ? {} : { config: options.compactionConfig }),
     ...(options.storageBase === undefined ? {} : { storageBase: options.storageBase }),
     ...(options.windowOverride === undefined ? {} : { windowOverride: options.windowOverride }),
+    // Compression is the cache-invalidating moment for the inherited public
+    // section: forward the event so T12 refreshes every live child's shared
+    // public memory. Fire-and-forget (not awaited) — refresh is best-effort.
+    ...(options.onCompressed === undefined ? {} : { onCompressed: options.onCompressed }),
   })
   const handler = createPreStepHandler({
     recall: (text, key) => recall.recall(text, key),
@@ -61,11 +75,29 @@ export function installInjection(
       else ctx.logger.info(message)
     },
   })
-
   ctx.on('agent/pre-step', handler as never)
+
+  // T11 context-overflow rescue (agent/request-error, CONTEXT_WINDOW_EXCEEDED):
+  // coarsen deeper and retry, with a bounded budget that resets on success/idle.
+  const overflow = createOverflowRescueHandler({
+    compression,
+    ...(options.overflowRetries === undefined ? {} : { maxOverflowRetries: options.overflowRetries }),
+    log: (level, message) => {
+      if (level === 'warn') ctx.logger.warn(message)
+      else ctx.logger.info(message)
+    },
+  })
+  ctx.on('agent/request-error', overflow.handler as never)
+  ctx.on('agent/status', (payload: { agent: object; status: string }) => {
+    if (payload.status === 'idle') overflow.clear(payload.agent)
+  })
+  ctx.on('session/event', (session: Session, event: { type: string }) => {
+    if (event.type === 'assistant/message') overflow.clearBySession(session)
+  })
+
   return () => {
     // The ledger holds per-session state; nothing to dispose beyond the
-    // listener, which cordis removes with the ctx. Keep the disposer explicit
+    // listeners, which cordis removes with the ctx. Keep the disposer explicit
     // for symmetry with the effect lifecycle.
   }
 }

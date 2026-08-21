@@ -21,4 +21,11 @@ export {
 
 export { createPreStepHandler, type PreStepDeps } from './pre-step.ts'
 
+export {
+  createOverflowRescueHandler,
+  DEFAULT_MAX_OVERFLOW_RETRIES,
+  type OverflowRescueDeps,
+  type OverflowRescueHandler,
+} from './overflow.ts'
+
 export { sessionRawStore, projectEvent, estimateTokens, textOfMessage, compactionRole } from './raw-store.ts'

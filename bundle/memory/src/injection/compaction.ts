@@ -58,6 +58,13 @@ export interface CompressionCoordinator {
   shouldCompress(session: Session): boolean
   /** Run hierarchical compression over the session's raw history. */
   compress(session: Session): Promise<{ layers: readonly LayerSummary[]; windowTokens: number }>
+  /**
+   * Context-overflow rescue: fold any compressible raw history into layered
+   * summaries, then recursively coarsen (deepen) the summaries to the coarsest
+   * useful layer so the session can retry within the window. Returns the
+   * durable layer count after coarsening, or `null` when nothing was reduced.
+   */
+  coarsenForOverflow(session: Session): Promise<readonly LayerSummary[] | null>
 }
 
 /** Assemble a `CompressionCoordinator` for live sessions. */
@@ -66,6 +73,12 @@ export function createCompressionCoordinator(options: {
   readonly config?: Partial<CompactionConfig>
   readonly storageBase?: string
   readonly windowOverride?: number
+  /**
+   * Invoked after hierarchical compression persists layers. Lets consumers
+   * (e.g. T12 inheritance) observe the compression-refresh point without
+   * reaching into the engine. Not awaited by `compress()`.
+   */
+  readonly onCompressed?: (sessionId: string, layers: readonly LayerSummary[]) => void
 }): CompressionCoordinator {
   const storage = new FileSummaryStorage(options.storageBase)
   // The summarizer is injected (tests) or absent; without one the engine gets a
@@ -81,6 +94,7 @@ export function createCompressionCoordinator(options: {
     },
   })
   const windowOverride = options.windowOverride
+  const onCompressed = options.onCompressed
   return {
     engine,
     storage,
@@ -95,7 +109,36 @@ export function createCompressionCoordinator(options: {
     async compress(session) {
       const windowTokens = this.resolveWindow(session)
       const result = await engine.compress(session.id, readRawHistory(session), windowTokens)
+      if (onCompressed !== undefined) onCompressed(String(session.id), result.layers)
       return { layers: result.layers, windowTokens }
+    },
+    async coarsenForOverflow(session) {
+      const windowTokens = this.resolveWindow(session)
+      // Fold any compressible raw history into layered summaries first — the
+      // primary reduction when the overflow is driven by raw history.
+      let summaries: readonly LayerSummary[] = await storage.load(String(session.id))
+      if (summaries.length === 0) {
+        try {
+          const result = await engine.compress(session.id, readRawHistory(session), windowTokens)
+          summaries = result.layers
+        } catch {
+          // Nothing compressible (e.g. history empty / fully retained) — coarsen
+          // whatever persisted layers already exist.
+        }
+      }
+      if (summaries.length === 0) return null
+      // Deepen the layers recursively toward the coarsest useful layer. Cross
+      // session memory is fixed and not reducible here, so only the summaries
+      // are budgeted (cross-session memory = 0 lets coarsening reduce maximally).
+      // A coarsening floor (honest boundary) leaves whatever durable layers we
+      // already produced — still a net reduction worth retrying on.
+      let coarsened: readonly LayerSummary[]
+      try {
+        coarsened = await engine.coarsen(String(session.id), summaries, 0, windowTokens)
+      } catch {
+        coarsened = summaries
+      }
+      return coarsened
     },
   }
 }
