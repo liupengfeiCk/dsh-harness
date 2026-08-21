@@ -37,6 +37,11 @@ export interface ModelPlansLike {
   resolve(id: string): Promise<{ provider: string; model: string }>
 }
 
+/** The agent-default-model surface the runner needs (structural, not imported). */
+export interface AgentDefaultModelLike {
+  currentSelection(): { provider: string; model: string }
+}
+
 /**
  * Resolve the provider/model route for one call.
  * @returns the route, or `null` when no route is resolvable.
@@ -84,6 +89,17 @@ export function createDefaultRouteResolver(
     if (config.llm?.provider !== undefined && config.llm?.provider.length > 0
       && config.llm?.model !== undefined && config.llm?.model.length > 0) {
       return { provider: config.llm.provider, model: config.llm.model }
+    }
+    // Fall through to the harness's current default model selection (T7:
+    // "跟随当前路由" = ctx.agentDefaultModel.currentSelection()) so extraction
+    // follows the route the main agent is already using when nothing is pinned.
+    const agentDefaultModel = (ctx as unknown as { get(name: string): AgentDefaultModelLike | undefined })
+      .get('agentDefaultModel')
+    if (agentDefaultModel !== undefined) {
+      const selection = agentDefaultModel.currentSelection()
+      if (selection !== undefined && selection.provider.length > 0 && selection.model.length > 0) {
+        return { provider: selection.provider, model: selection.model }
+      }
     }
     return null
   }

@@ -30,8 +30,11 @@ export interface L0MessageRecord {
     sessionId: string;
     /** Three-dim tenancy isolation. Optional during rollout — see
      *  docs/l0l3-tenant-isolation-design.md. */
+    teamId?: string;
     userId?: string;
     agentId?: string;
+    /** Task tag (kept independent of the three-dim coordinate system, T6). */
+    taskId?: string;
     recordedAt: string;
     id: string;
     role: "user" | "assistant";
@@ -68,8 +71,11 @@ export declare function recordConversation(params: {
     sessionKey: string;
     sessionId?: string;
     /** Three-dim tenancy isolation, propagated into every L0 record written. */
+    teamId?: string;
     userId?: string;
     agentId?: string;
+    /** Task tag (kept independent of the three-dim coordinate system, T6). */
+    taskId?: string;
     rawMessages: unknown[];
     baseDir: string;
     logger?: Logger;

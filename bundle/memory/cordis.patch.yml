@@ -38,5 +38,13 @@
     # The memory engine host service: assembles the vendor TdaiCore behind the
     # bundle's host adapter (data dir `~/.dsh/memory`, ctx.logger, ctx.llm LLM
     # runner). A host row. Its `start()` initializes the engine on boot.
+    #
+    # `inject` on the `llm` service keeps cordis from activating this row until
+    # the LLM runtime is injected, so `TdaiCore.wirePipelineRunners` (which
+    # builds the standalone LLM runner off `ctx.llm`) is not reached before the
+    # LLM service is ready — a cold-boot ordering fix for the extraction path.
     - id: memory
       name: 'dsh-harness-memory-bundle'
+      inject:
+        llm:
+          required: true

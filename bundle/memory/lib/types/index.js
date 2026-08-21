@@ -46,8 +46,12 @@ export { installInjection } from "./injection/host.js";
 // (cordis.patch.yml `name: 'dsh-harness-memory-bundle'`).
 export { Memory } from "./memory/service.js";
 export { MemoryHostAdapter } from "./adapters/host-adapter.js";
-export { DshLLMRunner, DshLLMRunnerFactory } from "./adapters/llm-runner.js";
+export { DshLLMRunner, DshLLMRunnerFactory, createDefaultRouteResolver } from "./adapters/llm-runner.js";
 export { buildMemoryTdaiConfig } from "./adapters/config.js";
 export { dshHomePath } from "./home-path.js";
+// T5 turn-capture wiring + identity attribution — public surface for tests and
+// programmatic composition.
+export { installTurnCapture, buildCompletedTurn, projectTurnMessages, projectTurnMessage, textOf, } from "./ingestion/turn-capture.js";
+export { deriveTurnAttribution, encodeSessionKey, } from "./ingestion/attribution.js";
 export default Memory;
 //# sourceMappingURL=index.js.map

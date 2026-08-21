@@ -43,13 +43,16 @@ export function createPreStepHandler(deps) {
         const key = sessionKey(session);
         if (signal.aborted)
             return next();
+        // Stage 3: compression point — run hierarchical compaction when the raw
+        // history crosses the line. When it fires, this step installs the latest
+        // snapshot (stage-3 injection); the stage then advances to post-compression
+        // so later turns inject L1.
+        let compressedThisStep = false;
         try {
-            // Stage 3: compression point — run hierarchical compaction when the raw
-            // history crosses the line, then advance to post-compression.
             if (deps.autoCompress && deps.compression.shouldCompress(session)) {
                 const { layers } = await compression.compress(session);
                 deps.log?.('info', `[memory] compressed into ${layers.length} summary layers`);
-                ledger.enterPostCompression(key);
+                compressedThisStep = true;
             }
         }
         catch (error) {
@@ -57,7 +60,13 @@ export function createPreStepHandler(deps) {
         }
         // First turn detection: a session with no user history yet is at stage 1.
         const stage = stageBeforeAdvance(ledger, session);
-        const effectiveStage = stage === 'pre-compression' && isFirstTurn(session) ? 'first-turn' : stage;
+        // A compression just ran → treat this step as the compression stage (install
+        // the latest snapshot), before transitioning to post-compression.
+        const effectiveStage = compressedThisStep
+            ? 'compression'
+            : stage === 'pre-compression' && isFirstTurn(session)
+                ? 'first-turn'
+                : stage;
         // Recall the memory content for the current user message (only when the
         // stage calls for it — pre-compression recalls nothing).
         let plan = {};
@@ -73,13 +82,16 @@ export function createPreStepHandler(deps) {
             }
         }
         else if (effectiveStage === 'compression') {
-            // After a compression the snapshot is refreshed once.
+            // After a compression the snapshot is refreshed once (stage-3 install).
             const recall = await safeRecall(deps, '', key);
             plan = planForStage('compression', recall);
         }
         // After the first turn runs, advance to pre-compression.
         if (effectiveStage === 'first-turn')
             ledger.enterPreCompression(key);
+        // After a compression runs, subsequent turns move to post-compression.
+        if (compressedThisStep)
+            ledger.enterPostCompression(key);
         const injected = assembleInjectionMessages(plan);
         if (injected.length === 0)
             return next();

@@ -48,8 +48,11 @@ export interface L0MessageRecord {
   sessionId: string;
   /** Three-dim tenancy isolation. Optional during rollout — see
    *  docs/l0l3-tenant-isolation-design.md. */
+  teamId?: string;
   userId?: string;
   agentId?: string;
+  /** Task tag (kept independent of the three-dim coordinate system, T6). */
+  taskId?: string;
   recordedAt: string; // ISO timestamp
   id: string;
   role: "user" | "assistant";
@@ -94,8 +97,11 @@ export async function recordConversation(params: {
   sessionKey: string;
   sessionId?: string;
   /** Three-dim tenancy isolation, propagated into every L0 record written. */
+  teamId?: string;
   userId?: string;
   agentId?: string;
+  /** Task tag (kept independent of the three-dim coordinate system, T6). */
+  taskId?: string;
   rawMessages: unknown[];
   baseDir: string;
   logger?: Logger;
@@ -113,7 +119,7 @@ export async function recordConversation(params: {
   /** StorageAdapter for file operations (COS/local). Falls back to fs when absent. */
   storage?: StorageAdapter;
 }): Promise<ConversationMessage[]> {
-  const { sessionKey, sessionId, userId, agentId, rawMessages, baseDir, logger, originalUserText, afterTimestamp, originalUserMessageCount, storage } = params;
+  const { sessionKey, sessionId, teamId, userId, agentId, taskId, rawMessages, baseDir, logger, originalUserText, afterTimestamp, originalUserMessageCount, storage } = params;
 
   // Step 1: Position slice + extract user/assistant messages.
   //
@@ -279,8 +285,10 @@ export async function recordConversation(params: {
       sessionKey,
       sessionId: sessionId || DEFAULT_ISOLATION_ID,
       // Tenancy isolation — missing fields go to the default compatibility bucket.
+      ...(teamId !== undefined && teamId.length > 0 ? { teamId } : {}),
       userId: userId || DEFAULT_ISOLATION_ID,
       agentId: agentId || DEFAULT_ISOLATION_ID,
+      ...(taskId !== undefined && taskId.length > 0 ? { taskId } : {}),
       recordedAt: now,
       id: msg.id,
       role: msg.role,

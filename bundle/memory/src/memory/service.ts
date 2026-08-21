@@ -23,6 +23,7 @@ import type { MemoryEngineConfig } from '../adapters/config.ts'
 import { TdaiCore } from '@tencentdb-agent-memory/memory-core-vendor/core/tdai-core'
 import { installInjection } from '../injection/host.ts'
 import type { InstallInjectionOptions } from '../injection/host.ts'
+import { installTurnCapture } from '../ingestion/turn-capture.ts'
 import type {
   CompletedTurn,
   MemorySearchParams,
@@ -78,6 +79,12 @@ export class Memory extends Service {
         return () => {}
       }, 'dsh-memory: install T9 injection')
     }
+    // T5 turn-capture: subscribe the session event stream and commit each
+    // committed turn (`turn/end`) to L0 + the pipeline. Always on.
+    ctx.effect(() => {
+      installTurnCapture(ctx, this)
+      return () => {}
+    }, 'dsh-memory: install T5 turn-capture')
   }
 
   /** Initialize the engine (idempotent, best-effort). */

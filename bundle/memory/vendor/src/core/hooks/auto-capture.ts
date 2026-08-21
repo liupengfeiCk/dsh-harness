@@ -47,6 +47,10 @@ export async function performAutoCapture(params: {
   messages: unknown[];
   sessionKey: string;
   sessionId?: string;
+  /** Isolation coordinates propagated into every L0 record (T5/T6). */
+  teamId?: string;
+  agentId?: string;
+  taskId?: string;
   cfg: MemoryTdaiConfig;
   pluginDataDir: string;
   logger?: Logger;
@@ -87,7 +91,7 @@ export async function performAutoCapture(params: {
   storage?: StorageAdapter;
 }): Promise<AutoCaptureResult> {
   const {
-    messages, sessionKey, sessionId, cfg, pluginDataDir, logger, scheduler,
+    messages, sessionKey, sessionId, teamId, agentId, taskId, cfg, pluginDataDir, logger, scheduler,
     originalUserText, originalUserMessageCount, pluginStartTimestamp,
     vectorStore, embeddingService, bgTaskRegistry, storage,
   } = params;
@@ -122,6 +126,9 @@ export async function performAutoCapture(params: {
         filteredMessages = await recordConversation({
           sessionKey,
           sessionId,
+          teamId,
+          agentId,
+          taskId,
           rawMessages: messages,
           baseDir: pluginDataDir,
           logger,
@@ -185,6 +192,9 @@ export async function performAutoCapture(params: {
           id: generateL0RecordId(sessionKey, i),
           sessionKey,
           sessionId: sessionId || DEFAULT_ISOLATION_ID,
+          ...(teamId !== undefined ? { teamId } : {}),
+          ...(agentId !== undefined ? { agentId } : {}),
+          ...(taskId !== undefined ? { taskId } : {}),
           role: msg.role,
           messageText: msg.content,
           recordedAt: now,

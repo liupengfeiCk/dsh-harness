@@ -56,6 +56,17 @@ export function createDefaultRouteResolver(ctx, config) {
             && config.llm?.model !== undefined && config.llm?.model.length > 0) {
             return { provider: config.llm.provider, model: config.llm.model };
         }
+        // Fall through to the harness's current default model selection (T7:
+        // "跟随当前路由" = ctx.agentDefaultModel.currentSelection()) so extraction
+        // follows the route the main agent is already using when nothing is pinned.
+        const agentDefaultModel = ctx
+            .get('agentDefaultModel');
+        if (agentDefaultModel !== undefined) {
+            const selection = agentDefaultModel.currentSelection();
+            if (selection !== undefined && selection.provider.length > 0 && selection.model.length > 0) {
+                return { provider: selection.provider, model: selection.model };
+            }
+        }
         return null;
     };
 }

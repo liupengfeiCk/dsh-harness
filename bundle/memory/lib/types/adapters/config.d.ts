@@ -32,6 +32,14 @@ export interface MemoryEngineConfig {
      * route (T4). Reserved for the model-plan integration.
      */
     readonly modelPlanId?: string;
+    /**
+     * Follow the harness's current default model selection for extraction (T7
+     * "跟随当前路由"). When true and no explicit `llm`/`modelPlanId` route is
+     * pinned, extraction is enabled and resolves the route at call time from
+     * `ctx.agentDefaultModel.currentSelection()`. Defaults to true. Set false to
+     * keep the engine storage-only (no extraction) without a pinned route.
+     */
+    readonly followCurrentRoute?: boolean;
     /** Explicit default LLM route (provider + model) for extraction calls. */
     readonly llm?: {
         /** Provider route key registered with the `llm` service adapter. */

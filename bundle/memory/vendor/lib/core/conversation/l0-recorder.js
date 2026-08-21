@@ -43,7 +43,7 @@ const TAG = "[memory-tdai][l0]";
  * @returns Filtered messages (for L1 to use directly), or empty array if nothing worth recording
  */
 export async function recordConversation(params) {
-    const { sessionKey, sessionId, userId, agentId, rawMessages, baseDir, logger, originalUserText, afterTimestamp, originalUserMessageCount, storage } = params;
+    const { sessionKey, sessionId, teamId, userId, agentId, taskId, rawMessages, baseDir, logger, originalUserText, afterTimestamp, originalUserMessageCount, storage } = params;
     // Step 1: Position slice + extract user/assistant messages.
     //
     // Dual protection against duplicate capture:
@@ -176,8 +176,10 @@ export async function recordConversation(params) {
             sessionKey,
             sessionId: sessionId || DEFAULT_ISOLATION_ID,
             // Tenancy isolation — missing fields go to the default compatibility bucket.
+            ...(teamId !== undefined && teamId.length > 0 ? { teamId } : {}),
             userId: userId || DEFAULT_ISOLATION_ID,
             agentId: agentId || DEFAULT_ISOLATION_ID,
+            ...(taskId !== undefined && taskId.length > 0 ? { taskId } : {}),
             recordedAt: now,
             id: msg.id,
             role: msg.role,

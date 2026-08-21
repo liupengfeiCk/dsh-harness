@@ -19,6 +19,7 @@ import { MemoryHostAdapter } from "../adapters/host-adapter.js";
 import { buildMemoryTdaiConfig } from "../adapters/config.js";
 import { TdaiCore } from '@tencentdb-agent-memory/memory-core-vendor/core/tdai-core';
 import { installInjection } from "../injection/host.js";
+import { installTurnCapture } from "../ingestion/turn-capture.js";
 /** Schemastery validator for the memory engine config (extension point). */
 export const Config = Object;
 /**
@@ -57,6 +58,12 @@ export class Memory extends Service {
                 return () => { };
             }, 'dsh-memory: install T9 injection');
         }
+        // T5 turn-capture: subscribe the session event stream and commit each
+        // committed turn (`turn/end`) to L0 + the pipeline. Always on.
+        ctx.effect(() => {
+            installTurnCapture(ctx, this);
+            return () => { };
+        }, 'dsh-memory: install T5 turn-capture');
     }
     /** Initialize the engine (idempotent, best-effort). */
     async start() {

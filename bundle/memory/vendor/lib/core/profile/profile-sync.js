@@ -5,15 +5,28 @@ import { readSceneIndex, syncSceneIndex } from "../scene/scene-index.js";
 import { generateSceneNavigation, stripSceneNavigation } from "../scene/scene-navigation.js";
 import { StoragePaths } from "../storage/types.js";
 export const DEFAULT_PROFILE_SCOPE = "global";
+/**
+ * Build the profile scope key for one isolation coordinate. Priority order:
+ *   1. a `projectId` → the independent `project:{projectId}` scope;
+ *   2. a team + role (`agentId`) → `team:{teamId}|agent:{agentId}` (the
+ *      team+role level, reusing the vendor team+agent spine — the `agent` key
+ *      name is kept, its value is the roster role id);
+ *   3. a bare team (no role) → `team:{teamId}` (the team level).
+ * `userId`/`sessionId`/`taskId` never enter a profile scope: L0/L1 keep those
+ * dimensions, but L2/L3 profiles accumulate across sessions.
+ */
 export function buildProfileIsolationScope(ctx) {
     if (!ctx)
         return DEFAULT_PROFILE_SCOPE;
+    if (ctx.projectId && ctx.projectId.length > 0) {
+        return `project:${ctx.projectId}`;
+    }
     const teamId = ctx.teamId || ctx.userId || "default";
-    const agentId = ctx.agentId || "default";
-    // L2/L3 are team+agent-level memories. L0/L1 keep user/session/task-level
-    // isolation, but profiles intentionally ignore userId/sessionId/taskId so
-    // one team's agent memory can accumulate across multiple sessions/users.
-    return `team:${teamId}|agent:${agentId}`;
+    const roleId = ctx.agentId;
+    if (roleId && roleId.length > 0) {
+        return `team:${teamId}|agent:${roleId}`;
+    }
+    return `team:${teamId}`;
 }
 export function parseProfileIsolationScope(scope) {
     const parts = scope.split("|");
@@ -24,12 +37,17 @@ export function parseProfileIsolationScope(scope) {
             return undefined;
         values[part.slice(0, idx)] = part.slice(idx + 1);
     }
-    if (!values.agent)
-        return undefined;
     const sessionId = values.session ? safeDecodeURIComponent(values.session) : undefined;
-    if (values.team)
+    // Project scope — the independent project-facts tree.
+    if (values.project)
+        return { projectId: values.project, ...(sessionId ? { sessionId } : {}) };
+    // team+role scope: `agent` carries the roster role id (semantic = role).
+    if (values.team && values.agent)
         return { teamId: values.team, agentId: values.agent, ...(sessionId ? { sessionId } : {}) };
-    if (values.user)
+    // Bare team scope.
+    if (values.team)
+        return { teamId: values.team, ...(sessionId ? { sessionId } : {}) };
+    if (values.agent && values.user)
         return { userId: values.user, agentId: values.agent, ...(sessionId ? { sessionId } : {}) };
     return undefined;
 }

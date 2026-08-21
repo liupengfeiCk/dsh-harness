@@ -28,6 +28,13 @@ export interface ModelPlansLike {
         model: string;
     }>;
 }
+/** The agent-default-model surface the runner needs (structural, not imported). */
+export interface AgentDefaultModelLike {
+    currentSelection(): {
+        provider: string;
+        model: string;
+    };
+}
 /**
  * Resolve the provider/model route for one call.
  * @returns the route, or `null` when no route is resolvable.

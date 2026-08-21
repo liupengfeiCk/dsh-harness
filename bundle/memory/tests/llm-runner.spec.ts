@@ -13,6 +13,7 @@ import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import {
+  createDefaultRouteResolver,
   DshLLMRunner,
   DshLLMRunnerFactory,
   parseModelRef,
@@ -128,5 +129,43 @@ describe('DshLLMRunnerFactory route resolution', () => {
     })
     const runner = factory.createRunner()
     await expect(runner.run({ prompt: 'p', taskId: 't' })).rejects.toThrow(/no LLM route/)
+  })
+})
+
+describe('createDefaultRouteResolver (T7 跟随当前路由)', () => {
+  it('resolves modelRef before the current-route fallback', async () => {
+    const ctx = new Context()
+    const resolve = createDefaultRouteResolver(ctx, {})
+    expect(await resolve({ modelRef: 'openai/gpt-4o' })).toEqual({ provider: 'openai', model: 'gpt-4o' })
+  })
+
+  it('resolves a configured modelPlanId before the current-route fallback', async () => {
+    const ctx = new Context()
+    ctx.provide('modelPlans', {
+      resolve: async (id: string) => (id === 'plan-a' ? { provider: 'mock', model: 'plan-model' } : { provider: '', model: '' }),
+    })
+    const resolve = createDefaultRouteResolver(ctx, {})
+    expect(await resolve({ planId: 'plan-a' })).toEqual({ provider: 'mock', model: 'plan-model' })
+  })
+
+  it('resolves the configured default llm before the current-route fallback', async () => {
+    const ctx = new Context()
+    const resolve = createDefaultRouteResolver(ctx, { llm: { provider: 'mock', model: 'pinned' } })
+    expect(await resolve({})).toEqual({ provider: 'mock', model: 'pinned' })
+  })
+
+  it('follows ctx.agentDefaultModel.currentSelection() when nothing is pinned', async () => {
+    const ctx = new Context()
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-v4-flash' }),
+    })
+    const resolve = createDefaultRouteResolver(ctx, {})
+    expect(await resolve({})).toEqual({ provider: 'deepseek-official', model: 'deepseek-v4-flash' })
+  })
+
+  it('returns null when neither a route nor the current selection is resolvable', async () => {
+    const ctx = new Context()
+    const resolve = createDefaultRouteResolver(ctx, {})
+    expect(await resolve({})).toBeNull()
   })
 })

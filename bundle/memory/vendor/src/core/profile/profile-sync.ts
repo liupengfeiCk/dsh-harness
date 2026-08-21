@@ -10,21 +10,57 @@ import type { Logger } from "../types.js";
 
 export const DEFAULT_PROFILE_SCOPE = "global";
 
-export type ProfileIsolation = { teamId?: string; userId?: string; agentId?: string; sessionId?: string };
+/**
+ * The isolation coordinates for one profile scope (design §4.1 三维正交).
+ *
+ * Three orthogonal scope dimensions, each materializing an independent
+ * `profiles/{scope}/` tree (scene_blocks + persona.md + scene_index):
+ *   - team scope        — `team:{teamId}`                          (team-level memory)
+ *   - team+role scope   — `team:{teamId}|agent:{roleId}`           (role-level memory)
+ *   - project scope     — `project:{projectId}`                    (project facts)
+ *
+ * `agentId` carries the roster ROLE id (semantic re-interpretation — the vendor
+ * column name is KEPT, its meaning becomes the 编制表 role, per the user's
+ * direction to make our coordinate system primary). `userId`/`sessionId` are
+ * retained for backwards compatibility with old scope forms; new profile
+ * writes leave them empty.
+ */
+export type ProfileIsolation = {
+  teamId?: string;
+  /** Roster role id (semantic reinterpretation of the vendor `agentId` column). */
+  agentId?: string;
+  userId?: string;
+  /** Project id — the working directory the session belongs to. */
+  projectId?: string;
+  sessionId?: string;
+};
 
 export interface ProfileScopeOptions {
   scope?: string;
   isolation?: ProfileIsolation;
 }
 
+/**
+ * Build the profile scope key for one isolation coordinate. Priority order:
+ *   1. a `projectId` → the independent `project:{projectId}` scope;
+ *   2. a team + role (`agentId`) → `team:{teamId}|agent:{agentId}` (the
+ *      team+role level, reusing the vendor team+agent spine — the `agent` key
+ *      name is kept, its value is the roster role id);
+ *   3. a bare team (no role) → `team:{teamId}` (the team level).
+ * `userId`/`sessionId`/`taskId` never enter a profile scope: L0/L1 keep those
+ * dimensions, but L2/L3 profiles accumulate across sessions.
+ */
 export function buildProfileIsolationScope(ctx?: ProfileIsolation): string {
   if (!ctx) return DEFAULT_PROFILE_SCOPE;
+  if (ctx.projectId && ctx.projectId.length > 0) {
+    return `project:${ctx.projectId}`;
+  }
   const teamId = ctx.teamId || ctx.userId || "default";
-  const agentId = ctx.agentId || "default";
-  // L2/L3 are team+agent-level memories. L0/L1 keep user/session/task-level
-  // isolation, but profiles intentionally ignore userId/sessionId/taskId so
-  // one team's agent memory can accumulate across multiple sessions/users.
-  return `team:${teamId}|agent:${agentId}`;
+  const roleId = ctx.agentId;
+  if (roleId && roleId.length > 0) {
+    return `team:${teamId}|agent:${roleId}`;
+  }
+  return `team:${teamId}`;
 }
 
 export function parseProfileIsolationScope(scope: string): ProfileIsolation | undefined {
@@ -35,10 +71,14 @@ export function parseProfileIsolationScope(scope: string): ProfileIsolation | un
     if (idx <= 0) return undefined;
     values[part.slice(0, idx)] = part.slice(idx + 1);
   }
-  if (!values.agent) return undefined;
   const sessionId = values.session ? safeDecodeURIComponent(values.session) : undefined;
-  if (values.team) return { teamId: values.team, agentId: values.agent, ...(sessionId ? { sessionId } : {}) };
-  if (values.user) return { userId: values.user, agentId: values.agent, ...(sessionId ? { sessionId } : {}) };
+  // Project scope — the independent project-facts tree.
+  if (values.project) return { projectId: values.project, ...(sessionId ? { sessionId } : {}) };
+  // team+role scope: `agent` carries the roster role id (semantic = role).
+  if (values.team && values.agent) return { teamId: values.team, agentId: values.agent, ...(sessionId ? { sessionId } : {}) };
+  // Bare team scope.
+  if (values.team) return { teamId: values.team, ...(sessionId ? { sessionId } : {}) };
+  if (values.agent && values.user) return { userId: values.user, agentId: values.agent, ...(sessionId ? { sessionId } : {}) };
   return undefined;
 }
 

@@ -273,6 +273,16 @@ export interface CompletedTurn {
    * polluted by prependContext injection.
    */
   originalUserMessageCount?: number;
+  /**
+   * Isolation coordinates propagated into every L0 record this turn (T5/T6).
+   * `agentId` carries the roster ROLE id (semantic re-interpretation of the
+   * vendor column: the coordinate system is primary). `teamId` is the folded
+   * team; `projectId` the working directory. When omitted, the engine falls
+   * back to the legacy default isolation identity. `taskId` stays independent.
+   */
+  teamId?: string;
+  agentId?: string;
+  taskId?: string;
 }
 
 // ============================

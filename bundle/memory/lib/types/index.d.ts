@@ -36,11 +36,15 @@ export { installInjection, type InstallInjectionOptions, type RecallProvider } f
 export { Memory } from './memory/service.ts';
 export type { MemoryRuntimeConfig } from './memory/service.ts';
 export { MemoryHostAdapter } from './adapters/host-adapter.ts';
-export { DshLLMRunner, DshLLMRunnerFactory } from './adapters/llm-runner.ts';
+export { DshLLMRunner, DshLLMRunnerFactory, createDefaultRouteResolver } from './adapters/llm-runner.ts';
 export type { RouteResolver } from './adapters/llm-runner.ts';
 export { buildMemoryTdaiConfig } from './adapters/config.ts';
 export type { MemoryEngineConfig } from './adapters/config.ts';
 export { dshHomePath } from './home-path.ts';
+export { installTurnCapture, buildCompletedTurn, projectTurnMessages, projectTurnMessage, textOf, } from './ingestion/turn-capture.ts';
+export type { CompletedTurnLike, TurnCommitter, TurnMessage } from './ingestion/turn-capture.ts';
+export { deriveTurnAttribution, encodeSessionKey, } from './ingestion/attribution.ts';
+export type { TurnAttribution } from './ingestion/attribution.ts';
 declare module '@deepseek-ai/cordis' {
     interface Context {
         /** The memory engine service, composed by the memory bundle. */

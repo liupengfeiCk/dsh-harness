@@ -21,14 +21,18 @@ export function buildMemoryTdaiConfig(config) {
     const raw = {};
     if (config.storeBackend !== undefined)
         raw.storeBackend = config.storeBackend;
-    // Extraction needs an LLM route. When none is configured (no modelPlanId, no
-    // default provider/model), fall back to a storage-only engine: `extraction`
-    // off so the engine initializes without an LLM route (the extraction LLM
-    // "follows the current route" only once a route is configured). This keeps
-    // the memory store/recall usable out of the box while deferring LLM wiring.
+    // Extraction needs an LLM route. The engine enables extraction when any of:
+    //   - an explicit default route (`llm`) is pinned,
+    //   - a model plan id is pinned (`modelPlanId`),
+    //   - `followCurrentRoute` is true (default) — the extraction LLM "follows
+    //     the current route" (`ctx.agentDefaultModel.currentSelection()`) once the
+    //     route resolver runs at call time. When all three are absent, fall back
+    //     to a storage-only engine: `extraction` off so the engine initializes
+    //     without an LLM route.
     const hasRoute = (config.llm?.provider !== undefined && config.llm?.provider.length > 0)
         || (config.llm?.model !== undefined && config.llm?.model.length > 0)
-        || (config.modelPlanId !== undefined && config.modelPlanId.length > 0);
+        || (config.modelPlanId !== undefined && config.modelPlanId.length > 0)
+        || config.followCurrentRoute !== false;
     raw.extraction = { enabled: hasRoute };
     if (config.llm?.provider !== undefined || config.llm?.model !== undefined) {
         raw.llm = {

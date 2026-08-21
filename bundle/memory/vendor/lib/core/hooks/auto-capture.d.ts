@@ -30,6 +30,10 @@ export declare function performAutoCapture(params: {
     messages: unknown[];
     sessionKey: string;
     sessionId?: string;
+    /** Isolation coordinates propagated into every L0 record (T5/T6). */
+    teamId?: string;
+    agentId?: string;
+    taskId?: string;
     cfg: MemoryTdaiConfig;
     pluginDataDir: string;
     logger?: Logger;

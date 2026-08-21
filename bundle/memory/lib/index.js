@@ -131,6 +131,14 @@ function createDefaultRouteResolver(ctx, config) {
 			provider: config.llm.provider,
 			model: config.llm.model
 		};
+		const agentDefaultModel = ctx.get("agentDefaultModel");
+		if (agentDefaultModel !== void 0) {
+			const selection = agentDefaultModel.currentSelection();
+			if (selection !== void 0 && selection.provider.length > 0 && selection.model.length > 0) return {
+				provider: selection.provider,
+				model: selection.model
+			};
+		}
 		return null;
 	};
 }
@@ -600,7 +608,7 @@ function normalizeOffloadRetentionDays(value) {
 function buildMemoryTdaiConfig(config) {
 	const raw = {};
 	if (config.storeBackend !== void 0) raw.storeBackend = config.storeBackend;
-	raw.extraction = { enabled: config.llm?.provider !== void 0 && config.llm?.provider.length > 0 || config.llm?.model !== void 0 && config.llm?.model.length > 0 || config.modelPlanId !== void 0 && config.modelPlanId.length > 0 };
+	raw.extraction = { enabled: config.llm?.provider !== void 0 && config.llm?.provider.length > 0 || config.llm?.model !== void 0 && config.llm?.model.length > 0 || config.modelPlanId !== void 0 && config.modelPlanId.length > 0 || config.followCurrentRoute !== false };
 	if (config.llm?.provider !== void 0 || config.llm?.model !== void 0) raw.llm = {
 		enabled: true,
 		provider: "openai",
@@ -4281,9 +4289,23 @@ var StorageAdapter = class {
 //#endregion
 //#region vendor/lib/core/profile/profile-sync.js
 const DEFAULT_PROFILE_SCOPE = "global";
+/**
+* Build the profile scope key for one isolation coordinate. Priority order:
+*   1. a `projectId` → the independent `project:{projectId}` scope;
+*   2. a team + role (`agentId`) → `team:{teamId}|agent:{agentId}` (the
+*      team+role level, reusing the vendor team+agent spine — the `agent` key
+*      name is kept, its value is the roster role id);
+*   3. a bare team (no role) → `team:{teamId}` (the team level).
+* `userId`/`sessionId`/`taskId` never enter a profile scope: L0/L1 keep those
+* dimensions, but L2/L3 profiles accumulate across sessions.
+*/
 function buildProfileIsolationScope(ctx) {
 	if (!ctx) return DEFAULT_PROFILE_SCOPE;
-	return `team:${ctx.teamId || ctx.userId || "default"}|agent:${ctx.agentId || "default"}`;
+	if (ctx.projectId && ctx.projectId.length > 0) return `project:${ctx.projectId}`;
+	const teamId = ctx.teamId || ctx.userId || "default";
+	const roleId = ctx.agentId;
+	if (roleId && roleId.length > 0) return `team:${teamId}|agent:${roleId}`;
+	return `team:${teamId}`;
 }
 function parseProfileIsolationScope(scope) {
 	const parts = scope.split("|");
@@ -4293,14 +4315,21 @@ function parseProfileIsolationScope(scope) {
 		if (idx <= 0) return void 0;
 		values[part.slice(0, idx)] = part.slice(idx + 1);
 	}
-	if (!values.agent) return void 0;
 	const sessionId = values.session ? safeDecodeURIComponent(values.session) : void 0;
-	if (values.team) return {
+	if (values.project) return {
+		projectId: values.project,
+		...sessionId ? { sessionId } : {}
+	};
+	if (values.team && values.agent) return {
 		teamId: values.team,
 		agentId: values.agent,
 		...sessionId ? { sessionId } : {}
 	};
-	if (values.user) return {
+	if (values.team) return {
+		teamId: values.team,
+		...sessionId ? { sessionId } : {}
+	};
+	if (values.agent && values.user) return {
 		userId: values.user,
 		agentId: values.agent,
 		...sessionId ? { sessionId } : {}
@@ -5684,7 +5713,7 @@ const TAG$17 = "[memory-tdai][l0]";
 * @returns Filtered messages (for L1 to use directly), or empty array if nothing worth recording
 */
 async function recordConversation(params) {
-	const { sessionKey, sessionId, userId, agentId, rawMessages, baseDir, logger, originalUserText, afterTimestamp, originalUserMessageCount, storage } = params;
+	const { sessionKey, sessionId, teamId, userId, agentId, taskId, rawMessages, baseDir, logger, originalUserText, afterTimestamp, originalUserMessageCount, storage } = params;
 	const usePositionSlice = originalUserMessageCount != null && originalUserMessageCount > 0 && originalUserMessageCount <= rawMessages.length;
 	const slicedMessages = usePositionSlice ? rawMessages.slice(originalUserMessageCount) : rawMessages;
 	const allExtracted = extractUserAssistantMessages(slicedMessages);
@@ -5748,8 +5777,10 @@ async function recordConversation(params) {
 		const record = {
 			sessionKey,
 			sessionId: sessionId || "default",
+			...teamId !== void 0 && teamId.length > 0 ? { teamId } : {},
 			userId: userId || "default",
 			agentId: agentId || "default",
+			...taskId !== void 0 && taskId.length > 0 ? { taskId } : {},
 			recordedAt: now,
 			id: msg.id,
 			role: msg.role,
@@ -5961,7 +5992,7 @@ function generateL0RecordId(sessionKey, index) {
 	return `l0_${sessionKey}_${Date.now()}_${index}_${crypto$1.randomBytes(3).toString("hex")}`;
 }
 async function performAutoCapture(params) {
-	const { messages, sessionKey, sessionId, cfg, pluginDataDir, logger, scheduler, originalUserText, originalUserMessageCount, pluginStartTimestamp, vectorStore, embeddingService, bgTaskRegistry, storage } = params;
+	const { messages, sessionKey, sessionId, teamId, agentId, taskId, cfg, pluginDataDir, logger, scheduler, originalUserText, originalUserMessageCount, pluginStartTimestamp, vectorStore, embeddingService, bgTaskRegistry, storage } = params;
 	const tCaptureStart = performance.now();
 	const checkpoint = new CheckpointManager(pluginDataDir, logger, storage);
 	const tL0RecordStart = performance.now();
@@ -5973,6 +6004,9 @@ async function performAutoCapture(params) {
 			filteredMessages = await recordConversation({
 				sessionKey,
 				sessionId,
+				teamId,
+				agentId,
+				taskId,
 				rawMessages: messages,
 				baseDir: pluginDataDir,
 				logger,
@@ -6009,6 +6043,9 @@ async function performAutoCapture(params) {
 					id: generateL0RecordId(sessionKey, i),
 					sessionKey,
 					sessionId: sessionId || "default",
+					...teamId !== void 0 ? { teamId } : {},
+					...agentId !== void 0 ? { agentId } : {},
+					...taskId !== void 0 ? { taskId } : {},
 					role: msg.role,
 					messageText: msg.content,
 					recordedAt: now,
@@ -27599,6 +27636,9 @@ var TdaiCore = class {
 			messages: turn.messages,
 			sessionKey: turn.sessionKey,
 			sessionId: turn.sessionId,
+			teamId: turn.teamId,
+			agentId: turn.agentId,
+			taskId: turn.taskId,
 			cfg: this.cfg,
 			pluginDataDir: this.dataDir,
 			logger: this.logger,
@@ -28944,20 +28984,21 @@ function createPreStepHandler(deps) {
 		const session = agent.session;
 		const key = sessionKey(session);
 		if (signal.aborted) return next();
+		let compressedThisStep = false;
 		try {
 			if (deps.autoCompress && deps.compression.shouldCompress(session)) {
 				const { layers } = await compression.compress(session);
 				deps.log?.("info", `[memory] compressed into ${layers.length} summary layers`);
-				ledger.enterPostCompression(key);
+				compressedThisStep = true;
 			}
 		} catch (error) {
 			deps.log?.("warn", `[memory] compression failed; continuing the turn: ${error instanceof Error ? error.message : String(error)}`);
 		}
 		const stage = stageBeforeAdvance(ledger, session);
-		const effectiveStage = stage === "pre-compression" && isFirstTurn(session) ? "first-turn" : stage;
+		const effectiveStage = compressedThisStep ? "compression" : stage === "pre-compression" && isFirstTurn(session) ? "first-turn" : stage;
 		let plan = {};
 		if (effectiveStage === "first-turn" || effectiveStage === "post-compression") {
-			const userText = payload.messages.map((m) => textOf(m)).join("\n");
+			const userText = payload.messages.map((m) => textOf$1(m)).join("\n");
 			try {
 				plan = planForStage(effectiveStage, await deps.recall(userText, key));
 			} catch (error) {
@@ -28966,6 +29007,7 @@ function createPreStepHandler(deps) {
 			}
 		} else if (effectiveStage === "compression") plan = planForStage("compression", await safeRecall(deps, "", key));
 		if (effectiveStage === "first-turn") ledger.enterPreCompression(key);
+		if (compressedThisStep) ledger.enterPostCompression(key);
 		const injected = assembleInjectionMessages(plan);
 		if (injected.length === 0) return next();
 		return {
@@ -28983,7 +29025,7 @@ async function safeRecall(deps, userText, key) {
 	}
 }
 /** Extract the text content of a user message (its blocks' text, joined). */
-function textOf(message) {
+function textOf$1(message) {
 	return message.content.filter((block) => block.type === "text").map((block) => block.text).join("");
 }
 //#endregion
@@ -29020,6 +29062,235 @@ function installInjection(ctx, recall, options = {}) {
 		}
 	});
 	ctx.on("agent/pre-step", handler);
+	return () => {};
+}
+//#endregion
+//#region lib/types/ingestion/attribution.js
+/**
+* dsh-harness-memory-bundle/ingestion/attribution — derive the DSH identity
+* coordinates (design §3.4 三维正交, §4.1 归属坐标系) for one live session.
+*
+* The vendor engine groups conversations by `sessionKey` and tags L1 records
+* with `teamId`/`agentId`/`taskId`. On the DSH side those coordinates come from
+* the live session's own context, not from a plugin config:
+*
+*   - `team`    — folded from the session's durable `subagent-team/mode` event
+*     (the same fold the subagent bundle uses); defaults to `'default'`.
+*   - `role`    — the roster role the session runs as: a subagent child reads
+*     its role from the task association's `roleId`, else the main session is
+*     the primary-agent identity `'main'`.
+*   - `project` — the session's absolute working directory (`header.cwd`).
+*   - `task`    — the task this session is associated with (via the tasks
+*     registry's `task_sessions` ledger), when any.
+*   - `session` — the session id.
+*   - `user`    — the single-user harness identity.
+*
+* This module deliberately does NOT value-import the subagent bundle: it folds
+* the `subagent-team/mode` session event structurally (the event carries
+* `ignorable: true` and never enters the model transcript), keeping the memory
+* bundle self-contained. The derived coordinates are plain data, so T6's scope
+* routing (once its architecture is chosen) only needs to change
+* {@link encodeSessionKey} / how the coordinates feed the engine.
+*
+* @module dsh-harness-memory-bundle/ingestion/attribution
+*/
+/** The single-user harness identity for attribution. */
+const DEFAULT_USER_ID = "default_user";
+/** The fallback team when a session has no `subagent-team/mode` event. */
+const DEFAULT_TEAM = "default";
+/**
+* Fold the last `subagent-team/mode` event from a session's event log.
+* @param events - the session's event log.
+* @returns the selected team id, or {@link DEFAULT_TEAM}.
+*/
+function foldTeamMode(events) {
+	for (let index = events.length - 1; index >= 0; index -= 1) {
+		const event = events[index];
+		if (event === void 0) continue;
+		const candidate = event;
+		if (candidate.type !== "subagent-team/mode") continue;
+		const data = candidate.data;
+		if (data?.mode === "team" && typeof data.team === "string" && data.team.length > 0) return data.team;
+		return DEFAULT_TEAM;
+	}
+	return DEFAULT_TEAM;
+}
+/**
+* Find the task id and (subagent) role a session is associated with, if any.
+* @param ctx - the harness context (reads `ctx.tasks` structurally).
+* @param sessionId - the session to look up.
+* @returns `{ task, role }` — the task id and the role it ran under — or
+*   `{ task: undefined, role: undefined }` when the session belongs to no task.
+*/
+function taskRoleForSession(ctx, sessionId) {
+	const tasks = ctx.get("tasks");
+	if (tasks === void 0) return {};
+	for (const task of tasks.list()) {
+		const assoc = task.sessions.find((s) => s.sessionId === sessionId);
+		if (assoc !== void 0) return assoc.roleId === void 0 ? { task: task.id } : {
+			task: task.id,
+			role: assoc.roleId
+		};
+	}
+	return {};
+}
+/**
+* Derive the attribution coordinates for a live session.
+* @param ctx - the harness context (provides the tasks registry structurally).
+* @param session - the live session (header + event log).
+* @returns the derived coordinates.
+*/
+function deriveTurnAttribution(ctx, session) {
+	const header = session.header;
+	const sessionId = String(session.id);
+	const team = foldTeamMode(session.events);
+	const { task, role } = taskRoleForSession(ctx, sessionId);
+	return {
+		team,
+		role: role ?? "main",
+		project: header.cwd ?? "",
+		...task === void 0 ? {} : { task },
+		session: sessionId,
+		user: DEFAULT_USER_ID
+	};
+}
+/**
+* Encode an attribution into the vendor `sessionKey` (L0/L1 grouping + pipeline
+* session identity). The encoding is the single place the DSH identity maps to
+* the vendor's session grouping, so T6's scope routing changes only here.
+* @param attribution - the derived coordinates.
+* @returns the vendor session key.
+*/
+function encodeSessionKey(attribution) {
+	return [
+		attribution.team,
+		attribution.role,
+		attribution.project,
+		attribution.task ?? "",
+		attribution.session
+	].join("/");
+}
+//#endregion
+//#region lib/types/ingestion/turn-capture.js
+/**
+* dsh-harness-memory-bundle/ingestion/turn-capture — the T5 trigger wiring:
+* subscribe the DSH session event stream and, on each committed turn (`turn/end`),
+* project the session's user/assistant surface into a vendor `CompletedTurn` and
+* commit it to the engine (L0 record + pipeline scheduling).
+*
+* Wiring (design §7 F2/F3 + the T5 decision):
+*   - subscribe `ctx.on('session/event', (session, event) => …, { global: true })`
+*     so both top-level (main) and delegated subagent sessions are captured;
+*   - on `event.type === 'turn/end'`, derive the identity coordinates via
+*     {@link deriveTurnAttribution} (team/role/project/task/session/user), fold
+*     the session's user/assistant messages into `ConversationMessage[]`, and
+*     build a `CompletedTurn` with `sessionKey = encodeSessionKey(attribution)`;
+*   - commit through the `Memory.onTurnCommitted` seam (L0 + scheduler notify).
+*
+* Incrementality is the vendor's job: `recordConversation` keeps a per-session
+* timestamp checkpoint cursor, so handing the whole live surface each turn only
+* records messages newer than the cursor. This deliberately avoids per-turn
+* cursor bookkeeping on our side and lets the vendor's checkpointing drive.
+*
+* @module dsh-harness-memory-bundle/ingestion/turn-capture
+*/
+/** Concatenate the text of a derived message's text blocks (mirrors raw-store). */
+function textOf(message) {
+	return message.content.filter((block) => block.type === "text").map((block) => block.text).join("");
+}
+/**
+* Project one surface-eligible session event into a `TurnMessage`, using the
+* session's own projection so text/role match the model-visible history exactly.
+* Non user/assistant events yield `null`.
+* @param session - the live session (for `deriveEventMessage`).
+* @param event - the session event to project.
+* @returns the message, or `null` when the event produces no user/assistant text.
+*/
+function projectTurnMessage(session, event) {
+	if (event.type !== "user/message" && event.type !== "assistant/message") return null;
+	const message = session.deriveEventMessage(event);
+	if (message === null) return null;
+	const text = textOf(message).trim();
+	if (text.length === 0) return null;
+	const role = message.role === "assistant" ? "assistant" : "user";
+	return {
+		id: `msg_${event.seq}`,
+		role,
+		content: text,
+		timestamp: event.time ?? Date.now()
+	};
+}
+/**
+* Fold a session's user/assistant surface into `TurnMessage[]` (log order).
+* @param session - the live session.
+* @returns the projected messages.
+*/
+function projectTurnMessages(session) {
+	const result = [];
+	for (const event of session.events) {
+		const message = projectTurnMessage(session, event);
+		if (message !== null) result.push(message);
+	}
+	return result;
+}
+/** The current turn's user text and assistant text from a message list. */
+function turnTexts(messages) {
+	return {
+		userText: messages.filter((m) => m.role === "user").map((m) => m.content).join("\n"),
+		assistantText: messages.filter((m) => m.role === "assistant").map((m) => m.content).join("\n")
+	};
+}
+/**
+* Build a vendor `CompletedTurn` from a live session by deriving its identity
+* coordinates and projecting its user/assistant surface.
+* @param ctx - the harness context (for attribution's tasks registry).
+* @param session - the live session whose turn just committed.
+* @returns the turn to commit.
+*/
+function buildCompletedTurn(ctx, session) {
+	const attribution = deriveTurnAttribution(ctx, session);
+	const messages = projectTurnMessages(session);
+	const { userText, assistantText } = turnTexts(messages);
+	let startedAt;
+	if (messages.length > 0) {
+		const turnStart = session.events.filter((e) => e.type === "turn/start").map((e) => e.time).find((t) => typeof t === "number" && t > 0);
+		const first = messages[0];
+		startedAt = turnStart !== void 0 ? turnStart : first !== void 0 ? first.timestamp - 1 : Date.now();
+	}
+	return {
+		userText,
+		assistantText,
+		messages,
+		sessionKey: encodeSessionKey(attribution),
+		sessionId: attribution.session,
+		...startedAt !== void 0 ? { startedAt } : {},
+		teamId: attribution.team,
+		agentId: attribution.role,
+		...attribution.task === void 0 ? {} : { taskId: attribution.task }
+	};
+}
+/**
+* Install the T5 turn-capture wiring: subscribe the session event stream and
+* commit each committed turn to the memory engine. Scope-filtered dispatch
+* delivers every live agent's events to this root listener (`global: true`),
+* so both main and subagent sessions are captured.
+* @param ctx - the harness context.
+* @param memory - the memory engine service (its `onTurnCommitted`).
+* @returns a disposer that unsubscribes.
+*/
+function installTurnCapture(ctx, memory) {
+	const onSessionEvent = (session, event) => {
+		if (event.type !== "turn/end" || session === void 0) return;
+		(async () => {
+			try {
+				const turn = buildCompletedTurn(ctx, session);
+				await memory.onTurnCommitted(turn);
+			} catch (error) {
+				ctx.logger.warn(`[memory] turn capture failed: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		})();
+	};
+	ctx.on("session/event", onSessionEvent, { global: true });
 	return () => {};
 }
 //#endregion
@@ -29073,6 +29344,10 @@ var Memory = class extends Service {
 			installInjection(ctx, this, config?.injection);
 			return () => {};
 		}, "dsh-memory: install T9 injection");
+		ctx.effect(() => {
+			installTurnCapture(ctx, this);
+			return () => {};
+		}, "dsh-memory: install T5 turn-capture");
 	}
 	/** Initialize the engine (idempotent, best-effort). */
 	async start() {
@@ -29554,4 +29829,4 @@ var Tasks = class extends Service {
 */
 var types_default = Memory;
 //#endregion
-export { CoarseningFloorError, CompactionConfigError, CompactionEngine, CompactionError, DEFAULT_COMPACTION_CONFIG, DshLLMRunner, DshLLMRunnerFactory, FileSummaryStorage, INITIAL_STAGE, LayerRecoveryError, LlmSummarizer, MEMORY_PLUGIN, Memory, MemoryHostAdapter, NON_DISTILLABLE_SOURCE, NoCompressibleHistoryError, NoCoverageError, STAGE_ORDER, SUMMARY_SOURCE_TAG, StageLedger, TaskStore, Tasks, afterCompressionStage, assembleInjectionMessages, buildMemoryTdaiConfig, compactionRole, createCompressionCoordinator, createPreStepHandler, createPrefixAlignedSummarizer, types_default as default, dshHomePath, estimateTokens, installInjection, isBalancedBoundary, isNonDistillable, layerFileName, memorySource, require_token_error as n, partitionLayers, pickCoarsenPair, planForStage, projectEvent, recursiveCoarsen, resolveBudgets, routedSummarizer, sanitizeSessionId, selectCompressibleRange, sessionRawStore, summariesRoot, summaryBudget, summarySourceMetadata, require_token_util as t, taskDbPath, textOfMessage, withinCap };
+export { CoarseningFloorError, CompactionConfigError, CompactionEngine, CompactionError, DEFAULT_COMPACTION_CONFIG, DshLLMRunner, DshLLMRunnerFactory, FileSummaryStorage, INITIAL_STAGE, LayerRecoveryError, LlmSummarizer, MEMORY_PLUGIN, Memory, MemoryHostAdapter, NON_DISTILLABLE_SOURCE, NoCompressibleHistoryError, NoCoverageError, STAGE_ORDER, SUMMARY_SOURCE_TAG, StageLedger, TaskStore, Tasks, afterCompressionStage, assembleInjectionMessages, buildCompletedTurn, buildMemoryTdaiConfig, compactionRole, createCompressionCoordinator, createDefaultRouteResolver, createPreStepHandler, createPrefixAlignedSummarizer, types_default as default, deriveTurnAttribution, dshHomePath, encodeSessionKey, estimateTokens, installInjection, installTurnCapture, isBalancedBoundary, isNonDistillable, layerFileName, memorySource, require_token_error as n, partitionLayers, pickCoarsenPair, planForStage, projectEvent, projectTurnMessage, projectTurnMessages, recursiveCoarsen, resolveBudgets, routedSummarizer, sanitizeSessionId, selectCompressibleRange, sessionRawStore, summariesRoot, summaryBudget, summarySourceMetadata, require_token_util as t, taskDbPath, textOf, textOfMessage, withinCap };
