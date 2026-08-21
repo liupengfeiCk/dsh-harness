@@ -6,6 +6,7 @@
     "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo"
   },
   "include": [
-    "src/tasks"
+    "src/**/*.ts",
+    "src/**/*.d.ts"
   ]
 }

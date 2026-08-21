@@ -1,0 +1,36 @@
+# The dsh-harness-memory-bundle patch: mounts the Harness-owned memory subsystem
+# as host rows.
+#
+# T2 skeleton 阶段挂载已就位的部分：
+#   - `tasks`：task-entity registry（设计 §7 F10）—— `Tasks` host service
+#     (src/tasks/index.ts)，L0/L1 记忆按任务过滤的维度注册表。
+#   - `memory-task-wire`：`/memory-task` loopback RPC 通道（src/tasks/wire），
+#     仿 model-plan 的 `/model-plan` wire，承载 task list/read/create/update/
+#     complete/attachSession。
+#   - `memory-task-tool`：主代理 `create_task` 工具（src/tasks/tool），注册进
+#     tools 服务。
+#
+# 记忆引擎本体（T3 HostAdapter/LLMRunner + vendor TdaiCore 装配）作为 host 行
+# `memory`（name: 'dsh-harness-memory-bundle'）在本骨架的 src/index.ts 预留，
+# 由 T3/T4 填充并挂载。
+#
+# A later layer (the profile's own cordis.patch.yml or a --patch overlay) wins
+# per row. These rows use distinct ids (`tasks`/`memory-task-wire`/
+# `memory-task-tool`) from any official row (the Loader rejects duplicate ids).
+
+- insert:
+    # The task-entity registry: the durable task table + association ledger,
+    # mounted as `ctx.get('tasks')`. A host row.
+    - id: tasks
+      name: 'dsh-harness-memory-bundle/tasks'
+
+    # The task-management wire: the `/memory-task` loopback RPC channel over
+    # the connection's dedicated generic RPC. Rides alongside the `tasks`
+    # service. Loopback-pinned (managing tasks is privileged).
+    - id: memory-task-wire
+      name: 'dsh-harness-memory-bundle/tasks/wire'
+
+    # The main-agent `create_task` tool: registers into the `tools` service.
+    # The tool resolves the `tasks` service opportunistically via ctx.get.
+    - id: memory-task-tool
+      name: 'dsh-harness-memory-bundle/tasks/tool'
