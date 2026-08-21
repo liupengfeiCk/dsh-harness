@@ -66,6 +66,16 @@ export { installInjection, type InstallInjectionOptions, type RecallProvider } f
 export { default as memoryTools, MemoryToolBudget } from './tools/index.ts'
 export type { Config as MemoryToolsConfig } from './tools/index.ts'
 
+// T12 子对话继承——主对话分层摘要作为公共记忆注入子会话（继承/非继承双模式）。
+export {
+  installInheritance,
+  assemblePublicSection,
+  INHERITED_MAIN_ORDER,
+  INHERITED_MAIN_SECTION,
+  PublicSectionCache,
+} from './inheritance/index.ts'
+export type { InheritanceDeps } from './inheritance/index.ts'
+
 // Memory engine host service (T4): assembles the vendor TdaiCore behind the
 // bundle's host adapter. Default export is the `memory` patch row's plugin body
 // (cordis.patch.yml `name: 'dsh-harness-memory-bundle'`).
