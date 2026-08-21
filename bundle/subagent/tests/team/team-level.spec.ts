@@ -73,6 +73,39 @@ describe('team role level parsing', () => {
   })
 })
 
+describe('team role inheritMainSummaries parsing (T12)', () => {
+  it('defaults to inheriting the main summaries when absent', () => {
+    const team = parse(oneRole())
+    expect(team.roles[0]!.inheritMainSummaries).toBe(true)
+  })
+
+  it('accepts an explicit false (non-inheritance mode)', () => {
+    const team = parse(oneRole({ inheritMainSummaries: false }))
+    expect(team.roles[0]!.inheritMainSummaries).toBe(false)
+  })
+
+  it('accepts an explicit true', () => {
+    const team = parse(oneRole({ inheritMainSummaries: true }))
+    expect(team.roles[0]!.inheritMainSummaries).toBe(true)
+  })
+
+  it('round-trips a non-inheriting role through a re-parse (render emits false)', async () => {
+    const { renderTeam } = await import('../../src/team/authoring.ts')
+    const team = parse(oneRole({ inheritMainSummaries: false }))
+    const text = renderTeam(team.metadata, team.roles)
+    expect(text).toContain('inheritMainSummaries: false')
+    const reparsed = parse(text)
+    expect(reparsed.roles[0]!.inheritMainSummaries).toBe(false)
+  })
+
+  it('omits inheritMainSummaries on render when the role inherits (default)', async () => {
+    const { renderTeam } = await import('../../src/team/authoring.ts')
+    const team = parse(oneRole())
+    const text = renderTeam(team.metadata, team.roles)
+    expect(text).not.toContain('inheritMainSummaries')
+  })
+})
+
 describe('team config-hygiene warning (rule 7)', () => {
   it('warns when a one-shot role is at level >= 2', async () => {
     const team = parse(oneRole({ level: 2, memory: 'one-shot' }))

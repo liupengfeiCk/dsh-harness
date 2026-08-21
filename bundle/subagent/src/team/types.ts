@@ -63,6 +63,13 @@ export interface TeamRole {
   /** Memory policy: one-shot or persistent. */
   readonly memory: TeamRoleMemory
   /**
+   * Whether the child inherits the main conversation's hierarchical summary as
+   * shared public memory (T12 inheritance mode). Default `true`; fully
+   * orthogonal to {@link TeamRoleMemory}: a one-shot role may still inherit the
+   * main's public memory without sedimenting its own role memory.
+   */
+  readonly inheritMainSummaries: boolean
+  /**
    * Why this role cannot be delegated, absent when it can. A role whose bound
    * subagent is missing, broken, or disabled is marked broken while the rest of
    * the team stays usable.

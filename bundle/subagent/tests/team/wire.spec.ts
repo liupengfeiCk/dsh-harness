@@ -148,7 +148,7 @@ describe('team-preset wire dispatch', () => {
     expect(create).toHaveBeenCalledExactlyOnceWith(
       'edit',
       { name: 'Edit team' },
-      [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot', level: 2 }],
+      [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot', level: 2, inheritMainSummaries: true }],
     )
   })
 
@@ -213,7 +213,7 @@ describe('team-preset update semantics', () => {
     expect(update).toHaveBeenCalledExactlyOnceWith(
       'edit',
       { name: 'New', enabled: true },
-      [{ id: 'copywriter', description: 'Writes', subagent: 'writer', memory: 'persistent', level: 2 }],
+      [{ id: 'copywriter', description: 'Writes', subagent: 'writer', memory: 'persistent', level: 2, inheritMainSummaries: true }],
     )
   })
 
@@ -233,7 +233,7 @@ describe('team-preset update semantics', () => {
     expect(update).toHaveBeenCalledExactlyOnceWith(
       'edit',
       { name: 'Keep', enabled: true },
-      [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot', level: 1 }],
+      [{ id: 'copywriter', subagent: 'writer', memory: 'one-shot', level: 1, inheritMainSummaries: true }],
     )
   })
 

@@ -15,7 +15,7 @@ import Teams, {
 
 /** One minimal usable role. */
 function role(id: string, subagent = 'writer'): TeamRole {
-  return { id, subagent, memory: 'one-shot' }
+  return { id, subagent, memory: 'one-shot', inheritMainSummaries: true }
 }
 
 /** Mount a team registry over one writable temp root. */

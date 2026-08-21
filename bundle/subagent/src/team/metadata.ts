@@ -138,6 +138,10 @@ export function parseTeam(id: string, trust: TeamTrust, path: string, content: s
       // the team's other roles stay usable.
       level: parsedLevel.level ?? ROLE_LEVEL_DEFAULT,
       memory: memory(role.memory),
+      // T12: a role inherits the main conversation's summary by default.
+      // `false` opts the child into non-inheritance mode (it manages its own
+      // memory under the unified model). Orthogonal to `memory`.
+      inheritMainSummaries: role.inheritMainSummaries !== false,
       ...parsedLevel.broken !== undefined
         ? { broken: parsedLevel.broken }
         : {},
