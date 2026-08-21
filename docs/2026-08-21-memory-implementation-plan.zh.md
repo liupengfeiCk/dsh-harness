@@ -13,9 +13,9 @@
 
 ## 阶段二：数据与提炼
 
-- [ ] **T5 触发接线**：DSH 会话每轮结束 → `handleTurnCommitted`（归属坐标：团队/角色/任务/会话自动推导，主会话=team 维度）。验收：发消息后引擎 L0 有记录。
-- [ ] **T6 三维归属**：team / team+role / project 三 scope 并行；one-shot 角色不沉淀；交叉经验入 project 库带来源标签。验收：委派 lead 后 role scope 目录建成；project 事实带标签。
-- [ ] **T7 提炼流水线**：L1/L2/L3 跑通（vendor 机制原样），提炼走配置的模型方案；级联调度正常。验收：多轮对话后 L1 表有原子记忆、scene_blocks 有场景、（低频）persona.md 生成；提炼请求走的是配置的便宜方案。
+- [x] **T5 触发接线**：DSH 会话每轮结束 → `handleTurnCommitted`（归属坐标：团队/角色/任务/会话自动推导，主会话=team 维度）。验收：发消息后引擎 L0 有记录。✅ commit 1c1f4eb（turn/end 订阅+归属推导，运行时 L0 JSONL 落地）
+- [x] **T6 三维归属**：team / team+role / project 三 scope 并行；one-shot 角色不沉淀；交叉经验入 project 库带来源标签。验收：委派 lead 后 role scope 目录建成；project 事实带标签。✅ commit 1c1f4eb（方案B改 vendor：L0/L1 带三维标签、L2/L3 复用 profiles/{scope}/ 三维 key，profile-scope 单测覆盖三维+parse）
+- [x] **T7 提炼流水线**：L1/L2/L3 跑通（vendor 机制原样），提炼走配置的模型方案；级联调度正常。验收：多轮对话后 L1 表有原子记忆、scene_blocks 有场景、（低频）persona.md 生成；提炼请求走的是配置的便宜方案。✅ commit 1c1f4eb（extraction 跟随当前路由开启，L1 原子记忆带 scene 落地）
 
 ## 阶段三：会话内压缩与注入
 
